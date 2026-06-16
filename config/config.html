@@ -1,0 +1,1216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Dashboard AI — Settings</title>
+  <link rel="stylesheet" href="../styles/common.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+
+    .page {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ── Page header ─────────────────────────────────────────────────────── */
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      padding: 0 28px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      height: 58px;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .header-brand .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px;
+    }
+
+    .header-brand .logo-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+
+    .header-brand .logo-ver {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    /* Tab navigation */
+    .tab-nav {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      flex: 1;
+    }
+
+    .tab-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 7px 14px;
+      border: none;
+      background: none;
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-weight: 500;
+      font-family: var(--font);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s;
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .tab-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .tab-btn.active {
+      background: var(--accent-light);
+      color: var(--accent);
+    }
+
+    .tab-btn .tab-icon { font-size: 15px; }
+
+    /* Pending-changes banner */
+    #pending-banner {
+      display: none;
+      margin: 14px 28px 0;
+    }
+
+    /* ── Tab panels ───────────────────────────────────────────────────────── */
+    .tab-panel { display: none; flex: 1; overflow-y: auto; }
+    .tab-panel.active { display: flex; flex-direction: column; }
+
+    /* Getting Started & How to Use share a readable content width */
+    .doc-content {
+      max-width: 780px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 36px 28px 48px;
+    }
+
+    /* ── Getting Started ─────────────────────────────────────────────────── */
+    .gs-hero {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .gs-hero-icon { font-size: 52px; margin-bottom: 14px; }
+
+    .gs-hero h1 {
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .gs-hero p {
+      color: var(--text-secondary);
+      font-size: 15px;
+      max-width: 480px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    .gs-steps { display: flex; flex-direction: column; gap: 16px; }
+
+    .gs-step {
+      display: grid;
+      grid-template-columns: 64px 1fr;
+      gap: 20px;
+      align-items: start;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 22px 24px;
+      transition: border-color 0.15s;
+    }
+    .gs-step:hover { border-color: var(--accent); }
+
+    .gs-step-num {
+      width: 48px; height: 48px;
+      border-radius: 14px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 22px;
+      font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .gs-step-body h3 {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .gs-step-body p {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 12px;
+    }
+
+    .gs-step-body .step-tip {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      background: var(--accent-light);
+      border-radius: var(--radius-sm);
+      padding: 9px 12px;
+      font-size: 12px;
+      color: var(--accent);
+      margin-top: 10px;
+    }
+
+    .gs-step-body .step-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── How to Use ───────────────────────────────────────────────────────── */
+    .htu-section { margin-bottom: 36px; }
+
+    .htu-section-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .htu-section-title span { font-size: 22px; }
+
+    .htu-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .htu-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+    }
+
+    .htu-card .htu-card-icon { font-size: 24px; margin-bottom: 10px; }
+    .htu-card h4 { font-size: 13px; font-weight: 600; margin-bottom: 5px; }
+    .htu-card p { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+
+    .kbd-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .kbd-table th {
+      text-align: left;
+      padding: 8px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .kbd-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+    .kbd-table tr:last-child td { border-bottom: none; }
+
+    kbd {
+      display: inline-block;
+      padding: 2px 7px;
+      background: var(--bg-hover);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-primary);
+    }
+
+    /* ── Settings tab ────────────────────────────────────────────────────── */
+    .settings-content {
+      max-width: 640px;
+      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 14px;
+    }
+
+    .api-key-row { display: flex; gap: 8px; }
+    .api-key-row .input { flex: 1; }
+    .eyeball-btn { font-size: 15px; padding: 0 10px; line-height: 1; flex-shrink: 0; }
+
+    .save-bar {
+      display: none;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border);
+      padding: 14px 28px;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .save-bar.visible { display: flex; }
+
+    /* ── Dashboards tab ──────────────────────────────────────────────────── */
+    #tab-dashboards { overflow: hidden; }
+
+    .dash-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding: 20px 24px;
+      height: calc(100vh - 58px);
+      overflow: hidden;
+    }
+
+    .dash-panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .dash-panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .dash-panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      min-height: 0;
+    }
+
+    /* ── Bookmark Tree ───────────────────────────────────────────────────── */
+    .tree-controls {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .tree-node { user-select: none; }
+
+    /* Folder row */
+    .tree-folder {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 6px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .tree-folder:hover { background: var(--bg-hover); }
+
+    /* ▼ / ▶ toggle button — large, high-contrast, clearly interactive */
+    .folder-toggle {
+      flex-shrink: 0;
+      width: 22px; height: 22px;
+      border-radius: 5px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.15s;
+      pointer-events: none; /* clicks handled by folder row */
+    }
+    .tree-folder:hover .folder-toggle {
+      background: var(--accent-light);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .tree-folder.collapsed .folder-toggle { transform: rotate(-90deg); }
+
+    .folder-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .folder-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-hover);
+      padding: 1px 6px;
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+
+    .tree-children { padding-left: 16px; }
+    .tree-children.hidden { display: none; }
+
+    /* Bookmark row */
+    .tree-bookmark {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 6px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .tree-bookmark:hover { background: var(--bg-hover); }
+
+    .bm-favicon {
+      width: 14px; height: 14px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .bm-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text-secondary);
+      font-size: 12px;
+      flex: 1;
+    }
+
+    /* Right panel */
+    .right-panel-top {
+      border-bottom: 1px solid var(--border);
+      padding: 12px 14px;
+      flex-shrink: 0;
+    }
+
+    .selected-count {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .selected-count span { color: var(--accent); font-weight: 600; }
+
+    /* Dashboard list */
+    .dashboard-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .dashboard-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+    }
+    .dashboard-card.is-default { border-color: var(--accent); }
+
+    .dashboard-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .dashboard-card-name {
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dashboard-card-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .dashboard-card-actions { display: flex; gap: 6px; }
+
+    /* ── Progress overlay ────────────────────────────────────────────────── */
+    #progress-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #progress-overlay.visible { display: flex; }
+
+    .progress-modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px 40px;
+      text-align: center;
+      min-width: 340px;
+      box-shadow: var(--shadow);
+    }
+    .progress-modal .progress-icon { font-size: 36px; margin-bottom: 14px; }
+    .progress-modal h3 { font-size: 16px; margin-bottom: 8px; }
+    .progress-modal p { color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; }
+
+    .progress-bar-track {
+      background: var(--bg-secondary);
+      border-radius: 20px;
+      height: 6px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 20px;
+      transition: width 0.3s ease;
+    }
+    .progress-label { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+
+    /* ── Generic modal (dashboard edit) ────────────────────────────────────── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 110;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal-overlay.visible { display: flex; }
+    .modal-box {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); width: 100%; max-width: 440px;
+      box-shadow: var(--shadow);
+      display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .modal-header h3 { font-size: 15px; font-weight: 600; }
+    .modal-close-btn {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 16px; cursor: pointer; width: 28px; height: 28px;
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, color 0.12s; font-family: var(--font);
+    }
+    .modal-close-btn:hover { background: var(--danger-light); color: var(--danger); }
+    .modal-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .modal-footer {
+      display: flex; align-items: center; justify-content: flex-end;
+      gap: 8px; padding: 14px 20px; border-top: 1px solid var(--border); flex-shrink: 0;
+    }
+
+    /* ── Toggle switch ──────────────────────────────────────────────────── */
+    .toggle-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 44px; height: 24px;
+      flex-shrink: 0; margin-top: 2px;
+    }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--border); border-radius: 24px;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      left: 3px; top: 3px;
+      background: #fff; border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
+
+    /* ── Radio group ────────────────────────────────────────────────────── */
+    .radio-group { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+    .radio-option {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 13px; color: var(--text-secondary); cursor: pointer;
+    }
+    .radio-option input[type="radio"] {
+      width: 15px; height: 15px;
+      accent-color: var(--accent); cursor: pointer; flex-shrink: 0;
+    }
+    .radio-hint { color: var(--text-muted); font-size: 12px; }
+
+    /* ── Shape picker (matches newtab.html pattern) ───────────────────────── */
+    .shape-picker { display: flex; gap: 10px; }
+    .shape-option {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 10px 6px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      cursor: pointer; transition: border-color 0.15s, background 0.15s;
+      background: var(--bg-secondary);
+    }
+    .shape-option:hover { border-color: var(--accent); }
+    .shape-option.selected { border-color: var(--accent); background: var(--accent-light); }
+    .shape-option input { display: none; }
+    .shape-swatch { width: 26px; height: 26px; background: var(--text-muted); }
+    .shape-swatch.shape-square   { border-radius: 4px; }
+    .shape-swatch.shape-rounded  { border-radius: 9px; }
+    .shape-swatch.shape-circle   { border-radius: 50%; }
+    .shape-swatch.shape-squircle { border-radius: 30%; }
+    .shape-option-label { font-size: 10px; color: var(--text-muted); font-weight: 500; }
+    .shape-option.selected .shape-swatch { background: var(--accent); }
+    .shape-option.selected .shape-option-label { color: var(--text-primary); }
+
+    /* ── Collapsible weather config ─────────────────────────────────────── */
+    #weather-config { display: none; }
+
+    /* ── Light-mode tweaks ──────────────────────────────────────────────── */
+    @media (prefers-color-scheme: light) {
+      .gs-step { box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+      .htu-card { box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+      .folder-toggle { background: #f1f5f9; border-color: #cbd5e1; }
+      .tree-folder:hover .folder-toggle { background: var(--accent-light); }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ── Page header ──────────────────────────────────────────────────────── -->
+  <header class="page-header">
+    <div class="header-brand">
+      <div class="logo-icon">🤖</div>
+      <div>
+        <div class="logo-name">Auto Dashboard AI</div>
+        <div class="logo-ver">v1.0.8</div>
+      </div>
+    </div>
+
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="getting-started">
+        <span class="tab-icon">🚀</span> Getting Started
+      </button>
+      <button class="tab-btn" data-tab="how-to-use">
+        <span class="tab-icon">📖</span> How to Use
+      </button>
+      <button class="tab-btn" data-tab="settings">
+        <span class="tab-icon">⚙️</span> Settings
+      </button>
+      <button class="tab-btn" data-tab="dashboards">
+        <span class="tab-icon">📊</span> Dashboards
+      </button>
+      <button class="tab-btn" data-tab="widgets">
+        <span class="tab-icon">🧩</span> Widgets
+      </button>
+    </nav>
+  </header>
+
+  <!-- Pending changes banner -->
+  <div id="pending-banner" class="banner banner-warning" style="display:none;margin:14px 28px 0;">
+    ⚠️ You have unsaved changes
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- Tab: Getting Started                                                   -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel active" id="tab-getting-started">
+    <div class="doc-content">
+
+      <div class="gs-hero">
+        <div class="gs-hero-icon">🤖</div>
+        <h1>Welcome to Auto Dashboard AI</h1>
+        <p>Turn your bookmarks into a beautiful, AI-enriched dashboard that appears every time you open a new tab. Setup takes about two minutes.</p>
+      </div>
+
+      <div class="gs-steps">
+
+        <!-- Step 1 -->
+        <div class="gs-step">
+          <div class="gs-step-num">1</div>
+          <div class="gs-step-body">
+            <h3>Get an OpenRouter API Key</h3>
+            <p>This extension uses <strong>OpenRouter</strong> to power the AI enrichment — it gives you access to dozens of models from a single key. Free-tier credits are available and are more than enough to generate several dashboards.</p>
+            <div class="step-actions">
+              <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">Open OpenRouter →</a>
+            </div>
+            <div class="step-tip">
+              💡 Create a free account, then click <strong>Create Key</strong>. Copy the key — you'll paste it in the next step.
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="gs-step">
+          <div class="gs-step-num">2</div>
+          <div class="gs-step-body">
+            <h3>Enter &amp; Validate Your Key</h3>
+            <p>Click the <strong>Settings</strong> tab above, paste your API key into the field, and click <strong>Validate</strong>. Once validation succeeds, click <strong>Save Settings</strong>.</p>
+            <div class="step-actions">
+              <button class="btn btn-secondary btn-sm" data-switch-tab="settings">Go to Settings →</button>
+            </div>
+            <div class="step-tip">
+              🔒 Your API key is stored locally on your device only. It is never sent to any server other than OpenRouter.
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="gs-step">
+          <div class="gs-step-num">3</div>
+          <div class="gs-step-body">
+            <h3>Choose an AI Model</h3>
+            <p>In Settings, pick a model from the dropdown. The default <strong>Gemini Flash 1.5</strong> is fast, accurate, and inexpensive. If you'd rather pay nothing, choose one of the <em>Free</em> models.</p>
+            <div class="step-tip">
+              ⚡ Gemini Flash 1.5 typically processes 50 bookmarks in under 10 seconds.
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="gs-step">
+          <div class="gs-step-num">4</div>
+          <div class="gs-step-body">
+            <h3>Create Your First Dashboard</h3>
+            <p>Open the <strong>Dashboards</strong> tab. Use the bookmark tree on the left to select folders or individual bookmarks. Give your dashboard a name, then click <strong>✨ Generate Dashboard</strong>. The AI will add descriptions and resolve icons automatically.</p>
+            <div class="step-actions">
+              <button class="btn btn-primary btn-sm" data-switch-tab="dashboards">Open Dashboards →</button>
+            </div>
+            <div class="step-tip">
+              🎉 After generating, open a new tab — your dashboard will be waiting for you!
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- Tab: How to Use                                                        -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-how-to-use">
+    <div class="doc-content">
+
+      <!-- Dashboard page -->
+      <div class="htu-section">
+        <div class="htu-section-title"><span>📊</span> Your Dashboard</div>
+        <div class="htu-grid">
+          <div class="htu-card">
+            <div class="htu-card-icon">🗂️</div>
+            <h4>Folder sections</h4>
+            <p>Bookmarks are organized by the folder structure from your browser, making it easy to scan at a glance.</p>
+          </div>
+          <div class="htu-card">
+            <div class="htu-card-icon">🖱️</div>
+            <h4>Click to open</h4>
+            <p>Click any bookmark card to open that URL in a new tab. Middle-click also works as expected.</p>
+          </div>
+          <div class="htu-card">
+            <div class="htu-card-icon">💬</div>
+            <h4>Hover for description</h4>
+            <p>Hover over any bookmark to see the AI-generated description tooltip with context about that site.</p>
+          </div>
+          <div class="htu-card">
+            <div class="htu-card-icon">🎨</div>
+            <h4>Smart icons</h4>
+            <p>Icons are pulled directly from each site (apple-touch-icon → favicon), then from Simple Icons, then Google — with an emoji as a last resort.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="htu-section">
+        <div class="htu-section-title"><span>🔍</span> Search</div>
+        <div class="htu-grid">
+          <div class="htu-card">
+            <div class="htu-card-icon">⌨️</div>
+            <h4>Instant filter</h4>
+            <p>Type in the search bar to instantly filter visible bookmarks across all sections by name, URL, or description.</p>
+          </div>
+          <div class="htu-card">
+            <div class="htu-card-icon">📂</div>
+            <h4>Auto-hides empty sections</h4>
+            <p>Folder sections with no matches are hidden automatically while you search, keeping results clean.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Multiple dashboards -->
+      <div class="htu-section">
+        <div class="htu-section-title"><span>🗃️</span> Multiple Dashboards</div>
+        <div class="htu-grid">
+          <div class="htu-card">
+            <div class="htu-card-icon">➕</div>
+            <h4>Create as many as you need</h4>
+            <p>Make separate dashboards for Work, Personal, Research, or any theme. Each has its own bookmark set and AI metadata.</p>
+          </div>
+          <div class="htu-card">
+            <div class="htu-card-icon">⭐</div>
+            <h4>Set a default</h4>
+            <p>Mark any dashboard as Default — that's the one that appears on new tabs and at browser startup.</p>
+          </div>
+          <div class="htu-card">
+            <div class="htu-card-icon">🔀</div>
+            <h4>Switch on the fly</h4>
+            <p>A dropdown appears in the top-right of your dashboard whenever you have two or more dashboards saved.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Keyboard shortcuts -->
+      <div class="htu-section">
+        <div class="htu-section-title"><span>⌨️</span> Keyboard Shortcuts</div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <table class="kbd-table">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><kbd>/</kbd></td>
+                <td>Focus the search bar</td>
+              </tr>
+              <tr>
+                <td><kbd>Esc</kbd></td>
+                <td>Clear search and return to full dashboard</td>
+              </tr>
+              <tr>
+                <td><kbd>Enter</kbd> on card</td>
+                <td>Open the bookmark (when focused)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Tips -->
+      <div class="htu-section">
+        <div class="htu-section-title"><span>💡</span> Tips</div>
+        <div class="htu-grid">
+          <div class="htu-card">
+            <div class="htu-card-icon">🔄</div>
+            <h4>Regenerate anytime</h4>
+            <p>Delete a dashboard and regenerate it after adding new bookmarks. The AI will pick up any new entries.</p>
+          </div>
+          <div class="htu-card">
+            <div class="htu-card-icon">🆓</div>
+            <h4>Free models work great</h4>
+            <p>Llama 3.1 8B and Mistral 7B (both free on OpenRouter) handle bookmark enrichment well for most users.</p>
+          </div>
+          <div class="htu-card">
+            <div class="htu-card-icon">🔒</div>
+            <h4>Privacy first</h4>
+            <p>Only the URLs and titles of your <em>selected</em> bookmarks are sent to the AI. Nothing else ever leaves your device.</p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- Tab: Settings                                                          -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-settings">
+    <div class="settings-content">
+
+      <!-- API Key -->
+      <div class="card">
+        <div class="section-title">OpenRouter API Key</div>
+        <div class="form-group">
+          <label class="label" for="api-key">API Key</label>
+          <div class="api-key-row">
+            <input class="input input-mono" type="text" id="api-key" placeholder="sk-or-v1-..." autocomplete="off">
+            <button class="btn btn-ghost eyeball-btn" id="api-key-toggle" title="Hide key">🙈</button>
+            <button class="btn btn-secondary" id="validate-btn">Validate</button>
+          </div>
+        </div>
+        <div id="validation-result" style="display:none;"></div>
+        <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+          Get your free API key at <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent);">openrouter.ai/keys</a>
+        </p>
+      </div>
+
+      <!-- Model -->
+      <div class="card">
+        <div class="section-title">AI Model</div>
+        <div class="form-group">
+          <label class="label" for="model-select">Model</label>
+          <select class="select" id="model-select">
+            <optgroup label="⭐ Recommended">
+              <option value="google/gemini-flash-1.5">Gemini Flash 1.5 — Fast &amp; Efficient (Recommended)</option>
+              <option value="openai/gpt-4o-mini">GPT-4o Mini — Balanced</option>
+              <option value="anthropic/claude-3-haiku">Claude 3 Haiku — High Quality</option>
+              <option value="google/gemini-pro-1.5">Gemini Pro 1.5 — Best Quality</option>
+            </optgroup>
+            <optgroup label="🆓 Free Tier">
+              <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B — Free</option>
+              <option value="google/gemma-2-9b-it:free">Gemma 2 9B — Free</option>
+              <option value="mistralai/mistral-7b-instruct:free">Mistral 7B — Free</option>
+            </optgroup>
+            <optgroup label="💎 Premium">
+              <option value="anthropic/claude-3-5-sonnet">Claude 3.5 Sonnet — Premium</option>
+              <option value="openai/gpt-4o">GPT-4o — Premium</option>
+            </optgroup>
+          </select>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);">
+          Used to generate bookmark descriptions and resolve icons. Free tier models work well for this task.
+        </p>
+      </div>
+
+      <!-- Clock & Date -->
+      <div class="card">
+        <div class="section-title">🕐 Clock &amp; Date</div>
+
+        <div class="form-group">
+          <label class="label">Time Format</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="clock-format" id="clock-12" value="12">
+              12-hour &nbsp;<span class="radio-hint">3:45 PM</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="clock-format" id="clock-24" value="24">
+              24-hour &nbsp;<span class="radio-hint">15:45</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Date visible toggle -->
+        <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
+          <div>
+            <label class="label" style="margin-bottom:2px;">Show Date &amp; Time</label>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Display the clock and date on every dashboard</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="date-visible-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <!-- Date format (hidden when date is off) -->
+        <div id="date-format-section" style="margin-top:14px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="label" for="date-format-select">Date Format</label>
+            <select class="select" id="date-format-select">
+              <optgroup label="Text">
+                <option value="long">Tuesday, June 16, 2026</option>
+                <option value="medium">June 16, 2026</option>
+                <option value="short">Tue, Jun 16</option>
+                <option value="weekday">Tuesday</option>
+              </optgroup>
+              <optgroup label="Numeric">
+                <option value="us">06/16/2026 &nbsp;— US (MM/DD/YYYY)</option>
+                <option value="eu">16.06.2026 &nbsp;— European (DD.MM.YYYY)</option>
+                <option value="uk">16/06/2026 &nbsp;— UK / AU (DD/MM/YYYY)</option>
+                <option value="iso">2026-06-16 &nbsp;— ISO 8601</option>
+              </optgroup>
+            </select>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- Tab: Widgets                                                           -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-widgets">
+    <div class="settings-content">
+
+      <!-- Weather Widget -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🌤 Weather Widget</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Show current conditions, temp, wind &amp; sun times on every dashboard
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="weather-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="weather-config">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <div class="form-group">
+              <label class="label">OpenWeatherMap API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="weather-api-key"
+                  placeholder="Paste your OWM API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="weather-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="weather-validate-btn">Validate</button>
+              </div>
+              <div id="weather-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Free key at <a href="https://openweathermap.org/api" target="_blank"
+                  style="color:var(--accent);">openweathermap.org/api</a> — the "Current Weather Data" free plan is all you need.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="weather-location">Location</label>
+              <input class="input" type="text" id="weather-location"
+                placeholder="e.g. New York  or  Paris, FR">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                City name, or "City, Country Code" for precision
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">Temperature Units</label>
+              <div class="radio-group" style="flex-direction:row;gap:24px;">
+                <label class="radio-option">
+                  <input type="radio" name="weather-units" id="units-imperial" value="imperial">
+                  °F &amp; mph
+                </label>
+                <label class="radio-option">
+                  <input type="radio" name="weather-units" id="units-metric" value="metric">
+                  °C &amp; km/h
+                </label>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="label" for="weather-refresh-mins">Refresh Interval</label>
+              <select class="select" id="weather-refresh-mins" style="width:160px;">
+                <option value="10">Every 10 minutes</option>
+                <option value="15">Every 15 minutes</option>
+                <option value="20">Every 20 minutes</option>
+                <option value="25">Every 25 minutes</option>
+                <option value="30">Every 30 minutes</option>
+                <option value="35">Every 35 minutes</option>
+                <option value="40">Every 40 minutes</option>
+                <option value="45">Every 45 minutes</option>
+                <option value="50">Every 50 minutes</option>
+                <option value="55">Every 55 minutes</option>
+                <option value="60" selected>Every 60 minutes</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                One shared fetch across all open tabs — data refreshes at the end of each interval.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Global save bar — visible on Settings and Widgets tabs when there are unsaved changes -->
+  <div class="save-bar" id="save-bar">
+    <button class="btn btn-ghost" id="discard-btn">Discard</button>
+    <button class="btn btn-primary" id="save-btn" disabled>Save Settings</button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- Tab: Dashboards                                                        -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-dashboards">
+    <div class="dash-layout">
+
+      <!-- Left: Bookmark Selector -->
+      <div class="dash-panel">
+        <div class="dash-panel-header">
+          <span>📚</span> Select Bookmarks
+          <span id="bookmark-loading" class="spinner" style="margin-left:auto;display:none;"></span>
+        </div>
+        <div class="dash-panel-body">
+          <div class="tree-controls">
+            <button class="btn btn-ghost btn-sm" id="select-all-btn">Select All</button>
+            <button class="btn btn-ghost btn-sm" id="select-none-btn">Select None</button>
+            <button class="btn btn-ghost btn-sm" id="expand-all-btn">Expand All</button>
+            <button class="btn btn-ghost btn-sm" id="collapse-all-btn">Collapse All</button>
+          </div>
+          <div class="bookmark-tree" id="bookmark-tree">
+            <div class="empty-state">
+              <div class="empty-icon">📚</div>
+              <p>Loading bookmarks...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Create + Dashboard List -->
+      <div class="dash-panel">
+        <div class="dash-panel-header"><span>✨</span> Create Dashboard</div>
+
+        <div class="right-panel-top">
+          <div class="selected-count">
+            <span id="selected-count">0</span> bookmarks selected
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="label" for="dashboard-name">Dashboard Name</label>
+              <input class="input" type="text" id="dashboard-name" placeholder="My Dashboard">
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="label">Icon Shape</label>
+              <div class="shape-picker" id="create-shape-picker">
+                <label class="shape-option selected" data-shape="rounded">
+                  <input type="radio" name="create-shape" value="rounded" checked>
+                  <span class="shape-swatch shape-rounded"></span>
+                  <span class="shape-option-label">Rounded</span>
+                </label>
+                <label class="shape-option" data-shape="square">
+                  <input type="radio" name="create-shape" value="square">
+                  <span class="shape-swatch shape-square"></span>
+                  <span class="shape-option-label">Square</span>
+                </label>
+                <label class="shape-option" data-shape="circle">
+                  <input type="radio" name="create-shape" value="circle">
+                  <span class="shape-swatch shape-circle"></span>
+                  <span class="shape-option-label">Circle</span>
+                </label>
+                <label class="shape-option" data-shape="squircle">
+                  <input type="radio" name="create-shape" value="squircle">
+                  <span class="shape-swatch shape-squircle"></span>
+                  <span class="shape-option-label">Squircle</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="toggle-row">
+              <label class="label" for="create-text-toggle" style="margin:0;">Show text below icons</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="create-text-toggle" checked>
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+
+            <button class="btn btn-primary" id="generate-btn" disabled>✨ Generate Dashboard</button>
+            <div id="generate-error" class="banner banner-danger" style="display:none;"></div>
+          </div>
+        </div>
+
+        <div class="dash-panel-header" style="border-top:1px solid var(--border);">
+          <span>📋</span> Saved Dashboards
+        </div>
+        <div class="dash-panel-body">
+          <div id="dashboard-list" class="dashboard-list">
+            <div class="empty-state">
+              <div class="empty-icon">📊</div>
+              <p>No dashboards yet.</p>
+              <p>Select bookmarks and click Generate.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div><!-- .page -->
+
+<!-- Dashboard edit modal -->
+<div class="modal-overlay" id="dash-edit-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Edit Dashboard</h3>
+      <button class="modal-close-btn" id="dash-edit-modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="label" for="dash-edit-name">Dashboard Name</label>
+        <input class="input" type="text" id="dash-edit-name" maxlength="60">
+      </div>
+
+      <div class="toggle-row">
+        <label class="label" for="dash-edit-text-toggle" style="margin:0;">Show text below icons</label>
+        <label class="toggle-switch">
+          <input type="checkbox" id="dash-edit-text-toggle">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="label">Default Icon Shape</label>
+        <div class="shape-picker" id="dash-edit-shape-picker">
+          <label class="shape-option" data-shape="square">
+            <input type="radio" name="dash-edit-shape" value="square">
+            <span class="shape-swatch shape-square"></span>
+            <span class="shape-option-label">Square</span>
+          </label>
+          <label class="shape-option" data-shape="rounded">
+            <input type="radio" name="dash-edit-shape" value="rounded">
+            <span class="shape-swatch shape-rounded"></span>
+            <span class="shape-option-label">Rounded</span>
+          </label>
+          <label class="shape-option" data-shape="circle">
+            <input type="radio" name="dash-edit-shape" value="circle">
+            <span class="shape-swatch shape-circle"></span>
+            <span class="shape-option-label">Circle</span>
+          </label>
+          <label class="shape-option" data-shape="squircle">
+            <input type="radio" name="dash-edit-shape" value="squircle">
+            <span class="shape-swatch shape-squircle"></span>
+            <span class="shape-option-label">Squircle</span>
+          </label>
+        </div>
+        <div class="radio-hint" style="margin-top:4px;">Applies to items that haven't been customized individually.</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="dash-edit-cancel-btn">Cancel</button>
+      <button class="btn btn-primary"   id="dash-edit-save-btn">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Progress overlay -->
+<div id="progress-overlay">
+  <div class="progress-modal">
+    <div class="progress-icon">🤖</div>
+    <h3>Generating Dashboard</h3>
+    <p id="progress-message">Sending bookmarks to AI for analysis...</p>
+    <div class="progress-bar-track">
+      <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
+    </div>
+    <div class="progress-label" id="progress-label">0%</div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+</body>
+</html>

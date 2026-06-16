@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Auto Dashboard AI</title>
+  <link rel="stylesheet" href="../styles/common.css">
+  <style>
+    body {
+      width: 280px;
+      padding: 16px;
+      background: var(--bg-secondary);
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .logo-text {
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1.2;
+    }
+
+    .logo-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .menu {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      border: none;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-family: var(--font);
+      width: 100%;
+      text-align: left;
+      transition: all 0.15s;
+      border: 1px solid var(--border);
+    }
+
+    .menu-item:hover { background: var(--bg-hover); border-color: var(--accent); }
+
+    .menu-item .item-icon { font-size: 18px; flex-shrink: 0; }
+
+    .menu-item .item-text { flex: 1; }
+    .menu-item .item-title { font-weight: 500; }
+    .menu-item .item-sub { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+    .menu-item .arrow { color: var(--text-muted); font-size: 12px; }
+
+    .footer {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .footer-text {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    #status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      display: inline-block;
+      margin-right: 5px;
+    }
+    #status-dot.connected { background: var(--success); }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo-icon">🤖</div>
+  <div>
+    <div class="logo-text">Auto Dashboard AI</div>
+    <div class="logo-sub">v1.0.1</div>
+  </div>
+</div>
+
+<div class="menu">
+  <button class="menu-item" id="btn-create">
+    <span class="item-icon">✨</span>
+    <div class="item-text">
+      <div class="item-title">Create / Update Dashboard</div>
+      <div class="item-sub">Select bookmarks &amp; generate</div>
+    </div>
+    <span class="arrow">›</span>
+  </button>
+
+  <button class="menu-item" id="btn-settings">
+    <span class="item-icon">⚙️</span>
+    <div class="item-text">
+      <div class="item-title">Settings</div>
+      <div class="item-sub">API key, model, preferences</div>
+    </div>
+    <span class="arrow">›</span>
+  </button>
+
+  <button class="menu-item" id="btn-newtab">
+    <span class="item-icon">📊</span>
+    <div class="item-text">
+      <div class="item-title">View Dashboard</div>
+      <div class="item-sub">Open in new tab</div>
+    </div>
+    <span class="arrow">›</span>
+  </button>
+</div>
+
+<div class="footer">
+  <span class="footer-text">
+    <span id="status-dot"></span>
+    <span id="status-text">Checking...</span>
+  </span>
+  <span class="footer-text" id="dash-count"></span>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

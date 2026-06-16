@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard</title>
+  <link rel="stylesheet" href="../styles/common.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    body { background: var(--bg-primary); display: flex; flex-direction: column; }
+
+    /* ── Top bar ──────────────────────────────────────────────────────────── */
+    .topbar {
+      display: flex; align-items: center;
+      padding: 14px 24px; gap: 16px;
+      flex-shrink: 0;
+      background: rgba(15,15,19,0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      position: relative; z-index: 10;
+    }
+    .topbar-left  { display: flex; align-items: center; gap: 12px; flex: 1; }
+    .topbar-center { text-align: center; }
+    .topbar-right { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; }
+
+    .search-wrapper { position: relative; max-width: 420px; width: 100%; }
+    .search-icon {
+      position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+      color: var(--text-muted); font-size: 14px; pointer-events: none;
+    }
+    #search-input {
+      width: 100%; padding: 8px 12px 8px 36px;
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 20px; color: var(--text-primary);
+      font-size: 13px; font-family: var(--font); outline: none;
+      transition: border-color 0.15s;
+    }
+    #search-input:focus { border-color: var(--border-focus); }
+    #search-input::placeholder { color: var(--text-muted); }
+
+    .dash-name-row { display: flex; align-items: center; justify-content: center; gap: 5px; margin-bottom: 3px; }
+    .dash-name { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.07em; }
+    .dash-edit-btn {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 11px; cursor: pointer; width: 18px; height: 18px;
+      border-radius: 5px; display: flex; align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.15s, background 0.12s, color 0.12s;
+      font-family: var(--font); flex-shrink: 0; padding: 0;
+    }
+    .topbar-center:hover .dash-edit-btn { opacity: 0.7; }
+    .dash-edit-btn:hover { opacity: 1 !important; background: var(--bg-hover); color: var(--accent); }
+    .clock { font-size: 20px; font-weight: 300; color: var(--text-primary); letter-spacing: 0.05em; }
+    .date  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+    .dashboard-switcher { display: flex; align-items: center; gap: 8px; }
+    .switcher-label { font-size: 12px; color: var(--text-muted); }
+    #dashboard-select {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text-primary);
+      font-size: 12px; font-family: var(--font);
+      padding: 6px 10px; outline: none; cursor: pointer; max-width: 200px;
+    }
+    #dashboard-select:focus { border-color: var(--border-focus); }
+
+    .btn-topbar {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text-secondary);
+      font-size: 12px; font-family: var(--font); font-weight: 500;
+      padding: 6px 12px; cursor: pointer;
+      transition: all 0.15s; display: flex; align-items: center;
+      gap: 6px; white-space: nowrap; text-decoration: none;
+    }
+    .btn-topbar:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
+    .btn-topbar.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* ── Dashboard area ───────────────────────────────────────────────────── */
+    .dashboard-area { flex: 1; overflow-y: auto; padding: 24px; }
+    .dashboard-area::-webkit-scrollbar { width: 5px; }
+
+    /* ── Folder sections ──────────────────────────────────────────────────── */
+    .folder-section { margin-bottom: 32px; }
+    .folder-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 14px; padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      border-radius: 0;
+      transition: background 0.15s, border-radius 0.15s;
+    }
+    .folder-icon   { font-size: 16px; }
+    .folder-name   { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.07em; }
+    .folder-count  { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+    /* Highlight folder as drop target */
+    .folder-section.folder-drop-active .folder-header {
+      background: var(--accent-light);
+      border-color: var(--accent);
+      border-radius: var(--radius-sm);
+      padding: 6px 10px;
+    }
+
+    /* ── Bookmark grid ────────────────────────────────────────────────────── */
+    .bookmark-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 12px;
+      min-height: 60px;
+    }
+
+    /* ── Bookmark card ────────────────────────────────────────────────────── */
+    .bookmark-card {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 8px; padding: 16px 10px 12px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+      text-decoration: none; color: var(--text-primary);
+      position: relative; overflow: visible;
+      user-select: none;
+    }
+    .bookmark-card:hover {
+      background: var(--bg-hover); border-color: var(--accent);
+      transform: translateY(-2px); box-shadow: var(--shadow-sm);
+    }
+    .bookmark-card:active { transform: translateY(0); }
+
+    /* Card action buttons — appear on hover */
+    .card-actions {
+      position: absolute; top: -8px; right: -8px;
+      display: flex; gap: 4px;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.15s; z-index: 5;
+    }
+    .bookmark-card:hover .card-actions { opacity: 1; pointer-events: all; }
+
+    .card-action-btn {
+      width: 22px; height: 22px; border-radius: 50%;
+      border: 1.5px solid var(--border); background: var(--bg-secondary);
+      color: var(--text-secondary); font-size: 11px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.12s; line-height: 1; font-family: var(--font);
+    }
+    .card-action-btn:hover { transform: scale(1.15); }
+    .card-info-btn:hover   { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .card-remove-btn:hover { background: var(--danger);  color: #fff; border-color: var(--danger);  }
+
+    /* Icon */
+    .bm-icon-wrapper {
+      width: 48px; height: 48px; border-radius: 12px; overflow: hidden;
+      background: var(--bg-secondary);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      transition: border-radius 0.15s;
+    }
+    .bm-favicon        { width: 32px; height: 32px; object-fit: contain; }
+    .bm-emoji-fallback { font-size: 24px; line-height: 1; }
+
+    /* ── Icon shapes ───────────────────────────────────────────────────────
+       Applied via a data-shape attribute on the card, so both the icon
+       wrapper and any future shape-dependent tweaks key off one source. */
+    .bookmark-card[data-shape="square"]   .bm-icon-wrapper { border-radius: 6px; }
+    .bookmark-card[data-shape="rounded"]  .bm-icon-wrapper { border-radius: 14px; }
+    .bookmark-card[data-shape="circle"]   .bm-icon-wrapper { border-radius: 50%; }
+    .bookmark-card[data-shape="squircle"] .bm-icon-wrapper { border-radius: 38% 62% 60% 40% / 48% 42% 58% 52%; }
+
+    /* Title */
+    .bm-title {
+      font-size: 11px; font-weight: 500; text-align: center;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      width: 100%; color: var(--text-primary);
+    }
+
+    /* Hide title text below icons — controlled per-dashboard via .text-hidden on the container */
+    .dashboard-area.text-hidden .bm-title { display: none; }
+    /* Tighten card padding when there's no label, so circles/squircles don't float in empty space */
+    .dashboard-area.text-hidden .bookmark-card { padding-bottom: 16px; }
+
+    /* ── Rearrange mode ───────────────────────────────────────────────────── */
+
+    /* Use standalone `rotate` property so jiggle doesn't conflict with
+       the FLIP `translate` property used for smooth drag animations.     */
+    @keyframes jiggle {
+      0%, 100% { rotate: 0deg; }
+      20%      { rotate: -1.8deg; }
+      60%      { rotate: 1.8deg; }
+    }
+
+    /* Placeholder card (opacity:0, no animation) in rearrange is set via JS */
+    body.rearrange-mode .bookmark-card {
+      cursor: grab;
+      animation: jiggle 0.35s ease-in-out infinite;
+      touch-action: none;
+      /* FLIP displacement animation — translate is independent of rotate */
+      transition: translate 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    body.rearrange-mode .bookmark-card:nth-child(even) {
+      animation-direction: reverse;
+      animation-delay: -0.175s;
+    }
+    /* Suppress normal hover lift in rearrange */
+    body.rearrange-mode .bookmark-card:hover { transform: none; box-shadow: none; }
+    /* Hide info/remove buttons in rearrange */
+    body.rearrange-mode .card-actions { display: none; }
+
+    /* Drag handle pip (shown only in rearrange) */
+    .drag-handle {
+      position: absolute; top: 6px; left: 8px;
+      font-size: 11px; color: var(--text-muted);
+      opacity: 0; transition: opacity 0.15s; pointer-events: none;
+    }
+    body.rearrange-mode .drag-handle { opacity: 0.6; }
+
+    /* ── Drag placeholder (holds the card's grid slot while dragging) ────────── */
+    .drag-placeholder {
+      border-radius: var(--radius);
+      background: var(--accent);
+      opacity: 0.12;
+      border: 2px dashed var(--accent);
+      box-sizing: border-box;
+      flex-shrink: 0;
+      pointer-events: none;
+    }
+
+    /* ── Ghost element (pointer-drag clone) ───────────────────────────────── */
+    .drag-ghost {
+      position: fixed; z-index: 999; pointer-events: none;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 8px; padding: 16px 10px 12px;
+      background: var(--bg-hover);
+      border: 2px solid var(--accent);
+      border-radius: var(--radius);
+      box-shadow: 0 16px 48px rgba(0,0,0,0.45);
+      scale: 1.07;
+      rotate: 1deg;
+      opacity: 0.92;
+      animation: none !important;
+      transition: none !important;
+    }
+
+    /* ── Rearrange save bar (fixed bottom) ───────────────────────────────── */
+    #rearrange-bar {
+      display: none;
+      position: fixed; bottom: 0; left: 0; right: 0;
+      padding: 14px 28px;
+      background: var(--bg-secondary); border-top: 1px solid var(--border);
+      align-items: center; justify-content: space-between; gap: 12px;
+      z-index: 50; box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
+    }
+    #rearrange-bar.visible { display: flex; }
+
+    .rearrange-bar-left { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+    .rearrange-changed-badge {
+      display: none; padding: 2px 8px;
+      background: var(--warning-light); color: var(--warning);
+      border-radius: 10px; font-size: 11px; font-weight: 600;
+    }
+    .rearrange-changed-badge.visible { display: inline-block; }
+    .rearrange-bar-actions { display: flex; gap: 8px; }
+
+    /* ── Search ───────────────────────────────────────────────────────────── */
+    .bookmark-card.search-hidden  { display: none; }
+    .folder-section.search-empty  { display: none; }
+
+    /* ── Edit modal ───────────────────────────────────────────────────────── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55);
+      z-index: 200; display: none;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    .modal-overlay.visible { display: flex; }
+
+    .modal-box {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); width: 100%; max-width: 480px;
+      box-shadow: var(--shadow);
+      display: flex; flex-direction: column; max-height: 90vh; overflow: hidden;
+    }
+    .modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .modal-header h3 { font-size: 15px; font-weight: 600; }
+    .modal-close-btn {
+      background: none; border: none; color: var(--text-muted);
+      font-size: 16px; cursor: pointer; width: 28px; height: 28px;
+      border-radius: 6px; display: flex; align-items: center; justify-content: center;
+      transition: background 0.12s, color 0.12s; font-family: var(--font);
+    }
+    .modal-close-btn:hover { background: var(--danger-light); color: var(--danger); }
+
+    .modal-body {
+      flex: 1; overflow-y: auto; padding: 20px;
+      display: flex; flex-direction: column; gap: 14px;
+    }
+
+    .modal-icon-row {
+      display: flex; align-items: center; gap: 16px;
+      padding: 14px; background: var(--bg-secondary);
+      border-radius: var(--radius); border: 1px solid var(--border);
+    }
+    .modal-icon-preview {
+      width: 56px; height: 56px; border-radius: 14px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; overflow: hidden;
+    }
+    .modal-icon-preview img    { width: 36px; height: 36px; object-fit: contain; }
+    .modal-icon-preview .preview-emoji { font-size: 28px; }
+    .modal-icon-meta { flex: 1; }
+    .preview-name { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
+    .preview-url  { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+
+    .modal-field { display: flex; flex-direction: column; gap: 5px; }
+    .modal-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; }
+    .modal-input, .modal-textarea {
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); color: var(--text-primary);
+      font-size: 13px; font-family: var(--font); padding: 8px 11px;
+      outline: none; transition: border-color 0.15s;
+    }
+    .modal-input:focus, .modal-textarea:focus { border-color: var(--border-focus); }
+    .modal-textarea { resize: vertical; min-height: 68px; line-height: 1.5; }
+    .modal-input[readonly] { opacity: 0.6; cursor: default; font-family: var(--font-mono); font-size: 11px; }
+
+    .icon-url-row { display: flex; gap: 8px; }
+    .icon-url-row .modal-input { flex: 1; }
+
+    /* ── Toggle switch (shared pattern with Settings page) ────────────────── */
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .toggle-switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .toggle-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: var(--border); border-radius: 22px;
+      transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute;
+      width: 16px; height: 16px; left: 3px; top: 3px;
+      background: #fff; border-radius: 50%;
+      transition: transform 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    }
+    .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(18px); }
+
+    /* ── Shape picker ──────────────────────────────────────────────────── */
+    .shape-picker { display: flex; gap: 10px; }
+    .shape-option {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px;
+      padding: 10px 6px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+      cursor: pointer; transition: border-color 0.15s, background 0.15s;
+      background: var(--bg-secondary);
+    }
+    .shape-option:hover { border-color: var(--accent); }
+    .shape-option.selected { border-color: var(--accent); background: var(--accent-light); }
+    .shape-option input { display: none; }
+    .shape-swatch {
+      width: 28px; height: 28px; background: var(--text-muted);
+    }
+    .shape-swatch.shape-square   { border-radius: 4px; }
+    .shape-swatch.shape-rounded  { border-radius: 9px; }
+    .shape-swatch.shape-circle   { border-radius: 50%; }
+    .shape-swatch.shape-squircle { border-radius: 30%; }
+    .shape-option-label { font-size: 10px; color: var(--text-muted); font-weight: 500; }
+    .shape-option.selected .shape-swatch { background: var(--accent); }
+    .shape-option.selected .shape-option-label { color: var(--text-primary); }
+
+    .modal-footer {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; padding: 14px 20px;
+      border-top: 1px solid var(--border); flex-shrink: 0;
+    }
+    .modal-footer-right { display: flex; gap: 8px; }
+
+    /* ── Loading state ────────────────────────────────────────────────────── */
+    #loading-state {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px; color: var(--text-muted);
+    }
+
+    /* ── Description tooltip (shown on ℹ hover) ─────────────────────────── */
+    .bm-desc-tooltip {
+      position: fixed;
+      z-index: 500;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      max-width: 220px;
+      word-wrap: break-word;
+      box-shadow: var(--shadow);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.12s;
+    }
+    .bm-desc-tooltip.visible { opacity: 1; }
+
+    /* ── Weather panel ────────────────────────────────────────────────────── */
+    .topbar-weather {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 3px; padding: 0 20px;
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+    }
+    .weather-main {
+      display: flex; align-items: center; gap: 7px;
+    }
+    .weather-icon  { font-size: 20px; line-height: 1; }
+    .weather-temp  { font-size: 18px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.02em; }
+    .weather-desc  { font-size: 11px; color: var(--text-secondary); }
+    .weather-details {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 11px; color: var(--text-muted); white-space: nowrap;
+    }
+    .weather-sep { opacity: 0.3; }
+
+    /* ── Light-mode tweaks ────────────────────────────────────────────────── */
+    @media (prefers-color-scheme: light) {
+      .topbar { background: rgba(241,245,249,0.9); }
+      #search-input, #dashboard-select, .btn-topbar { background: #ffffff; }
+      .bookmark-card  { box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+      .bookmark-card:hover { box-shadow: 0 4px 12px rgba(99,102,241,0.15); }
+      .bm-icon-wrapper { background: #f1f5f9; }
+      .card-action-btn { background: #ffffff; border-color: #e2e8f0; }
+      #rearrange-bar  { box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }
+      .drag-ghost     { box-shadow: 0 12px 36px rgba(0,0,0,0.2); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ──────────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="search-wrapper">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="Search bookmarks…" autocomplete="off">
+    </div>
+  </div>
+
+  <div class="topbar-center">
+    <div class="dash-name-row">
+      <div class="dash-name" id="dash-name-display"></div>
+      <button class="dash-edit-btn" id="dash-edit-btn" title="Edit dashboard">✎</button>
+    </div>
+    <div class="clock" id="clock">00:00</div>
+    <div class="date"  id="date-display"></div>
+  </div>
+
+  <!-- Weather panel — hidden until weather is enabled in Settings -->
+  <div class="topbar-weather" id="weather-panel" style="display:none;">
+    <div class="weather-main">
+      <span class="weather-icon" id="weather-icon">⛅</span>
+      <span class="weather-temp" id="weather-temp">--°</span>
+      <span class="weather-desc" id="weather-desc"></span>
+    </div>
+    <div class="weather-details" id="weather-details">
+      <span id="weather-hilo">H:--° L:--°</span>
+      <span class="weather-sep">·</span>
+      <span id="weather-wind">💨 --</span>
+      <span class="weather-sep">·</span>
+      <span id="weather-sun">🌅 -- &nbsp;🌇 --</span>
+    </div>
+  </div>
+
+  <div class="topbar-right">
+    <div class="dashboard-switcher" id="switcher-wrapper" style="display:none;">
+      <span class="switcher-label">Dashboard:</span>
+      <select id="dashboard-select"></select>
+    </div>
+    <button class="btn-topbar" id="rearrange-btn">⇄ Rearrange</button>
+    <a href="../config/config.html" class="btn-topbar">⚙️ Settings</a>
+  </div>
+</div>
+
+<!-- ── Dashboard ────────────────────────────────────────────────────────────── -->
+<div class="dashboard-area" id="dashboard-area">
+  <div id="loading-state">
+    <span class="spinner"></span>
+    <span>Loading dashboard…</span>
+  </div>
+</div>
+
+<!-- ── Rearrange bar ─────────────────────────────────────────────────────────── -->
+<div id="rearrange-bar">
+  <div class="rearrange-bar-left">
+    <span>🔀 Drag cards to reorder — drop onto a folder name to move between sections</span>
+    <span class="rearrange-changed-badge" id="rearrange-changed-badge">Unsaved changes</span>
+  </div>
+  <div class="rearrange-bar-actions">
+    <button class="btn btn-secondary" id="rearrange-cancel-btn">Cancel</button>
+    <button class="btn btn-primary"   id="rearrange-save-btn">Save Layout</button>
+  </div>
+</div>
+
+<!-- ── Edit modal ────────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Edit Bookmark</h3>
+      <button class="modal-close-btn" id="edit-modal-close">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <!-- Preview -->
+      <div class="modal-icon-row">
+        <div class="modal-icon-preview" id="modal-icon-preview">
+          <span class="preview-emoji" id="modal-preview-emoji">🔗</span>
+        </div>
+        <div class="modal-icon-meta">
+          <div class="preview-name" id="modal-preview-name">—</div>
+          <div class="preview-url"  id="modal-preview-url">—</div>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Display Name</label>
+        <input class="modal-input" type="text" id="edit-name" maxlength="60">
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Description</label>
+        <textarea class="modal-textarea" id="edit-description" maxlength="200"></textarea>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Icon URL</label>
+        <div class="icon-url-row">
+          <input class="modal-input" type="url" id="edit-icon-url" placeholder="https://example.com/icon.png">
+          <button class="btn btn-secondary btn-sm" id="edit-icon-test-btn">Test</button>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Emoji Fallback</label>
+        <input class="modal-input" type="text" id="edit-icon-emoji" maxlength="4" style="max-width:80px;font-size:20px;text-align:center;">
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Icon Shape</label>
+        <div class="shape-picker" id="edit-shape-picker">
+          <label class="shape-option" data-shape="square">
+            <input type="radio" name="edit-shape" value="square">
+            <span class="shape-swatch shape-square"></span>
+            <span class="shape-option-label">Square</span>
+          </label>
+          <label class="shape-option" data-shape="rounded">
+            <input type="radio" name="edit-shape" value="rounded">
+            <span class="shape-swatch shape-rounded"></span>
+            <span class="shape-option-label">Rounded</span>
+          </label>
+          <label class="shape-option" data-shape="circle">
+            <input type="radio" name="edit-shape" value="circle">
+            <span class="shape-swatch shape-circle"></span>
+            <span class="shape-option-label">Circle</span>
+          </label>
+          <label class="shape-option" data-shape="squircle">
+            <input type="radio" name="edit-shape" value="squircle">
+            <span class="shape-swatch shape-squircle"></span>
+            <span class="shape-option-label">Squircle</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">URL (read-only)</label>
+        <input class="modal-input" type="text" id="edit-url" readonly>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <!-- Delete on the left, Save/Cancel on the right -->
+      <button class="btn btn-danger" id="edit-delete-btn">🗑 Delete Item</button>
+      <div class="modal-footer-right">
+        <button class="btn btn-secondary" id="edit-cancel-btn">Cancel</button>
+        <button class="btn btn-primary"   id="edit-save-btn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Dashboard edit modal ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="dash-edit-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Edit Dashboard</h3>
+      <button class="modal-close-btn" id="dash-edit-modal-close">✕</button>
+    </div>
+
+    <div class="modal-body">
+      <div class="modal-field">
+        <label class="modal-label">Dashboard Name</label>
+        <input class="modal-input" type="text" id="dash-edit-name" maxlength="60">
+      </div>
+
+      <div class="modal-field">
+        <div class="toggle-row">
+          <label class="modal-label" for="dash-edit-text-toggle" style="margin:0;">Show text below icons</label>
+          <label class="toggle-switch">
+            <input type="checkbox" id="dash-edit-text-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-field">
+        <label class="modal-label">Default Icon Shape</label>
+        <div class="shape-picker" id="dash-edit-shape-picker">
+          <label class="shape-option" data-shape="square">
+            <input type="radio" name="dash-edit-shape" value="square">
+            <span class="shape-swatch shape-square"></span>
+            <span class="shape-option-label">Square</span>
+          </label>
+          <label class="shape-option" data-shape="rounded">
+            <input type="radio" name="dash-edit-shape" value="rounded">
+            <span class="shape-swatch shape-rounded"></span>
+            <span class="shape-option-label">Rounded</span>
+          </label>
+          <label class="shape-option" data-shape="circle">
+            <input type="radio" name="dash-edit-shape" value="circle">
+            <span class="shape-swatch shape-circle"></span>
+            <span class="shape-option-label">Circle</span>
+          </label>
+          <label class="shape-option" data-shape="squircle">
+            <input type="radio" name="dash-edit-shape" value="squircle">
+            <span class="shape-swatch shape-squircle"></span>
+            <span class="shape-option-label">Squircle</span>
+          </label>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">Applies to all items that haven't been customized individually.</div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <div></div>
+      <div class="modal-footer-right">
+        <button class="btn btn-secondary" id="dash-edit-cancel-btn">Cancel</button>
+        <button class="btn btn-primary"   id="dash-edit-save-btn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Shared description tooltip — shown on ℹ button hover -->
+<div class="bm-desc-tooltip" id="bm-desc-tooltip"></div>
+
+<script src="newtab.js"></script>
+</body>
+</html>
