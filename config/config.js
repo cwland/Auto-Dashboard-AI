@@ -19,6 +19,11 @@ const DEFAULT_SETTINGS = {
   weatherLocation: '',
   weatherUnits: 'imperial',
   weatherRefreshMins: 60,
+  tautulliEnabled: false,
+  tautulliUrl: '',
+  tautulliApiKey: '',
+  tautulliMaxSessions: 3,
+  tautulliCarouselDwellMs: 4000,
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -28,6 +33,8 @@ let state = {
   currentSettings: { ...DEFAULT_SETTINGS },
   apiKeyValidated: false,
   weatherApiKeyValidated: false,
+  tautulliApiKeyValidated: false,
+  tautulliPreviewWidget: null,
   selectedBookmarkIds: new Set(),
   bookmarkNodes: {}, // id -> node
   dashboards: [],
@@ -80,6 +87,7 @@ async function loadSettings() {
     state.currentSettings = { ...DEFAULT_SETTINGS, ...stored.settings };
     state.apiKeyValidated          = !!stored.settings.apiKey;
     state.weatherApiKeyValidated   = !!stored.settings.weatherApiKey;
+    state.tautulliApiKeyValidated  = !!(stored.settings.tautulliApiKey && stored.settings.tautulliUrl);
   }
   applySettingsToUI();
   updateSaveBar();
@@ -135,6 +143,31 @@ function applySettingsToUI() {
     const closest = opts.reduce((a, b) => Math.abs(b - stored) < Math.abs(a - stored) ? b : a);
     refreshEl.value = String(closest);
   }
+
+  // Tautulli toggle
+  const tautulliToggle = document.getElementById('tautulli-toggle');
+  if (tautulliToggle) {
+    tautulliToggle.checked = !!s.tautulliEnabled;
+    const cfg = document.getElementById('tautulli-config');
+    if (cfg) cfg.style.display = s.tautulliEnabled ? 'block' : 'none';
+  }
+
+  // Tautulli server URL + API key
+  const tautulliUrlEl = document.getElementById('tautulli-url');
+  if (tautulliUrlEl) tautulliUrlEl.value = s.tautulliUrl || '';
+  const tautulliKeyEl = document.getElementById('tautulli-api-key');
+  if (tautulliKeyEl) tautulliKeyEl.value = s.tautulliApiKey || '';
+
+  // Tautulli max sessions
+  const maxSessEl = document.getElementById('tautulli-max-sessions');
+  if (maxSessEl) maxSessEl.value = String(s.tautulliMaxSessions || 3);
+
+  // Tautulli carousel speed (dwell ms)
+  const speedEl = document.getElementById('tautulli-carousel-speed');
+  if (speedEl) speedEl.value = String(s.tautulliCarouselDwellMs || 4000);
+
+  // Preview button reflects whether we have a validated key
+  updateTautulliPreviewButton();
 }
 
 /** Toggle an API key input between visible (text) and masked (password). */
@@ -255,6 +288,79 @@ function setupSettingsListeners() {
       updateSaveBar();
     });
   }
+
+  // ── Tautulli ───────────────────────────────────────────────────────────
+  setupEyeballToggle('tautulli-api-key', 'tautulli-key-toggle');
+
+  const tautulliToggle = document.getElementById('tautulli-toggle');
+  if (tautulliToggle) {
+    tautulliToggle.addEventListener('change', () => {
+      state.currentSettings.tautulliEnabled = tautulliToggle.checked;
+      const cfg = document.getElementById('tautulli-config');
+      if (cfg) cfg.style.display = tautulliToggle.checked ? 'block' : 'none';
+      updateSaveBar();
+    });
+  }
+
+  const tautulliUrlEl = document.getElementById('tautulli-url');
+  if (tautulliUrlEl) {
+    tautulliUrlEl.addEventListener('input', () => {
+      state.currentSettings.tautulliUrl = tautulliUrlEl.value.trim();
+      // URL change invalidates a prior validation
+      state.tautulliApiKeyValidated = false;
+      hideTautulliValidationResult();
+      updateTautulliPreviewButton();
+      updateSaveBar();
+    });
+  }
+
+  const tautulliKeyEl = document.getElementById('tautulli-api-key');
+  if (tautulliKeyEl) {
+    tautulliKeyEl.addEventListener('input', () => {
+      state.currentSettings.tautulliApiKey = tautulliKeyEl.value.trim();
+      state.tautulliApiKeyValidated = false;
+      hideTautulliValidationResult();
+      updateTautulliPreviewButton();
+      updateSaveBar();
+    });
+  }
+
+  document.getElementById('tautulli-validate-btn')
+    ?.addEventListener('click', validateTautulliKey);
+
+  const maxSessEl = document.getElementById('tautulli-max-sessions');
+  if (maxSessEl) {
+    maxSessEl.addEventListener('change', () => {
+      state.currentSettings.tautulliMaxSessions = parseInt(maxSessEl.value, 10);
+      // keep an open preview in sync
+      if (state.tautulliPreviewWidget) {
+        state.tautulliPreviewWidget.setConfig({ maxVisible: state.currentSettings.tautulliMaxSessions });
+      }
+      updateSaveBar();
+    });
+  }
+
+  const speedEl = document.getElementById('tautulli-carousel-speed');
+  if (speedEl) {
+    speedEl.addEventListener('change', () => {
+      state.currentSettings.tautulliCarouselDwellMs = parseInt(speedEl.value, 10);
+      if (state.tautulliPreviewWidget) {
+        state.tautulliPreviewWidget.setConfig({ dwellMs: state.currentSettings.tautulliCarouselDwellMs });
+      }
+      updateSaveBar();
+    });
+  }
+
+  // Preview modal
+  document.getElementById('tautulli-preview-btn')?.addEventListener('click', openTautulliPreview);
+  document.getElementById('tautulli-preview-close')?.addEventListener('click', closeTautulliPreview);
+  document.getElementById('tautulli-preview-done')?.addEventListener('click', closeTautulliPreview);
+  const previewModal = document.getElementById('tautulli-preview-modal');
+  if (previewModal) {
+    previewModal.addEventListener('click', (e) => {
+      if (e.target === previewModal) closeTautulliPreview();
+    });
+  }
 }
 
 function hasUnsavedChanges() {
@@ -270,7 +376,12 @@ function hasUnsavedChanges() {
     c.weatherApiKey      !== s.weatherApiKey      ||
     c.weatherLocation    !== s.weatherLocation    ||
     c.weatherUnits       !== s.weatherUnits       ||
-    c.weatherRefreshMins !== s.weatherRefreshMins
+    c.weatherRefreshMins !== s.weatherRefreshMins ||
+    c.tautulliEnabled    !== s.tautulliEnabled    ||
+    c.tautulliUrl        !== s.tautulliUrl         ||
+    c.tautulliApiKey     !== s.tautulliApiKey      ||
+    c.tautulliMaxSessions !== s.tautulliMaxSessions ||
+    c.tautulliCarouselDwellMs !== s.tautulliCarouselDwellMs
   );
 }
 
@@ -303,6 +414,11 @@ async function saveSettings() {
     weatherLocation:     state.currentSettings.weatherLocation,
     weatherUnits:        state.currentSettings.weatherUnits,
     weatherRefreshMins:  state.currentSettings.weatherRefreshMins,
+    tautulliEnabled:     state.currentSettings.tautulliEnabled,
+    tautulliUrl:         state.currentSettings.tautulliUrl,
+    tautulliApiKey:      state.currentSettings.tautulliApiKey,
+    tautulliMaxSessions: state.currentSettings.tautulliMaxSessions,
+    tautulliCarouselDwellMs: state.currentSettings.tautulliCarouselDwellMs,
     savedAt: Date.now(),
   };
   await chromeStorageSet({ settings });
@@ -315,11 +431,13 @@ function discardChanges() {
   state.currentSettings = { ...state.savedSettings };
   state.apiKeyValidated        = !!state.savedSettings.apiKey;
   state.weatherApiKeyValidated = !!state.savedSettings.weatherApiKey;
+  state.tautulliApiKeyValidated = !!(state.savedSettings.tautulliApiKey && state.savedSettings.tautulliUrl);
   applySettingsToUI();
   updateSaveBar();
   hideValidationResult();
   const wvr = document.getElementById('weather-validation-result');
   if (wvr) wvr.style.display = 'none';
+  hideTautulliValidationResult();
 }
 
 async function validateApiKey() {
@@ -412,6 +530,111 @@ function showWeatherValidationResult(type, msg) {
   el.style.display = 'block';
   el.className = `banner banner-${type === 'success' ? 'success' : 'danger'}`;
   el.textContent = msg;
+}
+
+// ─── Tautulli ─────────────────────────────────────────────────────────────────
+
+async function validateTautulliKey() {
+  const url = document.getElementById('tautulli-url').value.trim();
+  const key = document.getElementById('tautulli-api-key').value.trim();
+  const btn = document.getElementById('tautulli-validate-btn');
+
+  if (!url) {
+    showTautulliValidationResult('error', 'Please enter your Tautulli server URL.');
+    return;
+  }
+  if (!/^https?:\/\//i.test(url)) {
+    showTautulliValidationResult('error', 'URL must start with http:// or https://');
+    return;
+  }
+  if (!key) {
+    showTautulliValidationResult('error', 'Please enter an API key.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+
+  try {
+    // A successful get_activity proves both the URL and key are good, and it's
+    // the exact endpoint the widget polls — so a pass here means the preview works.
+    const data = await TautulliApi.getActivity(url, key);
+    state.tautulliApiKeyValidated = true;
+    const count = Number(data.stream_count) || 0;
+    showTautulliValidationResult(
+      'success',
+      `✓ API Key Valid — connected to Tautulli (${count} active stream${count === 1 ? '' : 's'}).`
+    );
+  } catch (err) {
+    state.tautulliApiKeyValidated = false;
+    showTautulliValidationResult('error', `✗ Unable to validate API Key: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Validate API Key';
+    updateTautulliPreviewButton();
+    updateSaveBar();
+  }
+}
+
+function showTautulliValidationResult(type, msg) {
+  const el = document.getElementById('tautulli-validation-result');
+  if (!el) return;
+  el.style.display = 'block';
+  el.className = `banner banner-${type === 'success' ? 'success' : 'danger'}`;
+  el.textContent = msg;
+}
+
+function hideTautulliValidationResult() {
+  const el = document.getElementById('tautulli-validation-result');
+  if (el) el.style.display = 'none';
+}
+
+function updateTautulliPreviewButton() {
+  const btn = document.getElementById('tautulli-preview-btn');
+  const hint = document.getElementById('tautulli-preview-hint');
+  if (!btn) return;
+  const ready = state.tautulliApiKeyValidated
+    && !!state.currentSettings.tautulliUrl
+    && !!state.currentSettings.tautulliApiKey;
+  btn.disabled = !ready;
+  if (hint) {
+    hint.textContent = ready
+      ? 'Opens a live preview using your Tautulli data.'
+      : 'Validate your API key to enable a live preview.';
+  }
+}
+
+function openTautulliPreview() {
+  if (!state.tautulliApiKeyValidated) return;
+  const modal = document.getElementById('tautulli-preview-modal');
+  const host  = document.getElementById('tautulli-preview-host');
+  if (!modal || !host || typeof TautulliWidget === 'undefined') return;
+
+  // Tear down any prior instance, then mount a fresh one.
+  if (state.tautulliPreviewWidget) {
+    state.tautulliPreviewWidget.destroy();
+    state.tautulliPreviewWidget = null;
+  }
+  host.innerHTML = '';
+
+  state.tautulliPreviewWidget = new TautulliWidget(host, {
+    baseUrl: state.currentSettings.tautulliUrl,
+    apiKey: state.currentSettings.tautulliApiKey,
+    maxVisible: parseInt(state.currentSettings.tautulliMaxSessions, 10) || 3,
+    dwellMs: parseInt(state.currentSettings.tautulliCarouselDwellMs, 10) || 4000,
+    pollMs: 5000,
+  });
+  state.tautulliPreviewWidget.start();
+  modal.classList.add('visible');
+}
+
+function closeTautulliPreview() {
+  const modal = document.getElementById('tautulli-preview-modal');
+  if (modal) modal.classList.remove('visible');
+  if (state.tautulliPreviewWidget) {
+    state.tautulliPreviewWidget.destroy();
+    state.tautulliPreviewWidget = null;
+  }
 }
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
@@ -729,7 +952,7 @@ async function generateDashboard() {
 
     updateProgress('Resolving icons from bookmarked sites...', 82);
 
-    // Resolve icons: direct favicon → Simple Icons → Google favicon
+    // Resolve icons: real favicon (direct + Google cache) → AI brand-icon guess → generic fallback
     await resolveIcons(processed, 8, (done, total) => {
       const pct = 82 + Math.round((done / total) * 8); // 82–90%
       updateProgress(`Fetching icons… ${done}/${total}`, pct);
@@ -919,6 +1142,14 @@ Return ONLY a valid JSON array, no markdown, no explanation.`;
 
 // ─── Icon Resolution ──────────────────────────────────────────────────────────
 
+// Used when no real favicon and no AI-identified brand icon could be found.
+// A plain neutral icon (not tied to any guess) is the true last resort.
+const GENERIC_ICON_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M10 13a5 5 0 0 0 7.07 0l1.93-1.93a5 5 0 0 0-7.07-7.07L10.5 5.5"/>
+  <path d="M14 11a5 5 0 0 0-7.07 0l-1.93 1.93a5 5 0 0 0 7.07 7.07L13.5 18.5"/>
+</svg>`.trim());
+
 /**
  * Test whether an image URL loads successfully.
  * Returns true/false; times out after `ms` milliseconds.
@@ -935,13 +1166,16 @@ function testImage(url, ms = 5000) {
 
 /**
  * Walk the icon candidate chain for a single bookmark and return
- * the first URL that loads, or null if none work.
+ * the first URL that resolves to an icon, or null if nothing works.
  *
- * Priority order:
- *   1. Direct /apple-touch-icon.png (high-res, from the actual site)
- *   2. Direct /favicon.ico          (from the actual site)
- *   3. Simple Icons CDN             (AI-identified brand icon)
- *   4. Google Favicon service       (reliable CDN proxy, last resort)
+ * Priority order (favicon first, AI guess second, generic last):
+ *   1. Direct /apple-touch-icon.png  (high-res, straight from the site)
+ *   2. Direct /favicon.ico           (straight from the site)
+ *   3. Google Favicon service        (cached per-site favicon lookup)
+ *   4. Simple Icons CDN              (AI's best-guess brand icon, used only
+ *                                     if no real favicon was found above)
+ *
+ * If none succeed, the caller applies GENERIC_ICON_URL as the final fallback.
  */
 async function resolveIconUrl(bm) {
   let origin, hostname;
@@ -954,16 +1188,23 @@ async function resolveIconUrl(bm) {
     return null;
   }
 
-  const candidates = [
+  // 1–3: real favicon lookups, straight from the site or via Google's cache
+  const faviconCandidates = [
     `${origin}/apple-touch-icon.png`,
     `${origin}/favicon.ico`,
-    bm.icon_slug ? `https://cdn.simpleicons.org/${encodeURIComponent(bm.icon_slug)}` : null,
     `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`,
-  ].filter(Boolean);
-
-  for (const url of candidates) {
+  ];
+  for (const url of faviconCandidates) {
     if (await testImage(url, 5000)) return url;
   }
+
+  // 4: no real favicon found — fall back to the AI's best-guess brand icon
+  if (bm.icon_slug) {
+    const slugUrl = `https://cdn.simpleicons.org/${encodeURIComponent(bm.icon_slug)}`;
+    if (await testImage(slugUrl, 5000)) return slugUrl;
+  }
+
+  // Nothing found — caller applies the generic fallback icon
   return null;
 }
 
@@ -971,13 +1212,15 @@ async function resolveIconUrl(bm) {
  * Resolve icons for all bookmarks, up to `concurrency` in parallel.
  * Updates `bm.resolved_icon` in place; calls `onProgress` with
  * current count and total so the caller can update the progress bar.
+ * Bookmarks with no real or AI-guessed icon get the generic fallback icon.
  */
 async function resolveIcons(bookmarks, concurrency = 8, onProgress = () => {}) {
   let done = 0;
   const total = bookmarks.length;
 
   async function worker(bm) {
-    bm.resolved_icon = await resolveIconUrl(bm);
+    bm.resolved_icon = await resolveIconUrl(bm) || GENERIC_ICON_URL;
+    bm.icon_is_generic = bm.resolved_icon === GENERIC_ICON_URL;
     onProgress(++done, total);
   }
 

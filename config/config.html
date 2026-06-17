@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Auto Dashboard AI — Settings</title>
   <link rel="stylesheet" href="../styles/common.css">
+  <link rel="stylesheet" href="../widgets/tautulli-widget.css">
   <style>
     html, body { height: 100%; overflow: hidden; }
 
@@ -523,6 +524,7 @@
       transition: background 0.12s, color 0.12s; font-family: var(--font);
     }
     .modal-close-btn:hover { background: var(--danger-light); color: var(--danger); }
+    .modal-box.modal-wide { max-width: 860px; }
     .modal-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
     .modal-footer {
       display: flex; align-items: center; justify-content: flex-end;
@@ -1034,6 +1036,117 @@
         </div>
       </div>
 
+      <!-- Tautulli Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">📺 Tautulli Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Live Plex stream activity &amp; analytics from your Tautulli server
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="tautulli-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="tautulli-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              Tautulli provides monitoring and activity information for your Plex server.
+              Enter your Tautulli API key to enable widget previews and future dashboard integrations.
+              Learn more at
+              <a href="https://tautulli.com/" target="_blank" rel="noopener" style="color:var(--accent);">tautulli.com</a>
+              or read the
+              <a href="https://docs.tautulli.com/extending-tautulli/api-reference" target="_blank" rel="noopener" style="color:var(--accent);">API reference</a>.
+            </p>
+
+            <div class="form-group">
+              <label class="label" for="tautulli-url">Tautulli Server URL</label>
+              <input class="input" type="text" id="tautulli-url"
+                placeholder="e.g. http://192.168.1.10:8181" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                The base address of your Tautulli instance, including http(s):// and port.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">Tautulli API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="tautulli-api-key"
+                  placeholder="Paste your Tautulli API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="tautulli-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="tautulli-validate-btn">Validate API Key</button>
+              </div>
+              <div id="tautulli-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Find this in Tautulli under <strong>Settings → Web Interface → API Key</strong>.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="tautulli-max-sessions">Maximum Visible Sessions</label>
+              <select class="select" id="tautulli-max-sessions" style="width:200px;">
+                <option value="1">1 session</option>
+                <option value="2">2 sessions</option>
+                <option value="3" selected>3 sessions</option>
+                <option value="4">4 sessions</option>
+                <option value="5">5 sessions</option>
+                <option value="10">10 sessions</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                When more streams are active than this, the widget rotates through them in a carousel.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="tautulli-carousel-speed">Carousel Rotation Speed</label>
+              <select class="select" id="tautulli-carousel-speed" style="width:240px;">
+                <option value="7000">Very slow (7s per card)</option>
+                <option value="5000">Slow (5s per card)</option>
+                <option value="4000" selected>Relaxed (4s per card)</option>
+                <option value="3000">Normal (3s per card)</option>
+                <option value="2000">Fast (2s per card)</option>
+                <option value="1000">Very fast (1s per card)</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                How long each card is shown before the carousel advances. Only applies when active streams exceed the maximum visible count.
+              </p>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="tautulli-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="tautulli-preview-hint">
+                Validate your API key to enable a live preview.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Tautulli preview modal -->
+  <div class="modal-overlay" id="tautulli-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3>📺 Tautulli Widget Preview</h3>
+        <button class="modal-close-btn" id="tautulli-preview-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin:0;">
+          Live data from your Tautulli server, refreshing every 5 seconds. This is the same
+          widget that will be available on dashboards in a future update.
+        </p>
+        <div id="tautulli-preview-host"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="tautulli-preview-done">Close</button>
+      </div>
     </div>
   </div>
 
@@ -1211,6 +1324,7 @@
   </div>
 </div>
 
+<script src="../widgets/tautulli-widget.js"></script>
 <script src="config.js"></script>
 </body>
 </html>

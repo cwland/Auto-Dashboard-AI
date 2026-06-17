@@ -1,6 +1,15 @@
 // Auto Dashboard AI — New Tab Page
 'use strict';
 
+// Last-resort icon when no real favicon and no AI brand-icon guess succeed.
+// Mirrors the constant in config/config.js so dashboards look consistent
+// whether an icon was resolved at generation time or re-resolved here.
+const GENERIC_ICON_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M10 13a5 5 0 0 0 7.07 0l1.93-1.93a5 5 0 0 0-7.07-7.07L10.5 5.5"/>
+  <path d="M14 11a5 5 0 0 0-7.07 0l-1.93 1.93a5 5 0 0 0 7.07 7.07L13.5 18.5"/>
+</svg>`.trim());
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 // User settings (clock format, weather, etc.) — populated by loadData()
@@ -304,26 +313,45 @@ function buildBookmarkCard(bm) {
   const iconWrapper = document.createElement('div');
   iconWrapper.className = 'bm-icon-wrapper';
 
+  // A user who explicitly picks a custom emoji in the edit modal (flagged
+  // via emoji_is_custom) should still see it — that's a deliberate choice,
+  // distinct from the AI's unused default guess stored on every bookmark.
+  const hasCustomEmoji = !!bm.emoji_is_custom && !!bm.icon_emoji;
+
+  // If the stored resolved_icon fails to load at render time (site changed,
+  // transient network issue, etc.), re-walk the same priority order used at
+  // generation time: real favicon → AI's best-guess brand icon → generic icon
+  // (or the user's custom emoji, if they set one).
   const fallbackUrls = [
-    bm.icon_slug
-      ? `https://cdn.simpleicons.org/${encodeURIComponent(bm.icon_slug)}`
-      : null,
     (() => {
       try { return `https://www.google.com/s2/favicons?domain=${new URL(bm.url).hostname}&sz=64`; }
       catch { return null; }
     })(),
+    bm.icon_slug
+      ? `https://cdn.simpleicons.org/${encodeURIComponent(bm.icon_slug)}`
+      : null,
   ].filter(Boolean);
 
   function showEmoji() {
     iconWrapper.innerHTML = '';
     const em = document.createElement('span');
     em.className = 'bm-emoji-fallback';
-    em.textContent = bm.icon_emoji || '🔗';
+    em.textContent = bm.icon_emoji;
     iconWrapper.appendChild(em);
   }
 
+  function showGenericIcon() {
+    if (hasCustomEmoji) { showEmoji(); return; }
+    iconWrapper.innerHTML = '';
+    const img = document.createElement('img');
+    img.className = 'bm-favicon';
+    img.alt = '';
+    img.src = GENERIC_ICON_URL;
+    iconWrapper.appendChild(img);
+  }
+
   function tryNextUrl(urls, idx = 0) {
-    if (idx >= urls.length) { showEmoji(); return; }
+    if (idx >= urls.length) { showGenericIcon(); return; }
     const img = document.createElement('img');
     img.className = 'bm-favicon';
     img.alt = '';
@@ -342,6 +370,10 @@ function buildBookmarkCard(bm) {
     img.addEventListener('error', () => tryNextUrl(fallbackUrls));
     img.src = bm.resolved_icon;
     iconWrapper.appendChild(img);
+  } else if (hasCustomEmoji) {
+    // User cleared the icon URL and chose a custom emoji in the edit modal —
+    // honor that directly rather than re-running favicon lookups.
+    showEmoji();
   } else {
     tryNextUrl(fallbackUrls);
   }
@@ -796,6 +828,10 @@ async function saveBookmarkEdit() {
   bm.resolved_icon = document.getElementById('edit-icon-url').value.trim()   || null;
   bm.icon_emoji    = document.getElementById('edit-icon-emoji').value.trim()  || '🔗';
   bm.shape         = getSelectedShape('edit-shape-picker', bm.shape || 'rounded');
+  // Mark this as a deliberate user choice so the render-time fallback chain
+  // honors it ahead of the generic icon (rather than treating it as the
+  // AI's unused default guess).
+  bm.emoji_is_custom = true;
 
   await chromeSet({ dashboards: state.dashboards });
   closeEditModal();

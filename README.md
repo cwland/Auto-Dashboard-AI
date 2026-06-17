@@ -10,8 +10,9 @@ A Chrome extension that auto-generates beautiful new-tab dashboards from your bo
 - **Show/hide labels** — toggle the text shown below icons on or off for a cleaner, icon-only look
 - **Multiple dashboards** — create and switch between different dashboard versions; set one as default
 - **New Tab override** — your default dashboard appears every time you open a new tab
-- **Favicon + emoji icons** — Google favicon service with AI emoji fallback for local/unknown links
+- **Smart icon resolution** — tries each site's real favicon first, falls back to the AI's best-guess brand icon, then a neutral generic icon if nothing matches (with an editable custom emoji option per bookmark)
 - **Live search** — press `/` or type to filter bookmarks across all sections
+- **Tautulli widget** — connect a [Tautulli](https://tautulli.com/) server to preview live Plex stream activity (poster art, stream/transcode details, progress and ETA), with a seamless infinite carousel when active streams exceed your configured visible count
 
 ## Installation
 
@@ -73,6 +74,11 @@ Versions follow the format `major.minor.patch` and increment by `0.0.1` each rel
 
 | Version | Date | Notes |
 |---|---|---|
+| 1.0.14 | 2026-06-16 | Card polish: moved the platform icon below the fields (no longer overlaps text on narrow 3-up cards), restacked the footer so the username always shows with a smaller avatar initial above it, and slowed the carousel slide into a gentle ease-in-out glide |
+| 1.0.13 | 2026-06-16 | Added a configurable Carousel Rotation Speed setting (Very slow → Very fast), defaulting to a relaxed 4s per card. Speed updates the live preview instantly |
+| 1.0.12 | 2026-06-16 | Redesigned the Tautulli session card to match Tautulli's native activity card: blurred backdrop art, left poster, right-aligned grouped labels with white values, platform icon, secure-stream lock, amber progress bar, and a footer with play-state, title, season/episode index, username and a colored user avatar. More compact overall; auto-tightens type on narrow cards |
+| 1.0.11 | 2026-06-16 | Tautulli integration: enable toggle, server URL + API key with validation, Maximum Visible Sessions setting, and a live Preview Widget modal showing Plex stream activity (poster, user/session/stream details, progress + ETA). Reusable widget component polls every 5 s with a seamless infinite carousel when streams exceed the visible count; built for future dashboard deployment |
+| 1.0.10 | 2026-06-16 | Icon resolution reordered to real favicon \u2192 AI brand-icon guess \u2192 generic icon (was masking AI guess behind Google's silent placeholder); added a neutral generic fallback icon used dashboard-wide instead of per-bookmark AI emoji; user-customized emojis (set via edit modal) are now tracked separately and still honored |
 | 1.0.9 | 2026-06-16 | Icon shapes (Square/Rounded/Circle/Squircle) selectable at creation, editable per-bookmark and as a dashboard default; show/hide text-under-icons toggle; Edit Dashboard (rename, text toggle, default shape) from Settings list and new-tab topbar |
 | 1.0.8 | 2026-06-16 | Rebrand to Auto Dashboard AI; significant dark-mode contrast boost (text-secondary #c0d0e0, text-muted #a8bac8); weather-details bumped to 11px |
 | 1.0.7 | 2026-06-16 | Dashboard name shown in topbar; clock+date correctly hidden when "Show Date & Time" is off; Widgets tab moved after Dashboards |
@@ -102,6 +108,9 @@ auto-dashboard-ai/
 │   └── popup.js           # Popup logic
 ├── styles/
 │   └── common.css         # Shared design system
+├── widgets/
+│   ├── tautulli-widget.js  # Reusable Tautulli activity widget (preview + future dashboards)
+│   └── tautulli-widget.css # Widget styles (bubble cards, carousel, progress)
 └── icons/
     ├── icon16.png
     ├── icon48.png
@@ -115,6 +124,11 @@ auto-dashboard-ai/
 | `bookmarks` | Read your bookmark tree to populate the dashboard |
 | `storage` | Save settings, API key, and dashboard data locally |
 | `tabs` | Open config/dashboard pages when needed |
+| `host_permissions` | Reach the OpenWeatherMap API (weather widget) and your self-hosted Tautulli server. Tautulli can run on any local IP/port, so broad `http(s)://*/*` access is requested; requests are only ever made to the OpenWeatherMap endpoint and the Tautulli URL you configure |
+
+## Tautulli widget
+
+Open **Settings → Widgets → Tautulli Integration**, enable it, then enter your Tautulli **Server URL** (e.g. `http://192.168.1.10:8181`) and **API key** (found in Tautulli under *Settings → Web Interface → API Key*). Click **Validate API Key**, then **Preview Widget** to see live activity. Set **Maximum Visible Sessions** to control how many stream cards show before the widget switches to a rotating carousel, and **Carousel Rotation Speed** to control how quickly it advances. Dashboard tiles reusing this widget are planned for a future release.
 
 ## License
 
