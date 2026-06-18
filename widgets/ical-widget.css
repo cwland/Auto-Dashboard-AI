@@ -1,0 +1,45 @@
+/* Auto Dashboard AI — iCal widget styles. Scoped under .ical-widget. */
+.ical-widget {
+  --ic-accent: #e5484d;
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.ical-widget .ic-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ical-widget .ic-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ical-widget .ic-tools { display: flex; align-items: center; gap: 10px; }
+.ical-widget .ic-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.ical-widget .ic-view-toggle { display: inline-flex; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 999px; padding: 2px; }
+.ical-widget .ic-tab { border: none; background: transparent; color: var(--text-secondary); font: 600 12px/1 var(--font, system-ui, sans-serif); padding: 6px 12px; border-radius: 999px; cursor: pointer; }
+.ical-widget .ic-tab:hover { color: var(--text-primary); }
+.ical-widget .ic-tab-active { background: var(--ic-accent); color: #fff; }
+.ical-widget .ic-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius, 10px); overflow: hidden; background: var(--bg-secondary); }
+.ical-widget .ic-row { display: grid; grid-template-columns: 14px 1fr auto; align-items: center; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--border); }
+.ical-widget .ic-row:first-child { border-top: none; }
+.ical-widget .ic-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ic-accent); }
+.ical-widget .ic-row-main { min-width: 0; display: flex; flex-direction: column; }
+.ical-widget .ic-row-title { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ical-widget .ic-row-sub { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ical-widget .ic-row-date { font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ical-widget .ic-cal { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius, 10px); padding: 12px; }
+.ical-widget .ic-cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.ical-widget .ic-cal-month { font-size: 14px; font-weight: 700; }
+.ical-widget .ic-nav-btn { width: 28px; height: 28px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); border-radius: var(--radius-sm, 6px); font-size: 16px; line-height: 1; cursor: pointer; }
+.ical-widget .ic-nav-btn:hover { border-color: var(--ic-accent); color: var(--text-primary); }
+.ical-widget .ic-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.ical-widget .ic-weekdays { margin-bottom: 4px; }
+.ical-widget .ic-weekday { text-align: center; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.ical-widget .ic-cell { position: relative; aspect-ratio: 1/1; border: 1px solid transparent; background: var(--bg-card); border-radius: var(--radius-sm, 6px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font: inherit; color: var(--text-secondary); cursor: default; padding: 0; }
+.ical-widget .ic-cell-empty { background: transparent; }
+.ical-widget .ic-cell-num { font-size: 12px; font-weight: 600; }
+.ical-widget .ic-cell-dots { display: flex; align-items: center; gap: 3px; height: 10px; }
+.ical-widget .ic-dot2 { width: 6px; height: 6px; border-radius: 50%; background: var(--ic-accent); }
+.ical-widget .ic-count { font-size: 9px; font-weight: 700; color: var(--ic-accent); }
+.ical-widget .ic-cell.ic-has { cursor: pointer; color: var(--text-primary); }
+.ical-widget .ic-cell.ic-has:hover { border-color: var(--ic-accent); }
+.ical-widget .ic-cell.ic-today { border-color: var(--border-focus, var(--accent)); }
+.ical-widget .ic-cell.ic-selected { background: var(--ic-accent); color: #fff; }
+.ical-widget .ic-cell.ic-selected .ic-dot2, .ical-widget .ic-cell.ic-selected .ic-count { background: #fff; color: #fff; }
+.ical-widget .ic-hint { margin-top: 12px; font-size: 12px; color: var(--text-muted); text-align: center; }
+.ical-widget .ic-day-detail { margin-top: 14px; }
+.ical-widget .ic-day-head { font-size: 12px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px; }
+.ical-widget .ic-empty { padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

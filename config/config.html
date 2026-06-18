@@ -6,6 +6,29 @@
   <title>Auto Dashboard AI — Settings</title>
   <link rel="stylesheet" href="../styles/common.css">
   <link rel="stylesheet" href="../widgets/tautulli-widget.css">
+  <link rel="stylesheet" href="../widgets/uptime-kuma-widget.css">
+  <link rel="stylesheet" href="../widgets/arr-calendar-widget.css">
+  <link rel="stylesheet" href="../widgets/seerr-widget.css">
+  <link rel="stylesheet" href="../widgets/dns-hole-widget.css">
+  <link rel="stylesheet" href="../widgets/plex-widget.css">
+  <link rel="stylesheet" href="../widgets/unifi-widget.css">
+  <link rel="stylesheet" href="../widgets/download-client-widget.css">
+  <link rel="stylesheet" href="../widgets/peanut-widget.css">
+  <link rel="stylesheet" href="../widgets/umami-widget.css">
+  <link rel="stylesheet" href="../widgets/speedtest-widget.css">
+  <link rel="stylesheet" href="../widgets/ntfy-widget.css">
+  <link rel="stylesheet" href="../widgets/audiobookshelf-widget.css">
+  <link rel="stylesheet" href="../widgets/navidrome-widget.css">
+  <link rel="stylesheet" href="../widgets/prowlarr-widget.css">
+  <link rel="stylesheet" href="../widgets/tracearr-widget.css">
+  <link rel="stylesheet" href="../widgets/system-health-widget.css">
+  <link rel="stylesheet" href="../widgets/proxmox-widget.css">
+  <link rel="stylesheet" href="../widgets/pbs-widget.css">
+  <link rel="stylesheet" href="../widgets/beszel-widget.css">
+  <link rel="stylesheet" href="../widgets/ical-widget.css">
+  <link rel="stylesheet" href="../widgets/homeassistant-widget.css">
+  <link rel="stylesheet" href="../widgets/nextcloud-widget.css">
+  <link rel="stylesheet" href="../widgets/opnsense-widget.css">
   <style>
     html, body { height: 100%; overflow: hidden; }
 
@@ -1127,6 +1150,1553 @@
         </div>
       </div>
 
+      <!-- Uptime Kuma Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">📈 Uptime Kuma Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              At-a-glance monitor health &amp; 24-hour uptime from your Uptime Kuma status page
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="uptimekuma-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="uptimekuma-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              Uptime Kuma is a self-hosted monitoring tool. This widget reads a public
+              <strong>status page</strong> (no API key needed) and summarizes monitor health.
+              Learn more at
+              <a href="https://github.com/louislam/uptime-kuma" target="_blank" rel="noopener" style="color:var(--accent);">uptime-kuma</a>.
+              Integration logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+
+            <div class="form-group">
+              <label class="label" for="uptimekuma-url">Uptime Kuma Server URL</label>
+              <input class="input" type="text" id="uptimekuma-url"
+                placeholder="e.g. http://192.168.1.10:3001" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                The base address of your Uptime Kuma instance, including http(s):// and port.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="uptimekuma-slug">Status Page Slug</label>
+              <div class="api-key-row">
+                <input class="input" type="text" id="uptimekuma-slug"
+                  placeholder="default" autocomplete="off">
+                <button class="btn btn-secondary" id="uptimekuma-validate-btn">Test Connection</button>
+              </div>
+              <div id="uptimekuma-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                The slug is the last part of your status page URL, e.g.
+                <code>…/status/<strong>default</strong></code>. Create one in Uptime Kuma under
+                <strong>Status Pages</strong>. Leave as <code>default</code> if unsure.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">Displayed Stats</label>
+              <div class="radio-group" style="flex-direction:row;flex-wrap:wrap;gap:10px 24px;">
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="uptimekuma-show-average" checked> Average uptime
+                </label>
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="uptimekuma-show-ring" checked> Uptime ring
+                </label>
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="uptimekuma-show-total" checked> Total monitors
+                </label>
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="uptimekuma-show-up" checked> Up count
+                </label>
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="uptimekuma-show-down" checked> Down count
+                </label>
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="uptimekuma-show-paused" checked> Paused count
+                </label>
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="uptimekuma-show-list"> Per-monitor list
+                </label>
+              </div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+                Choose what the widget shows. Changes preview live below.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="uptimekuma-refresh-secs">Refresh Interval</label>
+              <select class="select" id="uptimekuma-refresh-secs" style="width:200px;">
+                <option value="15">Every 15 seconds</option>
+                <option value="30" selected>Every 30 seconds</option>
+                <option value="60">Every 60 seconds</option>
+                <option value="120">Every 2 minutes</option>
+                <option value="300">Every 5 minutes</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                How often the widget polls the status page for fresh heartbeat data.
+              </p>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="uptimekuma-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="uptimekuma-preview-hint">
+                Test the connection to enable a live preview.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Sonarr Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">📺 Sonarr Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Upcoming TV episodes from your Sonarr library — as a list or a month calendar
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="sonarr-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="sonarr-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://sonarr.tv/" target="_blank" rel="noopener" style="color:var(--accent);">Sonarr</a>
+              manages your TV library. This widget reads its release calendar. Calendar logic adapted from the
+              Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+
+            <div class="form-group">
+              <label class="label" for="sonarr-url">Sonarr Server URL</label>
+              <input class="input" type="text" id="sonarr-url"
+                placeholder="e.g. http://192.168.1.10:8989" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                The base address of your Sonarr instance, including http(s):// and port.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">Sonarr API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="sonarr-api-key"
+                  placeholder="Paste your Sonarr API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="sonarr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="sonarr-validate-btn">Test Connection</button>
+              </div>
+              <div id="sonarr-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Find this in Sonarr under <strong>Settings → General → API Key</strong>.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="sonarr-view">Default View</label>
+              <select class="select" id="sonarr-view" style="width:220px;">
+                <option value="upcoming" selected>Upcoming releases (list)</option>
+                <option value="calendar">Month calendar</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Both views are always available via the in-widget toggle; this sets which one opens first.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="sonarr-count">Upcoming Items</label>
+              <select class="select" id="sonarr-count" style="width:160px;">
+                <option value="5">5 items</option>
+                <option value="8" selected>8 items</option>
+                <option value="12">12 items</option>
+                <option value="20">20 items</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                How many releases the upcoming list shows.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-wrapper">
+                <input type="checkbox" id="sonarr-unmonitored" checked> Include unmonitored items
+              </label>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="sonarr-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="sonarr-preview-hint">
+                Test the connection to enable a live preview.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Radarr Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🎬 Radarr Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Upcoming movie releases from your Radarr library — as a list or a month calendar
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="radarr-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="radarr-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://radarr.video/" target="_blank" rel="noopener" style="color:var(--accent);">Radarr</a>
+              manages your movie library. This widget reads its release calendar. Calendar logic adapted from the
+              Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+
+            <div class="form-group">
+              <label class="label" for="radarr-url">Radarr Server URL</label>
+              <input class="input" type="text" id="radarr-url"
+                placeholder="e.g. http://192.168.1.10:7878" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                The base address of your Radarr instance, including http(s):// and port.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">Radarr API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="radarr-api-key"
+                  placeholder="Paste your Radarr API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="radarr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="radarr-validate-btn">Test Connection</button>
+              </div>
+              <div id="radarr-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Find this in Radarr under <strong>Settings → General → API Key</strong>.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="radarr-view">Default View</label>
+              <select class="select" id="radarr-view" style="width:220px;">
+                <option value="upcoming" selected>Upcoming releases (list)</option>
+                <option value="calendar">Month calendar</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Both views are always available via the in-widget toggle; this sets which one opens first.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="radarr-count">Upcoming Items</label>
+              <select class="select" id="radarr-count" style="width:160px;">
+                <option value="5">5 items</option>
+                <option value="8" selected>8 items</option>
+                <option value="12">12 items</option>
+                <option value="20">20 items</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                How many releases the upcoming list shows.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">Release Types</label>
+              <div class="radio-group" style="flex-direction:row;flex-wrap:wrap;gap:10px 24px;">
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="radarr-rt-cinemas" checked> In cinemas
+                </label>
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="radarr-rt-digital" checked> Digital
+                </label>
+                <label class="checkbox-wrapper">
+                  <input type="checkbox" id="radarr-rt-physical" checked> Physical
+                </label>
+              </div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+                A movie can appear once per selected release type (e.g. in cinemas, then digital).
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-wrapper">
+                <input type="checkbox" id="radarr-unmonitored" checked> Include unmonitored items
+              </label>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="radarr-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="radarr-preview-hint">
+                Test the connection to enable a live preview.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Seerr (Overseerr / Jellyseerr) Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🎞 Seerr Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Media requests &amp; stats from Overseerr, Jellyseerr, or Seerr
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="seerr-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="seerr-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              Works with
+              <a href="https://overseerr.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Overseerr</a>,
+              <a href="https://docs.jellyseerr.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Jellyseerr</a>,
+              and Seerr — they share one compatible API. This widget shows recent requests and request stats.
+              Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+
+            <div class="form-group">
+              <label class="label" for="seerr-url">Server URL</label>
+              <input class="input" type="text" id="seerr-url"
+                placeholder="e.g. http://192.168.1.10:5055" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                The base address of your Overseerr/Jellyseerr instance, including http(s):// and port.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="seerr-api-key"
+                  placeholder="Paste your API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="seerr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="seerr-validate-btn">Test Connection</button>
+              </div>
+              <div id="seerr-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Find this under <strong>Settings → General → API Key</strong> in Overseerr/Jellyseerr.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="seerr-view">Default View</label>
+              <select class="select" id="seerr-view" style="width:220px;">
+                <option value="requests" selected>Recent requests (list)</option>
+                <option value="stats">Request stats</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Both views are always available via the in-widget toggle; this sets which one opens first.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="seerr-count">Requests Shown</label>
+              <select class="select" id="seerr-count" style="width:160px;">
+                <option value="5">5 requests</option>
+                <option value="8" selected>8 requests</option>
+                <option value="12">12 requests</option>
+                <option value="20">20 requests</option>
+              </select>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                How many recent requests the list shows (pending requests are prioritized).
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="checkbox-wrapper">
+                <input type="checkbox" id="seerr-show-users" checked> Show top requesters in the Stats view
+              </label>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="seerr-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="seerr-preview-hint">
+                Test the connection to enable a live preview.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Pi-hole Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🛡 Pi-hole Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Ad-blocking stats from your Pi-hole DNS server (v5 and v6 supported)
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="pihole-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="pihole-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://pi-hole.net/" target="_blank" rel="noopener" style="color:var(--accent);">Pi-hole</a>
+              is a network-wide DNS ad blocker. The widget shows queries blocked, block rate, and blocklist size.
+              The version (v5 or v6) is detected automatically. Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+
+            <div class="form-group">
+              <label class="label" for="pihole-url">Pi-hole Server URL</label>
+              <input class="input" type="text" id="pihole-url"
+                placeholder="e.g. http://192.168.1.10" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                The base address of your Pi-hole admin (no <code>/admin</code> suffix needed).
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">App Password / API Token</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="pihole-api-key"
+                  placeholder="Pi-hole v6 app password, or v5 API token…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="pihole-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="pihole-validate-btn">Test Connection</button>
+              </div>
+              <div id="pihole-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Pi-hole v6: <strong>Settings → Web interface / API → App password</strong>.
+                Pi-hole v5: <strong>Settings → API → Show API token</strong>.
+              </p>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="pihole-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="pihole-preview-hint">
+                Test the connection to enable a live preview.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- AdGuard Home Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🛡 AdGuard Home Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Ad-blocking stats from your AdGuard Home DNS server
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="adguard-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="adguard-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://adguard.com/adguard-home/overview.html" target="_blank" rel="noopener" style="color:var(--accent);">AdGuard Home</a>
+              is a network-wide DNS ad blocker. The widget shows queries blocked, block rate, and blocklist size.
+              It authenticates with your admin username and password. Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+
+            <div class="form-group">
+              <label class="label" for="adguard-url">AdGuard Home URL</label>
+              <input class="input" type="text" id="adguard-url"
+                placeholder="e.g. http://192.168.1.10:3000" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                The base address of your AdGuard Home web interface, including http(s):// and port.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="adguard-username">Username</label>
+              <input class="input" type="text" id="adguard-username"
+                placeholder="AdGuard Home admin username" autocomplete="off">
+            </div>
+
+            <div class="form-group">
+              <label class="label">Password</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="adguard-password"
+                  placeholder="AdGuard Home admin password…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="adguard-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-secondary" id="adguard-validate-btn">Test Connection</button>
+              </div>
+              <div id="adguard-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                The same username and password you use to sign in to the AdGuard Home dashboard.
+              </p>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="adguard-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="adguard-preview-hint">
+                Test the connection to enable a live preview.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Plex Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🎬 Plex Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              See what's currently playing on your Plex Media Server
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="plex-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="plex-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://www.plex.tv/" target="_blank" rel="noopener" style="color:var(--accent);">Plex</a>
+              is a media server. This widget lists active streaming sessions. Logic adapted from the
+              Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+
+            <div class="form-group">
+              <label class="label" for="plex-url">Plex Server URL</label>
+              <input class="input" type="text" id="plex-url"
+                placeholder="e.g. http://192.168.1.10:32400" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                The base address of your Plex Media Server, including http(s):// and port (default 32400).
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">Plex Token</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="plex-token"
+                  placeholder="Paste your X-Plex-Token…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="plex-key-toggle" title="Hide token">🙈</button>
+                <button class="btn btn-secondary" id="plex-validate-btn">Test Connection</button>
+              </div>
+              <div id="plex-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                See
+                <a href="https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/" target="_blank" rel="noopener" style="color:var(--accent);">Finding your X-Plex-Token</a>.
+              </p>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="plex-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="plex-preview-hint">
+                Test the connection to enable a live preview.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- UniFi Controller Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">📡 UniFi Controller Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Network health summary from your UniFi controller (WWW / Wi-Fi / LAN / VPN)
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="unifi-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div id="unifi-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-warning" style="margin-bottom:18px;">
+              UniFi controllers use a cookie/CSRF login. If your controller uses a self-signed
+              certificate, open its URL in this browser once and accept the certificate first.
+              Some controllers may also need CORS allowances for browser access. Logic adapted from the
+              Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+
+            <div class="form-group">
+              <label class="label" for="unifi-url">Controller URL</label>
+              <input class="input" type="text" id="unifi-url"
+                placeholder="e.g. https://192.168.1.1 or https://192.168.1.10:8443" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                UniFi OS (UDM/Cloud Key Gen2+) typically on <code>443</code>; classic controllers on <code>8443</code>.
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="unifi-username">Username</label>
+              <input class="input" type="text" id="unifi-username"
+                placeholder="UniFi local admin username" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                Use a local controller account (not a UI.com cloud SSO login).
+              </p>
+            </div>
+
+            <div class="form-group">
+              <label class="label">Password</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="unifi-password"
+                  placeholder="UniFi admin password…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="unifi-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-secondary" id="unifi-validate-btn">Test Connection</button>
+              </div>
+              <div id="unifi-validation-result" style="display:none;margin-top:8px;"></div>
+            </div>
+
+            <div class="form-group">
+              <label class="label" for="unifi-site">Site</label>
+              <input class="input" type="text" id="unifi-site" placeholder="default" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+                The UniFi site name (leave as <code>default</code> unless you run multiple sites).
+              </p>
+            </div>
+
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="unifi-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="unifi-preview-hint">
+                Test the connection to enable a live preview.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- SABnzbd Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">⬇️ SABnzbd Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Usenet download queue &amp; history from your SABnzbd server
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="sabnzbd-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="sabnzbd-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://sabnzbd.org/" target="_blank" rel="noopener" style="color:var(--accent);">SABnzbd</a>
+              is a usenet downloader. Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group">
+              <label class="label" for="sabnzbd-url">SABnzbd URL</label>
+              <input class="input" type="text" id="sabnzbd-url" placeholder="e.g. http://192.168.1.10:8080" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="label">API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="sabnzbd-api-key" placeholder="Paste your SABnzbd API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="sabnzbd-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="sabnzbd-validate-btn">Test Connection</button>
+              </div>
+              <div id="sabnzbd-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+                Find this in SABnzbd under <strong>Config → General → API Key</strong>.
+              </p>
+            </div>
+            <div class="form-group">
+              <label class="label" for="sabnzbd-limit">Items Shown</label>
+              <select class="select" id="sabnzbd-limit" style="width:160px;">
+                <option value="5">5 items</option><option value="10" selected>10 items</option>
+                <option value="15">15 items</option><option value="25">25 items</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="sabnzbd-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="sabnzbd-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- qBittorrent Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">⬇️ qBittorrent Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Torrent transfers &amp; rates from your qBittorrent client
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="qbittorrent-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="qbittorrent-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-warning" style="margin-bottom:18px;">
+              qBittorrent's WebUI uses a cookie login and may reject cross-origin requests; you might need to
+              disable <em>"Enable Host header validation"</em> / enable CSRF-friendly settings in
+              <strong>Options → Web UI</strong>. Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group">
+              <label class="label" for="qbittorrent-url">qBittorrent WebUI URL</label>
+              <input class="input" type="text" id="qbittorrent-url" placeholder="e.g. http://192.168.1.10:8080" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="label" for="qbittorrent-username">Username</label>
+              <input class="input" type="text" id="qbittorrent-username" placeholder="WebUI username" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="label">Password</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="qbittorrent-password" placeholder="WebUI password…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="qbittorrent-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-secondary" id="qbittorrent-validate-btn">Test Connection</button>
+              </div>
+              <div id="qbittorrent-validation-result" style="display:none;margin-top:8px;"></div>
+            </div>
+            <div class="form-group">
+              <label class="label" for="qbittorrent-limit">Items Shown</label>
+              <select class="select" id="qbittorrent-limit" style="width:160px;">
+                <option value="5">5 items</option><option value="10" selected>10 items</option>
+                <option value="15">15 items</option><option value="25">25 items</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="qbittorrent-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="qbittorrent-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Transmission Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">⬇️ Transmission Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              Torrent transfers &amp; rates from your Transmission daemon
+            </p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="transmission-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div id="transmission-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://transmissionbt.com/" target="_blank" rel="noopener" style="color:var(--accent);">Transmission</a>
+              RPC. Username/password are optional if RPC auth is disabled. Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
+              project — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group">
+              <label class="label" for="transmission-url">Transmission URL</label>
+              <input class="input" type="text" id="transmission-url" placeholder="e.g. http://192.168.1.10:9091" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">Base address; the widget calls <code>/transmission/rpc</code>.</p>
+            </div>
+            <div class="form-group">
+              <label class="label" for="transmission-username">Username <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label>
+              <input class="input" type="text" id="transmission-username" placeholder="RPC username (if enabled)" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="label">Password <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="transmission-password" placeholder="RPC password (if enabled)…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="transmission-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-secondary" id="transmission-validate-btn">Test Connection</button>
+              </div>
+              <div id="transmission-validation-result" style="display:none;margin-top:8px;"></div>
+            </div>
+            <div class="form-group">
+              <label class="label" for="transmission-limit">Items Shown</label>
+              <select class="select" id="transmission-limit" style="width:160px;">
+                <option value="5">5 items</option><option value="10" selected>10 items</option>
+                <option value="15">15 items</option><option value="25">25 items</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="transmission-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="transmission-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PeaNUT Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🔋 PeaNUT Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">UPS status &amp; battery from your PeaNUT (NUT) server</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="peanut-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="peanut-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://github.com/Brandawg93/PeaNUT" target="_blank" rel="noopener" style="color:var(--accent);">PeaNUT</a>
+              is a web dashboard for NUT (Network UPS Tools). Username/password are only needed if your PeaNUT requires auth.
+              Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group"><label class="label" for="peanut-url">PeaNUT URL</label>
+              <input class="input" type="text" id="peanut-url" placeholder="e.g. http://192.168.1.10:8080" autocomplete="off"></div>
+            <div class="form-group"><label class="label" for="peanut-username">Username <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label>
+              <input class="input" type="text" id="peanut-username" placeholder="PeaNUT username (if required)" autocomplete="off"></div>
+            <div class="form-group"><label class="label">Password <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="peanut-password" placeholder="PeaNUT password…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="peanut-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-secondary" id="peanut-validate-btn">Test Connection</button>
+              </div>
+              <div id="peanut-validation-result" style="display:none;margin-top:8px;"></div>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="peanut-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="peanut-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Umami Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">📊 Umami Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Website analytics — visitors, pageviews &amp; bounce rate</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="umami-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="umami-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://umami.is/" target="_blank" rel="noopener" style="color:var(--accent);">Umami</a> web analytics.
+              Use an <strong>API key</strong> (Umami Cloud / API client) or a username + password (self-hosted). Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group"><label class="label" for="umami-url">Umami API URL</label>
+              <input class="input" type="text" id="umami-url" placeholder="e.g. https://umami.example.com/api" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">Usually your Umami base URL with <code>/api</code> appended (Cloud: <code>https://api.umami.is/v1</code>).</p></div>
+            <div class="form-group"><label class="label">API Key <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(or use username/password below)</span></label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="umami-api-key" placeholder="x-umami-api-key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="umami-key-toggle" title="Hide key">🙈</button>
+              </div></div>
+            <div class="form-group"><label class="label" for="umami-username">Username <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(self-hosted)</span></label>
+              <input class="input" type="text" id="umami-username" placeholder="Umami username" autocomplete="off"></div>
+            <div class="form-group"><label class="label" for="umami-password">Password <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(self-hosted)</span></label>
+              <input class="input input-mono" type="text" id="umami-password" placeholder="Umami password…" autocomplete="off"></div>
+            <div class="form-group"><label class="label" for="umami-website-id">Website ID</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="umami-website-id" placeholder="UUID of the website" autocomplete="off">
+                <button class="btn btn-secondary" id="umami-validate-btn">Test Connection</button>
+              </div>
+              <div id="umami-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Found in the website's settings/share URL in Umami.</p></div>
+            <div class="form-group"><label class="label" for="umami-timeframe">Time Frame</label>
+              <select class="select" id="umami-timeframe" style="width:180px;">
+                <option value="today">Today</option><option value="24h" selected>Last 24 hours</option>
+                <option value="7d">Last 7 days</option><option value="30d">Last 30 days</option>
+              </select></div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="umami-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="umami-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speedtest Tracker Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🚀 Speedtest Tracker Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Latest internet download / upload / ping &amp; averages</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="speedtest-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="speedtest-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://docs.speedtest-tracker.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Speedtest Tracker</a>
+              records scheduled speed tests. Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group"><label class="label" for="speedtest-url">Speedtest Tracker URL</label>
+              <input class="input" type="text" id="speedtest-url" placeholder="e.g. http://192.168.1.10:8765" autocomplete="off"></div>
+            <div class="form-group"><label class="label">API Token</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="speedtest-token" placeholder="Bearer API token…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="speedtest-key-toggle" title="Hide token">🙈</button>
+                <button class="btn btn-secondary" id="speedtest-validate-btn">Test Connection</button>
+              </div>
+              <div id="speedtest-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Create one under <strong>Profile → API Tokens</strong> in Speedtest Tracker.</p></div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="speedtest-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="speedtest-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ntfy Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🔔 ntfy Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Recent notifications from an ntfy topic</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="ntfy-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="ntfy-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://ntfy.sh/" target="_blank" rel="noopener" style="color:var(--accent);">ntfy</a> pub-sub notifications.
+              A token is only needed for protected topics. Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group"><label class="label" for="ntfy-url">ntfy Server URL</label>
+              <input class="input" type="text" id="ntfy-url" placeholder="e.g. https://ntfy.sh or http://192.168.1.10:8080" autocomplete="off"></div>
+            <div class="form-group"><label class="label" for="ntfy-topic">Topic</label>
+              <div class="api-key-row">
+                <input class="input" type="text" id="ntfy-topic" placeholder="your-topic-name" autocomplete="off">
+                <button class="btn btn-secondary" id="ntfy-validate-btn">Test Connection</button>
+              </div>
+              <div id="ntfy-validation-result" style="display:none;margin-top:8px;"></div></div>
+            <div class="form-group"><label class="label">Access Token <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="ntfy-token" placeholder="tk_… (for protected topics)" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="ntfy-key-toggle" title="Hide token">🙈</button>
+              </div></div>
+            <div class="form-group"><label class="label" for="ntfy-limit">Notifications Shown</label>
+              <select class="select" id="ntfy-limit" style="width:160px;">
+                <option value="5">5</option><option value="10" selected>10</option><option value="15">15</option><option value="25">25</option>
+              </select></div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="ntfy-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="ntfy-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Audiobookshelf Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">📚 Audiobookshelf Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Audiobook &amp; podcast library summary</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="audiobookshelf-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="audiobookshelf-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://www.audiobookshelf.org/" target="_blank" rel="noopener" style="color:var(--accent);">Audiobookshelf</a> media server.
+              Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group"><label class="label" for="audiobookshelf-url">Server URL</label>
+              <input class="input" type="text" id="audiobookshelf-url" placeholder="e.g. http://192.168.1.10:13378" autocomplete="off"></div>
+            <div class="form-group"><label class="label">API Token</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="audiobookshelf-token" placeholder="Bearer API token…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="audiobookshelf-key-toggle" title="Hide token">🙈</button>
+                <button class="btn btn-secondary" id="audiobookshelf-validate-btn">Test Connection</button>
+              </div>
+              <div id="audiobookshelf-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">In Audiobookshelf: <strong>Settings → Users → (your user) → API Token</strong>.</p></div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="audiobookshelf-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="audiobookshelf-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Navidrome Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🎵 Navidrome Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Music library counts &amp; now playing</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="navidrome-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="navidrome-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://www.navidrome.org/" target="_blank" rel="noopener" style="color:var(--accent);">Navidrome</a> music server (Subsonic API).
+              Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group"><label class="label" for="navidrome-url">Server URL</label>
+              <input class="input" type="text" id="navidrome-url" placeholder="e.g. http://192.168.1.10:4533" autocomplete="off"></div>
+            <div class="form-group"><label class="label" for="navidrome-username">Username</label>
+              <input class="input" type="text" id="navidrome-username" placeholder="Navidrome username" autocomplete="off"></div>
+            <div class="form-group"><label class="label">Password</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="navidrome-password" placeholder="Navidrome password…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="navidrome-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-secondary" id="navidrome-validate-btn">Test Connection</button>
+              </div>
+              <div id="navidrome-validation-result" style="display:none;margin-top:8px;"></div></div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="navidrome-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="navidrome-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prowlarr Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">🔎 Prowlarr Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Indexer health from your Prowlarr</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="prowlarr-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="prowlarr-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://prowlarr.com/" target="_blank" rel="noopener" style="color:var(--accent);">Prowlarr</a> indexer manager.
+              Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group"><label class="label" for="prowlarr-url">Prowlarr URL</label>
+              <input class="input" type="text" id="prowlarr-url" placeholder="e.g. http://192.168.1.10:9696" autocomplete="off"></div>
+            <div class="form-group"><label class="label">API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="prowlarr-api-key" placeholder="Prowlarr API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="prowlarr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="prowlarr-validate-btn">Test Connection</button>
+              </div>
+              <div id="prowlarr-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">In Prowlarr: <strong>Settings → General → API Key</strong>.</p></div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="prowlarr-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="prowlarr-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tracearr Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;">📈 Tracearr Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Media stream monitor — active streams, users &amp; violations</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="tracearr-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="tracearr-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              Tracearr media-stream analytics (Plex / Jellyfin / Emby). Logic adapted from the Apache-2.0 licensed
+              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+            </p>
+            <div class="form-group"><label class="label" for="tracearr-url">Tracearr URL</label>
+              <input class="input" type="text" id="tracearr-url" placeholder="e.g. http://192.168.1.10:3000" autocomplete="off"></div>
+            <div class="form-group"><label class="label">API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="tracearr-api-key" placeholder="Tracearr API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="tracearr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="tracearr-validate-btn">Test Connection</button>
+              </div>
+              <div id="tracearr-validation-result" style="display:none;margin-top:8px;"></div></div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="tracearr-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="tracearr-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Glances Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">📟 Glances Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">System monitoring — CPU, memory, disks, network</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="glances-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="glances-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://nicolargo.github.io/glances/" target="_blank" rel="noopener" style="color:var(--accent);">Glances</a> v4 web server. Username/password only if you enabled web auth. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="glances-url">Glances URL</label><input class="input" type="text" id="glances-url" placeholder="e.g. http://192.168.1.10:61208" autocomplete="off"></div>
+          <div class="form-group"><label class="label" for="glances-username">Username <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label><input class="input" type="text" id="glances-username" placeholder="web auth username (if set)" autocomplete="off"></div>
+          <div class="form-group"><label class="label">Password <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label><div class="api-key-row"><input class="input input-mono" type="text" id="glances-password" placeholder="web auth password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="glances-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="glances-validate-btn">Test Connection</button></div><div id="glances-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="glances-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="glances-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- Dashdot Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">📟 Dash. (dashdot) Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Server stats dashboard — CPU, RAM, storage, network</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="dashdot-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="dashdot-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://getdashdot.com/" target="_blank" rel="noopener" style="color:var(--accent);">dash.</a> server dashboard (no auth). Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="dashdot-url">Dash. URL</label><div class="api-key-row"><input class="input" type="text" id="dashdot-url" placeholder="e.g. http://192.168.1.10:3001" autocomplete="off"><button class="btn btn-secondary" id="dashdot-validate-btn">Test Connection</button></div><div id="dashdot-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="dashdot-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="dashdot-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- Unraid Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">🟧 Unraid Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Server health &amp; array disks from the Unraid API</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="unraid-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="unraid-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;">Requires the <a href="https://docs.unraid.net/API/" target="_blank" rel="noopener" style="color:var(--accent);">Unraid API</a> (GraphQL) enabled with an API key. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="unraid-url">Unraid URL</label><input class="input" type="text" id="unraid-url" placeholder="e.g. http://192.168.1.10" autocomplete="off"></div>
+          <div class="form-group"><label class="label">API Key</label><div class="api-key-row"><input class="input input-mono" type="text" id="unraid-api-key" placeholder="Unraid API key…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="unraid-key-toggle" title="Hide key">🙈</button><button class="btn btn-secondary" id="unraid-validate-btn">Test Connection</button></div><div id="unraid-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="unraid-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="unraid-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- OpenMediaVault Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">🔵 OpenMediaVault Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">NAS system health, filesystems &amp; SMART</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="openmediavault-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="openmediavault-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-warning" style="margin-bottom:18px;"><a href="https://www.openmediavault.org/" target="_blank" rel="noopener" style="color:var(--accent);">OpenMediaVault</a> uses a cookie-session RPC API which may reject cross-origin browser requests. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="openmediavault-url">OMV URL</label><input class="input" type="text" id="openmediavault-url" placeholder="e.g. http://192.168.1.10" autocomplete="off"></div>
+          <div class="form-group"><label class="label" for="openmediavault-username">Username</label><input class="input" type="text" id="openmediavault-username" placeholder="OMV admin username" autocomplete="off"></div>
+          <div class="form-group"><label class="label">Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="openmediavault-password" placeholder="OMV admin password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="openmediavault-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="openmediavault-validate-btn">Test Connection</button></div><div id="openmediavault-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="openmediavault-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="openmediavault-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- TrueNAS Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">🟦 TrueNAS Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">NAS health &amp; pools (SCALE WebSocket API)</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="truenas-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="truenas-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-warning" style="margin-bottom:18px;"><a href="https://www.truenas.com/" target="_blank" rel="noopener" style="color:var(--accent);">TrueNAS</a> SCALE uses a WebSocket JSON-RPC API; browser access requires the host reachable over ws/wss and a self-signed cert accepted first. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="truenas-url">TrueNAS URL</label><input class="input" type="text" id="truenas-url" placeholder="e.g. http://192.168.1.10" autocomplete="off"></div>
+          <div class="form-group"><label class="label">API Key</label><div class="api-key-row"><input class="input input-mono" type="text" id="truenas-api-key" placeholder="TrueNAS API key…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="truenas-key-toggle" title="Hide key">🙈</button><button class="btn btn-secondary" id="truenas-validate-btn">Test Connection</button></div><div id="truenas-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Create one in TrueNAS under <strong>Credentials → API Keys</strong>.</p></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="truenas-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="truenas-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- Proxmox Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">🖥 Proxmox VE Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Cluster health — nodes, VMs, containers, storage</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="proxmox-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="proxmox-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.proxmox.com/" target="_blank" rel="noopener" style="color:var(--accent);">Proxmox VE</a> via an API token (<strong>Datacenter → Permissions → API Tokens</strong>). Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="proxmox-url">Proxmox URL</label><input class="input" type="text" id="proxmox-url" placeholder="e.g. https://192.168.1.10:8006" autocomplete="off"></div>
+          <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div><label class="label" for="proxmox-username">User</label><input class="input" type="text" id="proxmox-username" placeholder="root" autocomplete="off"></div>
+            <div><label class="label" for="proxmox-realm">Realm</label><input class="input" type="text" id="proxmox-realm" placeholder="pam" autocomplete="off"></div>
+            <div><label class="label" for="proxmox-token-id">Token ID</label><input class="input" type="text" id="proxmox-token-id" placeholder="homarr" autocomplete="off"></div>
+          </div>
+          <div class="form-group"><label class="label">Token Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="proxmox-api-key" placeholder="API token secret (UUID)…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="proxmox-key-toggle" title="Hide secret">🙈</button><button class="btn btn-secondary" id="proxmox-validate-btn">Test Connection</button></div><div id="proxmox-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Token: <code>user@realm!tokenid=secret</code>. Give it at least <code>PVEAuditor</code> on <code>/</code>.</p></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="proxmox-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="proxmox-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- Proxmox Backup Server Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">💾 Proxmox Backup Server Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Node health &amp; datastore usage (PBS)</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="pbs-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="pbs-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.proxmox.com/en/proxmox-backup-server" target="_blank" rel="noopener" style="color:var(--accent);">Proxmox Backup Server</a> via an API token. (Not a Homarr integration — built against the documented PBS REST API; see THIRD-PARTY-LICENSES.)</p>
+          <div class="form-group"><label class="label" for="pbs-url">PBS URL</label><input class="input" type="text" id="pbs-url" placeholder="e.g. https://192.168.1.10:8007" autocomplete="off"></div>
+          <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+            <div><label class="label" for="pbs-username">User</label><input class="input" type="text" id="pbs-username" placeholder="root" autocomplete="off"></div>
+            <div><label class="label" for="pbs-realm">Realm</label><input class="input" type="text" id="pbs-realm" placeholder="pbs" autocomplete="off"></div>
+            <div><label class="label" for="pbs-token-id">Token ID</label><input class="input" type="text" id="pbs-token-id" placeholder="dashboard" autocomplete="off"></div>
+          </div>
+          <div class="form-group"><label class="label">Token Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="pbs-api-key" placeholder="API token secret…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="pbs-key-toggle" title="Hide secret">🙈</button><button class="btn btn-secondary" id="pbs-validate-btn">Test Connection</button></div><div id="pbs-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Token: <code>user@realm!tokenid:secret</code>. Needs <code>Datastore.Audit</code>.</p></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="pbs-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="pbs-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- Beszel Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">🐿 Beszel Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Lightweight server monitoring — per-system CPU/mem/disk</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="beszel-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="beszel-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://beszel.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Beszel</a> hub (PocketBase) login. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="beszel-url">Beszel Hub URL</label><input class="input" type="text" id="beszel-url" placeholder="e.g. http://192.168.1.10:8090" autocomplete="off"></div>
+          <div class="form-group"><label class="label" for="beszel-username">Email / Username</label><input class="input" type="text" id="beszel-username" placeholder="Beszel account email" autocomplete="off"></div>
+          <div class="form-group"><label class="label">Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="beszel-password" placeholder="Beszel password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="beszel-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="beszel-validate-btn">Test Connection</button></div><div id="beszel-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="beszel-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="beszel-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- iCal Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">📅 iCal Calendar Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Events from any iCalendar (.ics) feed — upcoming list or month grid</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="ical-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="ical-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;">Works with any <code>.ics</code> feed: Google Calendar (secret iCal address), Outlook, or a <strong>Nextcloud</strong> calendar's private link (Calendar app → ⋯ → Copy private link). Parser adapted from the Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> iCal integration — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="ical-name">Calendar Name</label><input class="input" type="text" id="ical-name" placeholder="e.g. Family" autocomplete="off"></div>
+          <div class="form-group"><label class="label" for="ical-url">iCal (.ics) URL</label><div class="api-key-row"><input class="input input-mono" type="text" id="ical-url" placeholder="https://…/calendar.ics" autocomplete="off"><button class="btn btn-secondary" id="ical-validate-btn">Test Feed</button></div><div id="ical-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group"><label class="label" for="ical-view">Default View</label><select class="select" id="ical-view" style="width:200px;"><option value="upcoming" selected>Upcoming events (list)</option><option value="calendar">Month calendar</option></select></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="ical-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="ical-preview-hint">Test the feed to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- Home Assistant Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">🏠 Home Assistant Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Live entity states with toggles for lights, switches &amp; more</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="homeassistant-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="homeassistant-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.home-assistant.io/" target="_blank" rel="noopener" style="color:var(--accent);">Home Assistant</a> via a long-lived access token (Profile → Security → Long-lived access tokens). Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.<br><span style="color:var(--text-muted);">Tip: to show a Home Assistant calendar, use the iCal widget with HA's calendar export URL.</span></p>
+          <div class="form-group"><label class="label" for="homeassistant-url">Home Assistant URL</label><input class="input" type="text" id="homeassistant-url" placeholder="e.g. http://192.168.1.10:8123" autocomplete="off"></div>
+          <div class="form-group"><label class="label">Long-Lived Access Token</label><div class="api-key-row"><input class="input input-mono" type="text" id="homeassistant-token" placeholder="Paste your access token…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="homeassistant-key-toggle" title="Hide token">🙈</button><button class="btn btn-secondary" id="homeassistant-validate-btn">Test Connection</button></div><div id="homeassistant-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group"><label class="label" for="homeassistant-entities">Entities</label><textarea class="input" id="homeassistant-entities" rows="4" placeholder="One entity ID per line, e.g.&#10;light.kitchen&#10;switch.office&#10;sensor.living_room_temperature" style="resize:vertical;font-family:var(--font-mono);font-size:12px;"></textarea><p style="font-size:12px;color:var(--text-muted);margin-top:4px;">Find IDs in HA under <strong>Developer Tools → States</strong>.</p></div>
+          <div class="form-group"><label class="checkbox-wrapper"><input type="checkbox" id="homeassistant-allow-toggle" checked> Allow toggling entities from the widget</label></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="homeassistant-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="homeassistant-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- OPNsense Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">🛡 OPNsense Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Firewall summary — CPU, memory &amp; interface traffic</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="opnsense-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="opnsense-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://opnsense.org/" target="_blank" rel="noopener" style="color:var(--accent);">OPNsense</a> via an API key + secret (<strong>System → Access → Users → (your user) → API keys</strong>, "+" to create). Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="opnsense-url">OPNsense URL</label><input class="input" type="text" id="opnsense-url" placeholder="e.g. https://192.168.1.1" autocomplete="off"></div>
+          <div class="form-group"><label class="label" for="opnsense-key">API Key</label><input class="input input-mono" type="text" id="opnsense-key" placeholder="API key…" autocomplete="off"></div>
+          <div class="form-group"><label class="label">API Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="opnsense-secret" placeholder="API secret…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="opnsense-key-toggle" title="Hide secret">🙈</button><button class="btn btn-secondary" id="opnsense-validate-btn">Test Connection</button></div><div id="opnsense-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="opnsense-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="opnsense-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- Nextcloud Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">☁ Nextcloud Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Recent Nextcloud notifications</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="nextcloud-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="nextcloud-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://nextcloud.com/" target="_blank" rel="noopener" style="color:var(--accent);">Nextcloud</a> notifications via the OCS API. Use an <strong>app password</strong> (Settings → Security → Devices &amp; sessions). For Nextcloud <em>calendars</em>, add the calendar's private iCal link to the iCal widget. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <div class="form-group"><label class="label" for="nextcloud-url">Nextcloud URL</label><input class="input" type="text" id="nextcloud-url" placeholder="e.g. https://cloud.example.com" autocomplete="off"></div>
+          <div class="form-group"><label class="label" for="nextcloud-username">Username</label><input class="input" type="text" id="nextcloud-username" placeholder="Nextcloud username" autocomplete="off"></div>
+          <div class="form-group"><label class="label">App Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="nextcloud-password" placeholder="App password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="nextcloud-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="nextcloud-validate-btn">Test Connection</button></div><div id="nextcloud-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="nextcloud-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="nextcloud-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- System health + Proxmox/PBS/Beszel preview modals -->
+  <div class="modal-overlay" id="glances-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>📟 Glances Widget Preview</h3><button class="modal-close-btn" id="glances-preview-close">✕</button></div><div class="modal-body"><div id="glances-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="glances-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="dashdot-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>📟 Dash. Widget Preview</h3><button class="modal-close-btn" id="dashdot-preview-close">✕</button></div><div class="modal-body"><div id="dashdot-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="dashdot-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="unraid-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🟧 Unraid Widget Preview</h3><button class="modal-close-btn" id="unraid-preview-close">✕</button></div><div class="modal-body"><div id="unraid-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="unraid-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="openmediavault-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🔵 OpenMediaVault Widget Preview</h3><button class="modal-close-btn" id="openmediavault-preview-close">✕</button></div><div class="modal-body"><div id="openmediavault-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="openmediavault-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="truenas-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🟦 TrueNAS Widget Preview</h3><button class="modal-close-btn" id="truenas-preview-close">✕</button></div><div class="modal-body"><div id="truenas-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="truenas-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="proxmox-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🖥 Proxmox Widget Preview</h3><button class="modal-close-btn" id="proxmox-preview-close">✕</button></div><div class="modal-body"><div id="proxmox-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="proxmox-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="pbs-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>💾 PBS Widget Preview</h3><button class="modal-close-btn" id="pbs-preview-close">✕</button></div><div class="modal-body"><div id="pbs-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="pbs-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="beszel-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🐿 Beszel Widget Preview</h3><button class="modal-close-btn" id="beszel-preview-close">✕</button></div><div class="modal-body"><div id="beszel-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="beszel-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="ical-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>📅 iCal Widget Preview</h3><button class="modal-close-btn" id="ical-preview-close">✕</button></div><div class="modal-body"><div id="ical-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="ical-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="homeassistant-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🏠 Home Assistant Widget Preview</h3><button class="modal-close-btn" id="homeassistant-preview-close">✕</button></div><div class="modal-body"><div id="homeassistant-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="homeassistant-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="nextcloud-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>☁ Nextcloud Widget Preview</h3><button class="modal-close-btn" id="nextcloud-preview-close">✕</button></div><div class="modal-body"><div id="nextcloud-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="nextcloud-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="opnsense-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🛡 OPNsense Widget Preview</h3><button class="modal-close-btn" id="opnsense-preview-close">✕</button></div><div class="modal-body"><div id="opnsense-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="opnsense-preview-done">Close</button></div></div></div>
+
+  <!-- Audiobookshelf preview modal -->
+  <div class="modal-overlay" id="audiobookshelf-preview-modal"><div class="modal-box modal-wide">
+    <div class="modal-header"><h3>📚 Audiobookshelf Widget Preview</h3><button class="modal-close-btn" id="audiobookshelf-preview-close">✕</button></div>
+    <div class="modal-body"><div id="audiobookshelf-preview-host"></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" id="audiobookshelf-preview-done">Close</button></div>
+  </div></div>
+  <!-- Navidrome preview modal -->
+  <div class="modal-overlay" id="navidrome-preview-modal"><div class="modal-box modal-wide">
+    <div class="modal-header"><h3>🎵 Navidrome Widget Preview</h3><button class="modal-close-btn" id="navidrome-preview-close">✕</button></div>
+    <div class="modal-body"><div id="navidrome-preview-host"></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" id="navidrome-preview-done">Close</button></div>
+  </div></div>
+  <!-- Prowlarr preview modal -->
+  <div class="modal-overlay" id="prowlarr-preview-modal"><div class="modal-box modal-wide">
+    <div class="modal-header"><h3>🔎 Prowlarr Widget Preview</h3><button class="modal-close-btn" id="prowlarr-preview-close">✕</button></div>
+    <div class="modal-body"><div id="prowlarr-preview-host"></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" id="prowlarr-preview-done">Close</button></div>
+  </div></div>
+  <!-- Tracearr preview modal -->
+  <div class="modal-overlay" id="tracearr-preview-modal"><div class="modal-box modal-wide">
+    <div class="modal-header"><h3>📈 Tracearr Widget Preview</h3><button class="modal-close-btn" id="tracearr-preview-close">✕</button></div>
+    <div class="modal-body"><div id="tracearr-preview-host"></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" id="tracearr-preview-done">Close</button></div>
+  </div></div>
+
+  <!-- PeaNUT preview modal -->
+  <div class="modal-overlay" id="peanut-preview-modal"><div class="modal-box modal-wide">
+    <div class="modal-header"><h3>🔋 PeaNUT Widget Preview</h3><button class="modal-close-btn" id="peanut-preview-close">✕</button></div>
+    <div class="modal-body"><div id="peanut-preview-host"></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" id="peanut-preview-done">Close</button></div>
+  </div></div>
+  <!-- Umami preview modal -->
+  <div class="modal-overlay" id="umami-preview-modal"><div class="modal-box modal-wide">
+    <div class="modal-header"><h3>📊 Umami Widget Preview</h3><button class="modal-close-btn" id="umami-preview-close">✕</button></div>
+    <div class="modal-body"><div id="umami-preview-host"></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" id="umami-preview-done">Close</button></div>
+  </div></div>
+  <!-- Speedtest preview modal -->
+  <div class="modal-overlay" id="speedtest-preview-modal"><div class="modal-box modal-wide">
+    <div class="modal-header"><h3>🚀 Speedtest Tracker Widget Preview</h3><button class="modal-close-btn" id="speedtest-preview-close">✕</button></div>
+    <div class="modal-body"><div id="speedtest-preview-host"></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" id="speedtest-preview-done">Close</button></div>
+  </div></div>
+  <!-- ntfy preview modal -->
+  <div class="modal-overlay" id="ntfy-preview-modal"><div class="modal-box modal-wide">
+    <div class="modal-header"><h3>🔔 ntfy Widget Preview</h3><button class="modal-close-btn" id="ntfy-preview-close">✕</button></div>
+    <div class="modal-body"><div id="ntfy-preview-host"></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" id="ntfy-preview-done">Close</button></div>
+  </div></div>
+
+  <!-- SABnzbd preview modal -->
+  <div class="modal-overlay" id="sabnzbd-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header"><h3>⬇️ SABnzbd Widget Preview</h3><button class="modal-close-btn" id="sabnzbd-preview-close">✕</button></div>
+      <div class="modal-body"><div id="sabnzbd-preview-host"></div></div>
+      <div class="modal-footer"><button class="btn btn-ghost" id="sabnzbd-preview-done">Close</button></div>
+    </div>
+  </div>
+
+  <!-- qBittorrent preview modal -->
+  <div class="modal-overlay" id="qbittorrent-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header"><h3>⬇️ qBittorrent Widget Preview</h3><button class="modal-close-btn" id="qbittorrent-preview-close">✕</button></div>
+      <div class="modal-body"><div id="qbittorrent-preview-host"></div></div>
+      <div class="modal-footer"><button class="btn btn-ghost" id="qbittorrent-preview-done">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Transmission preview modal -->
+  <div class="modal-overlay" id="transmission-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header"><h3>⬇️ Transmission Widget Preview</h3><button class="modal-close-btn" id="transmission-preview-close">✕</button></div>
+      <div class="modal-body"><div id="transmission-preview-host"></div></div>
+      <div class="modal-footer"><button class="btn btn-ghost" id="transmission-preview-done">Close</button></div>
+    </div>
+  </div>
+
+  <!-- Plex preview modal -->
+  <div class="modal-overlay" id="plex-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3>🎬 Plex Widget Preview</h3>
+        <button class="modal-close-btn" id="plex-preview-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">
+          Live data from your Plex Media Server, refreshing every 15 seconds.
+        </p>
+        <div id="plex-preview-host"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="plex-preview-done">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- UniFi preview modal -->
+  <div class="modal-overlay" id="unifi-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3>📡 UniFi Controller Widget Preview</h3>
+        <button class="modal-close-btn" id="unifi-preview-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">
+          Live network summary from your UniFi controller.
+        </p>
+        <div id="unifi-preview-host"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="unifi-preview-done">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pi-hole preview modal -->
+  <div class="modal-overlay" id="pihole-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3>🛡 Pi-hole Widget Preview</h3>
+        <button class="modal-close-btn" id="pihole-preview-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">
+          Live data from your Pi-hole server.
+        </p>
+        <div id="pihole-preview-host"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="pihole-preview-done">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- AdGuard preview modal -->
+  <div class="modal-overlay" id="adguard-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3>🛡 AdGuard Home Widget Preview</h3>
+        <button class="modal-close-btn" id="adguard-preview-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">
+          Live data from your AdGuard Home server.
+        </p>
+        <div id="adguard-preview-host"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="adguard-preview-done">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Seerr preview modal -->
+  <div class="modal-overlay" id="seerr-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3>🎞 Seerr Widget Preview</h3>
+        <button class="modal-close-btn" id="seerr-preview-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">
+          Live data from your Overseerr/Jellyseerr server. Toggle between recent requests and stats.
+        </p>
+        <div id="seerr-preview-host"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="seerr-preview-done">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sonarr preview modal -->
+  <div class="modal-overlay" id="sonarr-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3>📺 Sonarr Widget Preview</h3>
+        <button class="modal-close-btn" id="sonarr-preview-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">
+          Live data from your Sonarr server. Toggle between the upcoming list and the month calendar.
+        </p>
+        <div id="sonarr-preview-host"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="sonarr-preview-done">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Radarr preview modal -->
+  <div class="modal-overlay" id="radarr-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3>🎬 Radarr Widget Preview</h3>
+        <button class="modal-close-btn" id="radarr-preview-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">
+          Live data from your Radarr server. Toggle between the upcoming list and the month calendar.
+        </p>
+        <div id="radarr-preview-host"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="radarr-preview-done">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Uptime Kuma preview modal -->
+  <div class="modal-overlay" id="uptimekuma-preview-modal">
+    <div class="modal-box modal-wide">
+      <div class="modal-header">
+        <h3>📈 Uptime Kuma Widget Preview</h3>
+        <button class="modal-close-btn" id="uptimekuma-preview-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">
+          Live data from your Uptime Kuma status page, refreshing on your chosen interval.
+          This is the same widget that appears on dashboards.
+        </p>
+        <div id="uptimekuma-preview-host"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="uptimekuma-preview-done">Close</button>
+      </div>
     </div>
   </div>
 
@@ -1325,6 +2895,29 @@
 </div>
 
 <script src="../widgets/tautulli-widget.js"></script>
+<script src="../widgets/uptime-kuma-widget.js"></script>
+<script src="../widgets/arr-calendar-widget.js"></script>
+<script src="../widgets/seerr-widget.js"></script>
+<script src="../widgets/dns-hole-widget.js"></script>
+<script src="../widgets/plex-widget.js"></script>
+<script src="../widgets/unifi-widget.js"></script>
+<script src="../widgets/download-client-widget.js"></script>
+<script src="../widgets/peanut-widget.js"></script>
+<script src="../widgets/umami-widget.js"></script>
+<script src="../widgets/speedtest-widget.js"></script>
+<script src="../widgets/ntfy-widget.js"></script>
+<script src="../widgets/audiobookshelf-widget.js"></script>
+<script src="../widgets/navidrome-widget.js"></script>
+<script src="../widgets/prowlarr-widget.js"></script>
+<script src="../widgets/tracearr-widget.js"></script>
+<script src="../widgets/system-health-widget.js"></script>
+<script src="../widgets/proxmox-widget.js"></script>
+<script src="../widgets/pbs-widget.js"></script>
+<script src="../widgets/beszel-widget.js"></script>
+<script src="../widgets/ical-widget.js"></script>
+<script src="../widgets/homeassistant-widget.js"></script>
+<script src="../widgets/nextcloud-widget.js"></script>
+<script src="../widgets/opnsense-widget.js"></script>
 <script src="config.js"></script>
 </body>
 </html>

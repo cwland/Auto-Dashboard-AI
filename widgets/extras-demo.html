@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PeaNUT / Umami / Speedtest / ntfy — Sample Dashboard</title>
+<link rel="stylesheet" href="../styles/common.css">
+<link rel="stylesheet" href="peanut-widget.css">
+<link rel="stylesheet" href="umami-widget.css">
+<link rel="stylesheet" href="speedtest-widget.css">
+<link rel="stylesheet" href="ntfy-widget.css">
+<style>
+  body { margin: 0; background: var(--bg-primary); padding: 28px; }
+  .head { max-width: 1100px; margin: 0 auto 22px; }
+  h1 { font: 700 20px/1.3 system-ui, sans-serif; color: var(--text-primary); margin: 0 0 4px; }
+  .lede { font: 400 13px/1.6 system-ui, sans-serif; color: var(--text-muted); margin: 0; max-width: 86ch; }
+  .grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; align-items: start; }
+  @media (max-width: 840px) { .grid { grid-template-columns: 1fr; } }
+  .col h2 { font: 700 12px/1.3 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); margin: 0 0 12px; }
+  .tile-host { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>🔋📊🚀🔔 Extra Integrations — Sample Dashboard</h1>
+    <p class="lede">Offline preview of four widgets, each running its real mapping/parsing logic on canned API payloads (no servers).</p>
+  </div>
+  <div class="grid">
+    <div class="col"><h2>PeaNUT (UPS)</h2><div class="tile-host"><div id="peanut-host"></div></div></div>
+    <div class="col"><h2>Umami (analytics)</h2><div class="tile-host"><div id="umami-host"></div></div></div>
+    <div class="col"><h2>Speedtest Tracker</h2><div class="tile-host"><div id="speedtest-host"></div></div></div>
+    <div class="col"><h2>ntfy (notifications)</h2><div class="tile-host"><div id="ntfy-host"></div></div></div>
+  </div>
+
+<script src="peanut-widget.js"></script>
+<script src="umami-widget.js"></script>
+<script src="speedtest-widget.js"></script>
+<script src="ntfy-widget.js"></script>
+<script>
+  'use strict';
+
+  // PeaNUT: flat NUT variable maps
+  const upsDevices = [
+    { 'peanut.device_id': 'ups', 'device.mfr': 'APC', 'device.model': 'Back-UPS 1500', 'ups.status': 'OL', 'battery.charge': 100, 'battery.runtime': 3120, 'ups.load': 22, 'input.voltage': 121.5, 'ups.realpower': 88, 'ups.temperature': 31 },
+  ];
+  new PeanutWidget(document.getElementById('peanut-host'), { dataProvider: () => Promise.resolve(PeanutApi.mapDevices(upsDevices)) }).start();
+
+  // Umami: stats payload → summary
+  const umamiStats = { pageviews: 18420, visitors: 9230, visits: 11200, bounces: 4480, totaltime: 1568000 };
+  new UmamiWidget(document.getElementById('umami-host'), { dataProvider: () => Promise.resolve(UmamiApi.buildSummary(umamiStats, 37, '24h')) }).start();
+
+  // Speedtest Tracker: latest + stats
+  const stData = {
+    latest: SpeedtestApi.mapLatest({ id: 1, ping: 12.4, download_bits: 942000000, upload_bits: 118000000, healthy: true, created_at: new Date(Date.now() - 1800000).toISOString() }),
+    stats: SpeedtestApi.mapStats({ ping: { avg: 13.8, min: 9, max: 40 }, download: { avg: 910.2 }, upload: { avg: 115.6 }, total_results: 412 }),
+  };
+  new SpeedtestWidget(document.getElementById('speedtest-host'), { dataProvider: () => Promise.resolve(stData) }).start();
+
+  // ntfy: newline-delimited JSON
+  const t = Math.floor(Date.now() / 1000);
+  const ntfyText = [
+    JSON.stringify({ id: '1', time: t - 120, event: 'message', topic: 'home', title: 'Backup complete', message: 'Nightly backup finished in 4m 12s.' }),
+    JSON.stringify({ id: '0', time: t - 5400, event: 'open', topic: 'home' }),
+    JSON.stringify({ id: '2', time: t - 7200, event: 'message', topic: 'home', title: 'Door opened', message: 'Front door sensor triggered.' }),
+  ].join('\n');
+  new NtfyWidget(document.getElementById('ntfy-host'), { topic: 'home', dataProvider: () => Promise.resolve(NtfyApi.parseMessages(ntfyText)) }).start();
+</script>
+</body>
+</html>

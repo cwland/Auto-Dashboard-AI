@@ -1,0 +1,265 @@
+/* Auto Dashboard AI — Sonarr / Radarr calendar widget styles
+   Uses the shared design tokens from styles/common.css (light / dark aware).
+   Self-contained: every selector is scoped under .arr-calendar-widget so it
+   can be dropped into any host (preview modal today, dashboard tile tomorrow).
+
+   The month-grid view follows Homarr's calendar widget as a reference
+   template. Homarr is Apache-2.0 licensed — see THIRD-PARTY-LICENSES.md. */
+
+.arr-calendar-widget {
+  --arr-blue: #4c8bf5;
+  --arr-yellow: var(--warning, #f59e0b);
+  --arr-red: var(--danger, #ef4444);
+  /* per-service accent: Sonarr blue, Radarr yellow */
+  --arr-accent: var(--arr-blue);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  font-family: var(--font, system-ui, sans-serif);
+  color: var(--text-primary);
+}
+.arr-calendar-widget.arr-radarr { --arr-accent: var(--arr-yellow); }
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.arr-calendar-widget .arr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.arr-calendar-widget .arr-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.arr-calendar-widget .arr-tools { display: flex; align-items: center; gap: 10px; }
+.arr-calendar-widget .arr-error {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--danger-light, rgba(239, 68, 68, 0.12));
+  color: var(--danger, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+/* View toggle (segmented control) */
+.arr-calendar-widget .arr-view-toggle {
+  display: inline-flex;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px;
+}
+.arr-calendar-widget .arr-tab {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font: 600 12px/1 var(--font, system-ui, sans-serif);
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.arr-calendar-widget .arr-tab:hover { color: var(--text-primary); }
+.arr-calendar-widget .arr-tab-active {
+  background: var(--arr-accent);
+  color: #fff;
+}
+
+/* ── List view ───────────────────────────────────────────────────────────── */
+.arr-calendar-widget .arr-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+.arr-calendar-widget .arr-row {
+  display: grid;
+  grid-template-columns: 38px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border-top: 1px solid var(--border);
+}
+.arr-calendar-widget .arr-row:first-child { border-top: none; }
+.arr-calendar-widget .arr-poster {
+  width: 38px;
+  aspect-ratio: 7 / 12;
+  border-radius: 5px;
+  overflow: hidden;
+  background: var(--bg-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+.arr-calendar-widget .arr-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.arr-calendar-widget .arr-row-main { min-width: 0; }
+.arr-calendar-widget .arr-row-titleline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.arr-calendar-widget .arr-row-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.arr-calendar-widget .arr-row-sub {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+.arr-calendar-widget .arr-row-date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.arr-calendar-widget .arr-badge {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.arr-calendar-widget .arr-badge-red    { background: rgba(239, 68, 68, 0.16);  color: var(--arr-red); }
+.arr-calendar-widget .arr-badge-yellow { background: rgba(245, 158, 11, 0.16); color: var(--arr-yellow); }
+
+/* ── Calendar (month grid) view ──────────────────────────────────────────── */
+.arr-calendar-widget .arr-cal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  padding: 12px;
+}
+.arr-calendar-widget .arr-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.arr-calendar-widget .arr-cal-month {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.arr-calendar-widget .arr-nav-btn {
+  width: 28px; height: 28px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm, 6px);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.arr-calendar-widget .arr-nav-btn:hover { border-color: var(--arr-accent); color: var(--text-primary); }
+
+.arr-calendar-widget .arr-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.arr-calendar-widget .arr-cal-weekdays { margin-bottom: 4px; }
+.arr-calendar-widget .arr-weekday {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.arr-calendar-widget .arr-cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 1px solid transparent;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm, 6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font: inherit;
+  color: var(--text-secondary);
+  cursor: default;
+  padding: 0;
+}
+.arr-calendar-widget .arr-cell-empty { background: transparent; }
+.arr-calendar-widget .arr-cell-num { font-size: 12px; font-weight: 600; }
+.arr-calendar-widget .arr-cell-dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 10px;
+}
+.arr-calendar-widget .arr-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--arr-accent);
+}
+.arr-calendar-widget .arr-count {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--arr-accent);
+}
+.arr-calendar-widget .arr-cell.arr-has {
+  cursor: pointer;
+  color: var(--text-primary);
+}
+.arr-calendar-widget .arr-cell.arr-has:hover { border-color: var(--arr-accent); }
+.arr-calendar-widget .arr-cell.arr-today {
+  border-color: var(--border-focus, var(--accent));
+}
+.arr-calendar-widget .arr-cell.arr-selected {
+  background: var(--arr-accent);
+  color: #fff;
+}
+.arr-calendar-widget .arr-cell.arr-selected .arr-dot { background: #fff; }
+.arr-calendar-widget .arr-cell.arr-selected .arr-count { color: #fff; }
+
+.arr-calendar-widget .arr-cal-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  text-align: center;
+}
+.arr-calendar-widget .arr-day-detail { margin-top: 14px; }
+.arr-calendar-widget .arr-day-detail-head {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────── */
+.arr-calendar-widget .arr-empty {
+  padding: 22px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 10px);
+}

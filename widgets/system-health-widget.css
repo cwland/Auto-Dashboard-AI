@@ -1,0 +1,40 @@
+/* Auto Dashboard AI — System Health widget styles (Glances/Dashdot/Unraid/OMV/TrueNAS).
+   Scoped under .syshealth-widget. Adapted from Homarr's health-monitoring widgets
+   (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.syshealth-widget {
+  --sh-cpu: #4c8bf5; --sh-mem: #8b5cf6; --sh-temp: #f59e0b;
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.syshealth-widget .sh-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.syshealth-widget .sh-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.syshealth-widget .sh-tools { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.syshealth-widget .sh-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.syshealth-widget .sh-ver { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.syshealth-widget .sh-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 360px) { .syshealth-widget .sh-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.syshealth-widget .sh-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 13px 8px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+.syshealth-widget .sh-val { font-size: 20px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.syshealth-widget .sh-tile.sh-cpu .sh-val { color: var(--sh-cpu); }
+.syshealth-widget .sh-tile.sh-mem .sh-val { color: var(--sh-mem); }
+.syshealth-widget .sh-tile.sh-temp .sh-val { color: var(--sh-temp); }
+.syshealth-widget .sh-lbl { font-size: 10px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.syshealth-widget .sh-sub { font-size: 10.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.syshealth-widget .sh-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.syshealth-widget .sh-badge { font-size: 10.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+.syshealth-widget .sh-badge-warn { background: var(--warning-light, rgba(245,158,11,0.12)); color: var(--warning, #f59e0b); border: 1px solid rgba(245,158,11,0.25); }
+.syshealth-widget .sh-badge-info { background: var(--accent-light, rgba(99,102,241,0.12)); color: var(--accent, #6366f1); border: 1px solid rgba(99,102,241,0.25); }
+.syshealth-widget .sh-section { border: 1px solid var(--border); border-radius: var(--radius, 10px); background: var(--bg-secondary); overflow: hidden; }
+.syshealth-widget .sh-sec-head { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.syshealth-widget .sh-fs-row { display: grid; grid-template-columns: minmax(60px, 34%) 1fr 40px; align-items: center; gap: 10px; padding: 7px 12px; border-top: 1px solid var(--border); }
+.syshealth-widget .sh-fs-row:nth-child(2) { border-top: none; }
+.syshealth-widget .sh-fs-name { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.syshealth-widget .sh-fs-bar { height: 5px; border-radius: 999px; background: var(--bg-hover); overflow: hidden; }
+.syshealth-widget .sh-fs-fill { height: 100%; background: var(--sh-cpu); border-radius: 999px; }
+.syshealth-widget .sh-fs-pct { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-align: right; font-variant-numeric: tabular-nums; }
+.syshealth-widget .sh-smart-row { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 10px; padding: 7px 12px; border-top: 1px solid var(--border); }
+.syshealth-widget .sh-smart-row:nth-child(2) { border-top: none; }
+.syshealth-widget .sh-dot { width: 9px; height: 9px; border-radius: 50%; }
+.syshealth-widget .sh-dot.sh-ok { background: var(--success, #22c55e); } .syshealth-widget .sh-dot.sh-err { background: var(--danger, #ef4444); }
+.syshealth-widget .sh-smart-name { font-size: 12px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.syshealth-widget .sh-smart-meta { font-size: 11px; color: var(--text-muted); white-space: nowrap; }

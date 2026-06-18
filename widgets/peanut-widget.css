@@ -1,0 +1,31 @@
+/* Auto Dashboard AI — PeaNUT (UPS) widget styles. Scoped under .peanut-widget.
+   Adapted from Homarr's UPS summary widget (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.peanut-widget {
+  --pn-green: var(--success, #22c55e); --pn-yellow: var(--warning, #f59e0b);
+  --pn-red: var(--danger, #ef4444); --pn-blue: #4c8bf5; --pn-gray: var(--text-muted, #a8bac8);
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.peanut-widget .pn-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.peanut-widget .pn-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.peanut-widget .pn-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.peanut-widget .pn-body { display: flex; flex-direction: column; gap: 12px; }
+.peanut-widget .pn-device { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: var(--radius, 10px); padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.peanut-widget .pn-device-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.peanut-widget .pn-name { font-size: 13.5px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.peanut-widget .pn-status { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.peanut-widget .pn-bar { height: 6px; border-radius: 999px; overflow: hidden; background: var(--bg-hover); }
+.peanut-widget .pn-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+.peanut-widget .pn-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.peanut-widget .pn-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 6px; border-radius: var(--radius-sm, 6px); background: var(--bg-card); border: 1px solid var(--border); }
+.peanut-widget .pn-tile-val { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.peanut-widget .pn-tile-lbl { font-size: 10px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.peanut-widget .pn-empty { padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }
+.peanut-widget .pn-c-green { background: rgba(34,197,94,0.16); color: var(--pn-green); }
+.peanut-widget .pn-c-yellow { background: rgba(245,158,11,0.16); color: var(--pn-yellow); }
+.peanut-widget .pn-c-red { background: rgba(239,68,68,0.16); color: var(--pn-red); }
+.peanut-widget .pn-c-blue { background: rgba(76,139,245,0.16); color: var(--pn-blue); }
+.peanut-widget .pn-c-gray { background: var(--bg-hover); color: var(--pn-gray); }
+.peanut-widget .pn-c-bg-green { background: var(--pn-green); } .peanut-widget .pn-c-bg-yellow { background: var(--pn-yellow); }
+.peanut-widget .pn-c-bg-red { background: var(--pn-red); } .peanut-widget .pn-c-bg-blue { background: var(--pn-blue); }
+.peanut-widget .pn-c-bg-gray { background: var(--pn-gray); }

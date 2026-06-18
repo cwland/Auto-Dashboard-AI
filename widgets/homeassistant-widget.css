@@ -1,0 +1,23 @@
+/* Auto Dashboard AI — Home Assistant widget styles. Scoped under .ha-widget.
+   Adapted from Homarr's Home Assistant integration (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.ha-widget {
+  --ha-accent: #18bcf2; --ha-on: #22c55e;
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.ha-widget .ha-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ha-widget .ha-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.ha-widget .ha-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.ha-widget .ha-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius, 10px); overflow: hidden; background: var(--bg-secondary); }
+.ha-widget .ha-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--border); }
+.ha-widget .ha-row:first-child { border-top: none; }
+.ha-widget .ha-row-main { min-width: 0; display: flex; flex-direction: column; }
+.ha-widget .ha-name { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ha-widget .ha-domain { font-size: 10.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.ha-widget .ha-state { font-size: 13px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ha-widget .ha-state.ha-state-on { color: var(--ha-on); }
+.ha-widget .ha-toggle { position: relative; width: 40px; height: 22px; border-radius: 999px; border: none; cursor: pointer; background: var(--bg-hover); transition: background 0.15s; flex: 0 0 auto; }
+.ha-widget .ha-toggle.ha-on { background: var(--ha-on); }
+.ha-widget .ha-toggle-knob { position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
+.ha-widget .ha-toggle.ha-on .ha-toggle-knob { transform: translateX(18px); }
+.ha-widget .ha-empty { padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

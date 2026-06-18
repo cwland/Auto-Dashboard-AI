@@ -1,0 +1,24 @@
+/* Auto Dashboard AI — OPNsense widget styles. Scoped under .opnsense-widget.
+   Adapted from Homarr's OPNsense integration (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.opnsense-widget {
+  --op-cpu: #4c8bf5; --op-mem: #8b5cf6; --op-accent: #d94f00;
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.opnsense-widget .op-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.opnsense-widget .op-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.opnsense-widget .op-tools { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.opnsense-widget .op-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.opnsense-widget .op-ver { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+.opnsense-widget .op-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.opnsense-widget .op-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 14px 8px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+.opnsense-widget .op-val { font-size: 22px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.opnsense-widget .op-tile.op-cpu .op-val { color: var(--op-cpu); } .opnsense-widget .op-tile.op-mem .op-val { color: var(--op-mem); }
+.opnsense-widget .op-lbl { font-size: 10px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.opnsense-widget .op-sub { font-size: 10.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.opnsense-widget .op-section { border: 1px solid var(--border); border-radius: var(--radius, 10px); background: var(--bg-secondary); overflow: hidden; }
+.opnsense-widget .op-sec-head { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.opnsense-widget .op-if-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; padding: 8px 12px; border-top: 1px solid var(--border); }
+.opnsense-widget .op-if-row:first-of-type { border-top: none; }
+.opnsense-widget .op-if-name { font-size: 12.5px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opnsense-widget .op-if-rate { font-size: 11.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; white-space: nowrap; }

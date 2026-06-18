@@ -1,0 +1,18 @@
+/* Auto Dashboard AI — Umami widget styles. Scoped under .umami-widget.
+   Adapted from Homarr's Umami widget (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.umami-widget {
+  --um-accent: #2c7be5;
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.umami-widget .um-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.umami-widget .um-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.umami-widget .um-tools { display: flex; align-items: center; gap: 10px; }
+.umami-widget .um-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.umami-widget .um-tf { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); padding: 4px 10px; border-radius: 999px; background: var(--bg-secondary); border: 1px solid var(--border); }
+.umami-widget .um-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 340px) { .umami-widget .um-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.umami-widget .um-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 14px 8px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+.umami-widget .um-val { font-size: 22px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.umami-widget .um-tile.um-accent .um-val { color: var(--um-accent); }
+.umami-widget .um-lbl { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); text-align: center; white-space: nowrap; }

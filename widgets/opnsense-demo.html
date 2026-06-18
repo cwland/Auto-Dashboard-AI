@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OPNsense Widget — Sample Dashboard</title>
+<link rel="stylesheet" href="../styles/common.css">
+<link rel="stylesheet" href="opnsense-widget.css">
+<style>
+  body { margin: 0; background: var(--bg-primary); padding: 28px; }
+  .wrap { max-width: 560px; margin: 0 auto; }
+  h1 { font: 700 20px/1.3 system-ui, sans-serif; color: var(--text-primary); margin: 0 0 4px; }
+  .lede { font: 400 13px/1.6 system-ui, sans-serif; color: var(--text-muted); margin: 0 0 22px; }
+  .tile-host { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .row-btns { display: flex; gap: 8px; margin-top: 14px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🛡 OPNsense Widget — Sample Dashboard</h1>
+    <p class="lede">Offline preview. The demo feeds the widget mapped firewall data; interface rates are computed by diffing successive polls (click "Tick traffic" to advance the byte counters and see live rates).</p>
+    <div class="tile-host"><div id="host"></div></div>
+    <div class="row-btns"><button class="btn btn-secondary btn-sm" id="btn-tick">Tick traffic</button></div>
+  </div>
+
+<script src="opnsense-widget.js"></script>
+<script>
+  'use strict';
+  const GB = 1024 ** 3;
+  // Cumulative byte counters that grow on each tick.
+  let wanRx = 4 * GB, wanTx = 1 * GB, lanRx = 12 * GB, lanTx = 9 * GB;
+  let cpu = 12;
+  function data() {
+    return {
+      version: OpnsenseApi.mapVersion({ versions: ['24.7.3', 'OpenSSL 3.0'] }).version,
+      cpu: OpnsenseApi.mapCpu({ total: cpu }),
+      memory: OpnsenseApi.mapMemory({ memory: { total: String(8 * GB), used: 2.6 * GB } }),
+      interfaces: OpnsenseApi.mapInterfaces({ interfaces: {
+        wan: { name: 'WAN', 'bytes received': String(wanRx), 'bytes transmitted': String(wanTx) },
+        lan: { name: 'LAN', 'bytes received': String(lanRx), 'bytes transmitted': String(lanTx) },
+      } }),
+    };
+  }
+  const w = new OpnsenseWidget(document.getElementById('host'), { dataProvider: () => Promise.resolve(data()) });
+  w.start();
+  document.getElementById('btn-tick').addEventListener('click', () => {
+    wanRx += 4_500_000 + Math.random() * 8_000_000; wanTx += 800_000 + Math.random() * 2_000_000;
+    lanRx += 20_000_000 + Math.random() * 40_000_000; lanTx += 18_000_000 + Math.random() * 30_000_000;
+    cpu = 8 + Math.floor(Math.random() * 50);
+    w.poll();
+  });
+</script>
+</body>
+</html>

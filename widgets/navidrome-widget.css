@@ -1,0 +1,25 @@
+/* Auto Dashboard AI — Navidrome widget styles. Scoped under .navidrome-widget.
+   Adapted from Homarr's Navidrome integration (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.navidrome-widget {
+  --nv-accent: #3d2fd6;
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.navidrome-widget .nv-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.navidrome-widget .nv-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.navidrome-widget .nv-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.navidrome-widget .nv-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.navidrome-widget .nv-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 14px 8px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+.navidrome-widget .nv-icon { font-size: 15px; line-height: 1; }
+.navidrome-widget .nv-val { font-size: 21px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.navidrome-widget .nv-lbl { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.navidrome-widget .nv-np { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius, 10px); overflow: hidden; background: var(--bg-secondary); }
+.navidrome-widget .nv-np-head { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.navidrome-widget .nv-np-row { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--border); }
+.navidrome-widget .nv-np-row:nth-child(2) { border-top: none; }
+.navidrome-widget .nv-np-icon { color: var(--nv-accent); font-size: 11px; }
+.navidrome-widget .nv-np-main { min-width: 0; display: flex; flex-direction: column; }
+.navidrome-widget .nv-np-title { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.navidrome-widget .nv-np-sub { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.navidrome-widget .nv-np-user { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+.navidrome-widget .nv-np-empty { padding: 18px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

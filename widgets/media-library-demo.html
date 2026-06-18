@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audiobookshelf / Navidrome / Prowlarr / Tracearr — Sample Dashboard</title>
+<link rel="stylesheet" href="../styles/common.css">
+<link rel="stylesheet" href="audiobookshelf-widget.css">
+<link rel="stylesheet" href="navidrome-widget.css">
+<link rel="stylesheet" href="prowlarr-widget.css">
+<link rel="stylesheet" href="tracearr-widget.css">
+<style>
+  body { margin: 0; background: var(--bg-primary); padding: 28px; }
+  .head { max-width: 1100px; margin: 0 auto 22px; }
+  h1 { font: 700 20px/1.3 system-ui, sans-serif; color: var(--text-primary); margin: 0 0 4px; }
+  .lede { font: 400 13px/1.6 system-ui, sans-serif; color: var(--text-muted); margin: 0; max-width: 86ch; }
+  .grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; align-items: start; }
+  @media (max-width: 840px) { .grid { grid-template-columns: 1fr; } }
+  .col h2 { font: 700 12px/1.3 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); margin: 0 0 12px; }
+  .tile-host { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>📚🎵🔎📈 Media &amp; Library — Sample Dashboard</h1>
+    <p class="lede">Offline preview of four widgets, each running its real mapping/parsing on canned API payloads (no servers).</p>
+  </div>
+  <div class="grid">
+    <div class="col"><h2>Audiobookshelf</h2><div class="tile-host"><div id="abs-host"></div></div></div>
+    <div class="col"><h2>Navidrome</h2><div class="tile-host"><div id="nv-host"></div></div></div>
+    <div class="col"><h2>Prowlarr</h2><div class="tile-host"><div id="pr-host"></div></div></div>
+    <div class="col"><h2>Tracearr</h2><div class="tile-host"><div id="tc-host"></div></div></div>
+  </div>
+
+<script src="audiobookshelf-widget.js"></script>
+<script src="navidrome-widget.js"></script>
+<script src="prowlarr-widget.js"></script>
+<script src="tracearr-widget.js"></script>
+<script>
+  'use strict';
+
+  // Audiobookshelf
+  new AudiobookshelfWidget(document.getElementById('abs-host'), {
+    dataProvider: () => Promise.resolve(AudiobookshelfApi.buildDashboard(
+      [{ id: 'a', mediaType: 'book' }, { id: 'b', mediaType: 'podcast' }],
+      [{ mediaType: 'book', totalItems: 842 }, { mediaType: 'podcast', totalItems: 1290 }],
+      486000, 2)),
+  }).start();
+
+  // Navidrome (Subsonic response shapes)
+  const artistsBody = { artists: { index: [{ artist: new Array(120).fill({}) }, { artist: new Array(90).fill({}) }] } };
+  const albumPages = [new Array(500).fill({ songCount: 11 }), new Array(180).fill({ songCount: 9 })];
+  const nowPlayingBody = { nowPlaying: { entry: [{ title: 'Digital Love', artist: 'Daft Punk', album: 'Discovery', username: 'cory', playerName: 'Plexamp' }] } };
+  new NavidromeWidget(document.getElementById('nv-host'), {
+    dataProvider: () => Promise.resolve({
+      artistCount: NavidromeApi.countArtists(artistsBody),
+      ...NavidromeApi.countAlbumsSongs(albumPages),
+      nowPlaying: NavidromeApi.mapNowPlaying(nowPlayingBody),
+    }),
+  }).start();
+
+  // Prowlarr
+  const indexers = [
+    { id: 1, name: '1337x', indexerUrls: ['https://1337x.to'], enable: true },
+    { id: 2, name: 'Nyaa', indexerUrls: ['https://nyaa.si'], enable: true },
+    { id: 3, name: 'RARBG (dead)', indexerUrls: ['https://rarbg.to'], enable: true },
+    { id: 4, name: 'Old Tracker', indexerUrls: ['https://example.org'], enable: false },
+  ];
+  const statuses = [{ indexerId: 3 }]; // #3 is erroring
+  new ProwlarrWidget(document.getElementById('pr-host'), {
+    dataProvider: () => Promise.resolve(ProwlarrApi.buildIndexers(indexers, statuses)),
+  }).start();
+
+  // Tracearr
+  const stats = { activeStreams: 3, totalUsers: 14, totalSessions: 5210, recentViolations: 2, timestamp: '' };
+  const streams = { summary: { total: 3, transcodes: 1, directStreams: 1, directPlays: 1, totalBitrate: '24 Mbps' }, data: [
+    { id: 's1', serverName: 'Plex', username: 'cory', mediaTitle: 'Cold Harbor', mediaType: 'episode', showTitle: 'Severance', seasonNumber: 2, episodeNumber: 4, state: 'playing', isTranscode: false },
+    { id: 's2', serverName: 'Plex', username: 'jordan', mediaTitle: 'Dune: Part Two', mediaType: 'movie', year: 2024, state: 'paused', videoDecision: 'transcode' },
+    { id: 's3', serverName: 'Jellyfin', username: 'sam', mediaTitle: 'Live News', mediaType: 'live', state: 'playing', isTranscode: false },
+  ] };
+  new TracearrWidget(document.getElementById('tc-host'), {
+    dataProvider: () => Promise.resolve(TracearrApi.buildDashboard(stats, streams, null, null)),
+  }).start();
+</script>
+</body>
+</html>

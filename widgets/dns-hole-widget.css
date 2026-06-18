@@ -1,0 +1,119 @@
+/* Auto Dashboard AI — Pi-hole / AdGuard Home widget styles
+   Uses the shared design tokens from styles/common.css (light / dark aware).
+   Self-contained: every selector is scoped under .dns-hole-widget.
+
+   The four-stat layout follows Homarr's DNS-hole summary widget as a reference
+   template. Homarr is Apache-2.0 licensed — see THIRD-PARTY-LICENSES.md. */
+
+.dns-hole-widget {
+  --dh-red: var(--danger, #ef4444);
+  --dh-yellow: var(--warning, #f59e0b);
+  --dh-blue: #00afda;
+  --dh-green: var(--success, #22c55e);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  font-family: var(--font, system-ui, sans-serif);
+  color: var(--text-primary);
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.dns-hole-widget .dh-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.dns-hole-widget .dh-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.dns-hole-widget .dh-tools { display: flex; align-items: center; gap: 10px; }
+.dns-hole-widget .dh-error {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--danger-light, rgba(239, 68, 68, 0.12));
+  color: var(--danger, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.dns-hole-widget .dh-status {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.dns-hole-widget .dh-status-on {
+  background: var(--success-light, rgba(34, 197, 94, 0.12));
+  color: var(--success, #22c55e);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+.dns-hole-widget .dh-status-off {
+  background: var(--danger-light, rgba(239, 68, 68, 0.12));
+  color: var(--danger, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+/* ── Stat grid ───────────────────────────────────────────────────────────── */
+.dns-hole-widget .dh-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.dns-hole-widget .dh-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 16px 10px;
+  border-radius: var(--radius, 10px);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+/* left accent stripe per stat color */
+.dns-hole-widget .dh-tile::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 4px;
+  background: var(--dh-accent, var(--border));
+}
+.dns-hole-widget .dh-red    { --dh-accent: var(--dh-red); }
+.dns-hole-widget .dh-yellow { --dh-accent: var(--dh-yellow); }
+.dns-hole-widget .dh-blue   { --dh-accent: var(--dh-blue); }
+.dns-hole-widget .dh-green  { --dh-accent: var(--dh-green); }
+
+.dns-hole-widget .dh-tile-icon { font-size: 16px; line-height: 1; }
+.dns-hole-widget .dh-tile-value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+  color: var(--dh-accent, var(--text-primary));
+}
+.dns-hole-widget .dh-tile-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* ── Compact host (narrow tiles) ─────────────────────────────────────────── */
+.dns-hole-widget.dh-compact .dh-tile-value { font-size: 19px; }

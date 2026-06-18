@@ -1,0 +1,17 @@
+/* Auto Dashboard AI — ntfy widget styles. Scoped under .ntfy-widget.
+   Adapted from Homarr's ntfy integration (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.ntfy-widget {
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.ntfy-widget .nt-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ntfy-widget .nt-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ntfy-widget .nt-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); flex: 0 0 auto; }
+.ntfy-widget .nt-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius, 10px); overflow: hidden; background: var(--bg-secondary); }
+.ntfy-widget .nt-row { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-top: 1px solid var(--border); }
+.ntfy-widget .nt-row:first-child { border-top: none; }
+.ntfy-widget .nt-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ntfy-widget .nt-rtitle { font-size: 13px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ntfy-widget .nt-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; flex: 0 0 auto; }
+.ntfy-widget .nt-msg { font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; word-break: break-word; }
+.ntfy-widget .nt-empty { padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

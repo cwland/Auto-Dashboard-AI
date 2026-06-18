@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Monitoring — Sample Dashboard</title>
+<link rel="stylesheet" href="../styles/common.css">
+<link rel="stylesheet" href="system-health-widget.css">
+<link rel="stylesheet" href="proxmox-widget.css">
+<link rel="stylesheet" href="pbs-widget.css">
+<link rel="stylesheet" href="beszel-widget.css">
+<style>
+  body { margin: 0; background: var(--bg-primary); padding: 28px; }
+  .head { max-width: 1180px; margin: 0 auto 22px; }
+  h1 { font: 700 20px/1.3 system-ui, sans-serif; color: var(--text-primary); margin: 0 0 4px; }
+  .lede { font: 400 13px/1.6 system-ui, sans-serif; color: var(--text-muted); margin: 0; max-width: 90ch; }
+  .grid { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
+  @media (max-width: 980px) { .grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  .col h2 { font: 700 12px/1.3 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); margin: 0 0 12px; }
+  .tile-host { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>🖥 System Monitoring — Sample Dashboard</h1>
+    <p class="lede">Offline preview of all eight widgets, each running its real mapping logic on canned API payloads (no servers). The five system-health widgets (Glances, dash., Unraid, OpenMediaVault, TrueNAS) share one engine.</p>
+  </div>
+  <div class="grid">
+    <div class="col"><h2>Glances</h2><div class="tile-host"><div id="glances-host"></div></div></div>
+    <div class="col"><h2>dash. (dashdot)</h2><div class="tile-host"><div id="dashdot-host"></div></div></div>
+    <div class="col"><h2>Unraid</h2><div class="tile-host"><div id="unraid-host"></div></div></div>
+    <div class="col"><h2>OpenMediaVault</h2><div class="tile-host"><div id="omv-host"></div></div></div>
+    <div class="col"><h2>TrueNAS</h2><div class="tile-host"><div id="truenas-host"></div></div></div>
+    <div class="col"><h2>Proxmox VE</h2><div class="tile-host"><div id="proxmox-host"></div></div></div>
+    <div class="col"><h2>Proxmox Backup</h2><div class="tile-host"><div id="pbs-host"></div></div></div>
+    <div class="col"><h2>Beszel</h2><div class="tile-host"><div id="beszel-host"></div></div></div>
+  </div>
+
+<script src="system-health-widget.js"></script>
+<script src="proxmox-widget.js"></script>
+<script src="pbs-widget.js"></script>
+<script src="beszel-widget.js"></script>
+<script>
+  'use strict';
+  const GB = 1024 ** 3;
+
+  // Glances /api/4/all
+  new GlancesWidget(document.getElementById('glances-host'), { dataProvider: () => Promise.resolve(SystemHealthApi.glances.mapAll({
+    cpu: { total: 23.4 }, mem: { total: 32 * GB, used: 11 * GB },
+    network: [{ bytes_recv_rate_per_sec: 1240000, bytes_sent_rate_per_sec: 320000 }],
+    fs: [{ device_name: '/dev/sda1', used: 120 * GB, free: 380 * GB, percent: 24 }],
+    uptime: '12 days, 4:13:09', quicklook: { cpu_name: 'AMD Ryzen 7 5700G' },
+    gpu: [],
+  }, '4.2.0')) }).start();
+
+  // Dashdot
+  new DashdotWidget(document.getElementById('dashdot-host'), { dataProvider: () => Promise.resolve(SystemHealthApi.dashdot.mapData(
+    { maxAvailableMemoryBytes: 16 * GB, storage: [{ size: 1000 * GB }], cpuBrand: 'Intel', cpuModel: 'i5-12400', operatingSystemVersion: 'Debian 12 (6.1.0)', uptime: 540000, gpuNames: [] },
+    { sumLoad: 41.2, averageTemperature: 52 }, 6.5 * GB, [220 * GB], { up: 90000, down: 4200000 }, [])) }).start();
+
+  // Unraid (GraphQL shape)
+  new UnraidWidget(document.getElementById('unraid-host'), { dataProvider: () => Promise.resolve(SystemHealthApi.unraid.mapSystemInfo({
+    metrics: { cpu: { cpus: [{ percentTotal: 18 }, { percentTotal: 22 }] }, memory: { percentTotal: 47 } },
+    array: { disks: [{ name: 'disk1', size: 8 * 1024 * 1024 * 1024, fsUsed: 3 * 1024 * 1024 * 1024, status: 'DISK_OK', temp: 34 }, { name: 'disk2', size: 8 * 1024 * 1024 * 1024, fsUsed: 7.5 * 1024 * 1024 * 1024, status: 'DISK_DSBL', temp: 39 }] },
+    info: { os: { release: '7.0.0', uptime: new Date(Date.now() - 86400000 * 3).toISOString() }, cpu: { brand: 'Intel Xeon E5', cores: 8 }, memory: { layout: [{ size: 16 * GB }, { size: 16 * GB }] } },
+  })) }).start();
+
+  // OpenMediaVault (RPC shape)
+  new OpenMediaVaultWidget(document.getElementById('omv-host'), { dataProvider: () => Promise.resolve(SystemHealthApi.openmediavault.mapResponses(
+    { response: { version: '7.4', cpuModelName: 'Intel N100', cpuUtilization: 12.5, memUsed: 2.4 * GB, memAvailable: 8 * GB, uptime: 720000, loadAverage: { '1min': 0.4, '5min': 0.6, '15min': 0.5 }, rebootRequired: true, availablePkgUpdates: 5 } },
+    { response: [{ devicename: '/dev/sda1', used: '120 GiB', available: 380 * GB, percentage: 24 }] },
+    { response: [{ devicename: '/dev/sda', temperature: 36, overallstatus: 'GOOD' }, { devicename: '/dev/sdb', temperature: 41, overallstatus: 'BAD' }] },
+    { response: { cputemp: 44 } })) }).start();
+
+  // TrueNAS (websocket result shapes)
+  new TrueNasWidget(document.getElementById('truenas-host'), { dataProvider: () => Promise.resolve(SystemHealthApi.truenas.mapResults(
+    { physmem: 64 * GB, version: 'TrueNAS-SCALE-24.10', model: 'AMD EPYC 7302P', uptime_seconds: 1200000 },
+    [{ identifier: 'cpu', data: [[0, 15, 12, 8]] }, { identifier: 'memory', data: [[0, 40 * GB]] }, { identifier: 'cputemp', data: [[0, 45, 47]] }],
+    [{ name: 'tank', allocated: 6 * 1024 * GB, size: 10 * 1024 * GB, healthy: true, status: 'ONLINE' }, { name: 'backup', allocated: 1 * 1024 * GB, size: 4 * 1024 * GB, healthy: false, status: 'DEGRADED' }],
+    [{ data: [[0, 1240000, 320000]] }])) }).start();
+
+  // Proxmox cluster resources
+  new ProxmoxWidget(document.getElementById('proxmox-host'), { dataProvider: () => Promise.resolve(ProxmoxApi.mapResources([
+    { type: 'node', id: 'node/pve1', node: 'pve1', status: 'online', cpu: 0.18, maxcpu: 16, mem: 18 * GB, maxmem: 64 * GB, uptime: 900000 },
+    { type: 'qemu', id: 'qemu/100', vmid: 100, name: 'web', status: 'running', cpu: 0.05, maxcpu: 4, mem: 2 * GB, maxmem: 4 * GB },
+    { type: 'qemu', id: 'qemu/101', vmid: 101, name: 'db', status: 'stopped', cpu: 0, maxcpu: 4, mem: 0, maxmem: 8 * GB },
+    { type: 'lxc', id: 'lxc/200', vmid: 200, name: 'pihole', status: 'running', cpu: 0.01, maxcpu: 1, mem: 0.2 * GB, maxmem: 0.5 * GB },
+    { type: 'storage', id: 'storage/pve1/local', storage: 'local', node: 'pve1', status: 'available', disk: 80 * GB, maxdisk: 100 * GB, shared: 0 },
+    { type: 'storage', id: 'storage/pve1/nas', storage: 'nas', node: 'pve1', status: 'available', disk: 2 * 1024 * GB, maxdisk: 8 * 1024 * GB, shared: 1 },
+  ])) }).start();
+
+  // PBS
+  new PbsWidget(document.getElementById('pbs-host'), { dataProvider: () => Promise.resolve({
+    node: PbsApi.mapNode({ cpu: 0.07, memory: { total: 16 * GB, used: 4.2 * GB }, uptime: 1300000 }),
+    datastores: PbsApi.mapDatastores([{ store: 'main', used: 3.4 * 1024 * GB, total: 8 * 1024 * GB, avail: 4.6 * 1024 * GB }, { store: 'offsite', used: 6.9 * 1024 * GB, total: 8 * 1024 * GB, avail: 1.1 * 1024 * GB }]),
+  }) }).start();
+
+  // Beszel systems
+  new BeszelWidget(document.getElementById('beszel-host'), { dataProvider: () => Promise.resolve(BeszelApi.mapSystems([
+    { id: '1', name: 'web-01', host: '10.0.0.5', status: 'up', info: { cpu: 14, mp: 38, dp: 52, u: 540000, m: 'Xeon', v: '0.9.1' } },
+    { id: '2', name: 'db-01', host: '10.0.0.6', status: 'up', info: { cpu: 61, mp: 74, dp: 88, u: 1200000, v: '0.9.1' } },
+    { id: '3', name: 'backup', host: '10.0.0.7', status: 'down', info: { cpu: 0, mp: 0, dp: 0, u: 0, v: '0.9.1' } },
+  ])) }).start();
+</script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iCal / Home Assistant / Nextcloud — Sample Dashboard</title>
+<link rel="stylesheet" href="../styles/common.css">
+<link rel="stylesheet" href="ical-widget.css">
+<link rel="stylesheet" href="homeassistant-widget.css">
+<link rel="stylesheet" href="nextcloud-widget.css">
+<style>
+  body { margin: 0; background: var(--bg-primary); padding: 28px; }
+  .head { max-width: 1040px; margin: 0 auto 22px; }
+  h1 { font: 700 20px/1.3 system-ui, sans-serif; color: var(--text-primary); margin: 0 0 4px; }
+  .lede { font: 400 13px/1.6 system-ui, sans-serif; color: var(--text-muted); margin: 0; max-width: 86ch; }
+  .grid { max-width: 1040px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
+  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+  .col h2 { font: 700 12px/1.3 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); margin: 0 0 12px; }
+  .tile-host { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <h1>📅🏠☁ Calendar &amp; Home — Sample Dashboard</h1>
+    <p class="lede">Offline preview. The iCal widget parses a real inline <code>.ics</code> string (including a weekly recurring event) with its actual parser; the others run their real mapping logic on canned payloads.</p>
+  </div>
+  <div class="grid">
+    <div class="col"><h2>iCal (try the Calendar tab)</h2><div class="tile-host"><div id="ical-host"></div></div></div>
+    <div class="col"><h2>Home Assistant</h2><div class="tile-host"><div id="ha-host"></div></div></div>
+    <div class="col"><h2>Nextcloud</h2><div class="tile-host"><div id="nc-host"></div></div></div>
+  </div>
+
+<script src="ical-widget.js"></script>
+<script src="homeassistant-widget.js"></script>
+<script src="nextcloud-widget.js"></script>
+<script>
+  'use strict';
+  // Build an ICS feed with a few events incl. a weekly standup.
+  function ics() {
+    const pad = (n) => String(n).padStart(2, '0');
+    const d = (off, h, m) => { const x = new Date(); x.setDate(x.getDate() + off); return `${x.getFullYear()}${pad(x.getMonth() + 1)}${pad(x.getDate())}T${pad(h)}${pad(m)}00`; };
+    const dayOnly = (off) => { const x = new Date(); x.setDate(x.getDate() + off); return `${x.getFullYear()}${pad(x.getMonth() + 1)}${pad(x.getDate())}`; };
+    return [
+      'BEGIN:VCALENDAR', 'VERSION:2.0',
+      'BEGIN:VEVENT', 'UID:1', `DTSTART:${d(0, 14, 0)}`, `DTEND:${d(0, 15, 0)}`, 'SUMMARY:Dentist appointment', 'LOCATION:Main St Clinic', 'END:VEVENT',
+      'BEGIN:VEVENT', 'UID:2', `DTSTART:${d(2, 9, 30)}`, `DTEND:${d(2, 10, 0)}`, 'SUMMARY:Standup', 'RRULE:FREQ=WEEKLY;COUNT=8', 'END:VEVENT',
+      'BEGIN:VEVENT', 'UID:3', `DTSTART;VALUE=DATE:${dayOnly(5)}`, 'SUMMARY:Trip to the coast', 'END:VEVENT',
+      'BEGIN:VEVENT', 'UID:4', `DTSTART:${d(9, 19, 0)}`, `DTEND:${d(9, 21, 0)}`, 'SUMMARY:Dinner with friends', 'LOCATION:Trattoria', 'END:VEVENT',
+      'END:VCALENDAR',
+    ].join('\r\n');
+  }
+  const rawEvents = IcalApi.parse(ics());
+  new IcalWidget(document.getElementById('ical-host'), { title: 'Family', dataProvider: () => Promise.resolve(rawEvents) }).start();
+
+  // Home Assistant entities (offline: dataProvider disables toggle buttons)
+  new HomeAssistantWidget(document.getElementById('ha-host'), { dataProvider: () => Promise.resolve([
+    HomeAssistantApi.mapState({ entity_id: 'light.kitchen', state: 'on', attributes: { friendly_name: 'Kitchen Light' } }),
+    HomeAssistantApi.mapState({ entity_id: 'switch.office', state: 'off', attributes: { friendly_name: 'Office Switch' } }),
+    HomeAssistantApi.mapState({ entity_id: 'sensor.living_room_temperature', state: '21.4', attributes: { friendly_name: 'Living Room Temp', unit_of_measurement: '°C' } }),
+    HomeAssistantApi.mapState({ entity_id: 'cover.garage', state: 'closed', attributes: { friendly_name: 'Garage Door' } }),
+  ]) }).start();
+
+  // Nextcloud notifications
+  const now = new Date();
+  new NextcloudWidget(document.getElementById('nc-host'), { dataProvider: () => Promise.resolve(NextcloudApi.mapNotifications({ ocs: { data: [
+    { notification_id: 2, datetime: new Date(now - 600000).toISOString(), app: 'files_sharing', subject: 'Shared a file with you', message: 'Anna shared "Budget.xlsx"' },
+    { notification_id: 1, datetime: new Date(now - 7200000).toISOString(), app: 'updatenotification', subject: 'Update available', message: 'Nextcloud 30.0.2 is available.' },
+  ] } }).slice(0, 10)) }).start();
+</script>
+</body>
+</html>

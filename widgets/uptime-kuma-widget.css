@@ -1,0 +1,214 @@
+/* Auto Dashboard AI — Uptime Kuma widget styles
+   Uses the shared design tokens from styles/common.css so it themes
+   automatically (light / dark). Self-contained: every selector is scoped
+   under .uptime-kuma-widget so it can be dropped into any host (preview modal
+   today, dashboard tile tomorrow).
+
+   Layout (hero + ring + stat tiles + monitor list) follows Homarr's Uptime
+   Kuma widget as a reference template. Homarr is Apache-2.0 licensed — see
+   THIRD-PARTY-LICENSES.md. */
+
+.uptime-kuma-widget {
+  --uk-green: var(--success, #22c55e);
+  --uk-yellow: var(--warning, #f59e0b);
+  --uk-red: var(--danger, #ef4444);
+  --uk-gray: var(--text-muted, #a8bac8);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  font-family: var(--font, system-ui, sans-serif);
+  color: var(--text-primary);
+}
+
+/* tier color: applied to .uk-hero / .uk-ring via the .uk-tier-* class */
+.uptime-kuma-widget .uk-tier-excellent { --uk-accent: var(--uk-green); }
+.uptime-kuma-widget .uk-tier-good      { --uk-accent: var(--uk-yellow); }
+.uptime-kuma-widget .uk-tier-poor      { --uk-accent: var(--uk-red); }
+
+/* ── Error chip ─────────────────────────────────────────────────────────── */
+.uptime-kuma-widget .uk-error {
+  align-self: flex-start;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--danger-light, rgba(239, 68, 68, 0.12));
+  color: var(--danger, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.uptime-kuma-widget .uk-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Hero (average uptime) ──────────────────────────────────────────────── */
+.uptime-kuma-widget .uk-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 18px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 16px);
+}
+.uptime-kuma-widget .uk-hero.uk-hero-textonly { justify-content: center; }
+.uptime-kuma-widget .uk-hero.uk-hero-textonly .uk-hero-text {
+  align-items: center;
+  text-align: center;
+}
+
+.uptime-kuma-widget .uk-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.uptime-kuma-widget .uk-hero-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.uptime-kuma-widget .uk-hero-value {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--uk-accent, var(--text-primary));
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Progress ring (SVG) ────────────────────────────────────────────────── */
+.uptime-kuma-widget .uk-ring { flex: 0 0 auto; }
+.uptime-kuma-widget .uk-ring-track {
+  stroke: var(--border);
+}
+.uptime-kuma-widget .uk-ring-value {
+  stroke: var(--uk-accent, var(--accent));
+  transition: stroke-dashoffset 0.6s ease;
+}
+.uptime-kuma-widget .uk-ring-text {
+  fill: var(--text-primary);
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--font, system-ui, sans-serif);
+}
+
+/* ── Stat tiles ─────────────────────────────────────────────────────────── */
+.uptime-kuma-widget .uk-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(var(--uk-cols, 4), minmax(0, 1fr));
+  gap: 10px;
+}
+.uptime-kuma-widget .uk-stat-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 14px 10px;
+  border-radius: var(--radius, 10px);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.uptime-kuma-widget .uk-stat-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+.uptime-kuma-widget .uk-stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+.uptime-kuma-widget .uk-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* per-stat accent colors (matches Homarr: total gray, up green, down red, paused yellow) */
+.uptime-kuma-widget .uk-stat-total  .uk-stat-icon { color: var(--uk-gray); }
+.uptime-kuma-widget .uk-stat-up     .uk-stat-icon,
+.uptime-kuma-widget .uk-stat-up     .uk-stat-value { color: var(--uk-green); }
+.uptime-kuma-widget .uk-stat-down   .uk-stat-icon,
+.uptime-kuma-widget .uk-stat-down   .uk-stat-value { color: var(--uk-red); }
+.uptime-kuma-widget .uk-stat-paused .uk-stat-icon,
+.uptime-kuma-widget .uk-stat-paused .uk-stat-value { color: var(--uk-yellow); }
+
+/* ── Monitor list ───────────────────────────────────────────────────────── */
+.uptime-kuma-widget .uk-monitor-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+.uptime-kuma-widget .uk-monitor-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+.uptime-kuma-widget .uk-monitor-row:first-child { border-top: none; }
+.uptime-kuma-widget .uk-monitor-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--uk-gray);
+}
+.uptime-kuma-widget .uk-mon-up    .uk-monitor-dot { background: var(--uk-green); }
+.uptime-kuma-widget .uk-mon-down  .uk-monitor-dot { background: var(--uk-red); }
+.uptime-kuma-widget .uk-mon-paused .uk-monitor-dot { background: var(--uk-yellow); }
+.uptime-kuma-widget .uk-monitor-name {
+  min-width: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.uptime-kuma-widget .uk-monitor-status {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.uptime-kuma-widget .uk-mon-up    .uk-monitor-status { color: var(--uk-green); }
+.uptime-kuma-widget .uk-mon-down  .uk-monitor-status { color: var(--uk-red); }
+.uptime-kuma-widget .uk-mon-paused .uk-monitor-status { color: var(--uk-yellow); }
+.uptime-kuma-widget .uk-monitor-uptime {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  min-width: 64px;
+  text-align: right;
+}
+.uptime-kuma-widget .uk-monitor-empty,
+.uptime-kuma-widget .uk-empty {
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ── Compact host (narrow dashboard tiles) ──────────────────────────────── */
+.uptime-kuma-widget.uk-compact .uk-hero-value { font-size: 26px; }
+.uptime-kuma-widget.uk-compact .uk-stat-value { font-size: 19px; }

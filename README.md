@@ -13,6 +13,29 @@ A Chrome extension that auto-generates beautiful new-tab dashboards from your bo
 - **Smart icon resolution** — tries each site's real favicon first, falls back to the AI's best-guess brand icon, then a neutral generic icon if nothing matches (with an editable custom emoji option per bookmark)
 - **Live search** — press `/` or type to filter bookmarks across all sections
 - **Tautulli widget** — connect a [Tautulli](https://tautulli.com/) server to preview live Plex stream activity (poster art, stream/transcode details, progress and ETA), with a seamless infinite carousel when active streams exceed your configured visible count
+- **Uptime Kuma widget** — point at an [Uptime Kuma](https://github.com/louislam/uptime-kuma) status page (no API key needed) for an at-a-glance health summary: average 24-hour uptime with a color-coded ring, plus total / up / down / paused monitor counts and an optional per-monitor list. Try `widgets/uptime-kuma-demo.html` for a clickable offline preview
+- **Sonarr & Radarr widgets** — connect [Sonarr](https://sonarr.tv/) and/or [Radarr](https://radarr.video/) to see upcoming releases from your library, each as either a compact upcoming-releases list or a month calendar grid (toggle inside the widget). Episodes show `SxxExx` badges; movies appear once per release type (in cinemas / digital / physical). Try `widgets/arr-calendar-demo.html` for a clickable offline preview
+- **Seerr widget** — connect [Overseerr](https://overseerr.dev/), [Jellyseerr](https://docs.jellyseerr.dev/), or Seerr to see media requests two ways (toggle inside the widget): a recent-requests list with status/availability badges and who requested each item, or a stats grid (approved / pending / processing / declined / available / TV / movies / total) with top requesters. Try `widgets/seerr-demo.html` for a clickable offline preview
+- **Pi-hole & AdGuard Home widgets** — connect a [Pi-hole](https://pi-hole.net/) (v5 or v6, auto-detected) and/or [AdGuard Home](https://adguard.com/adguard-home/overview.html) DNS server for an ad-blocking summary: ads blocked today, block rate, DNS queries today, and blocklist size, plus a blocking on/off status pill. Try `widgets/dns-hole-demo.html` for a clickable offline preview
+- **Plex widget** — connect a [Plex Media Server](https://www.plex.tv/) to see what's currently playing: active streams with media type, title, episode/album, the user, and their device. Try `widgets/plex-demo.html` for a clickable offline preview
+- **UniFi Controller widget** — connect a [UniFi](https://ui.com/) controller for a network health summary: internet status with latency and uptime, plus Wi-Fi, LAN, and VPN status with connected user/guest counts. Try `widgets/unifi-demo.html` for a clickable offline preview
+- **SABnzbd, qBittorrent & Transmission widgets** — connect your download clients to see active transfers: each item with a progress bar, state badge, size, and speeds, plus aggregate down/up rates in the header. Works with [SABnzbd](https://sabnzbd.org/) (usenet), [qBittorrent](https://www.qbittorrent.org/), and [Transmission](https://transmissionbt.com/) (torrents). Try `widgets/download-client-demo.html` for a clickable offline preview
+- **PeaNUT widget** — connect a [PeaNUT](https://github.com/Brandawg93/PeaNUT) (NUT) server for a UPS summary: status, battery charge, load, runtime, voltages, power, and temperature per device. Try `widgets/extras-demo.html`
+- **Umami widget** — connect [Umami](https://umami.is/) web analytics to show active visitors plus visitors, pageviews, bounce rate, and average visit duration for a chosen time frame. Try `widgets/extras-demo.html`
+- **Speedtest Tracker widget** — connect [Speedtest Tracker](https://docs.speedtest-tracker.dev/) to show the latest internet download/upload/ping plus averages. Try `widgets/extras-demo.html`
+- **ntfy widget** — show recent notifications from an [ntfy](https://ntfy.sh/) topic. Try `widgets/extras-demo.html`
+- **Audiobookshelf widget** — library summary from an [Audiobookshelf](https://www.audiobookshelf.org/) server: audiobooks, podcasts, libraries, listening time, and active sessions. Try `widgets/media-library-demo.html`
+- **Navidrome widget** — music-library counts (artists, albums, songs) and now-playing from [Navidrome](https://www.navidrome.org/). Try `widgets/media-library-demo.html`
+- **Prowlarr widget** — indexer health from [Prowlarr](https://prowlarr.com/): how many are healthy, plus a per-indexer status list. Try `widgets/media-library-demo.html`
+- **Tracearr widget** — media-stream monitor: active streams, users, sessions, and recent violations, with a live stream list. Try `widgets/media-library-demo.html`
+- **System health widgets** — host monitoring from [Glances](https://nicolargo.github.io/glances/), [dash.](https://getdashdot.com/), [Unraid](https://docs.unraid.net/API/), [OpenMediaVault](https://www.openmediavault.org/), or [TrueNAS](https://www.truenas.com/): CPU, memory, uptime, temperature, load, filesystems, SMART, and GPU. Try `widgets/system-monitoring-demo.html`
+- **Proxmox VE widget** — cluster summary: nodes (CPU/memory), running vs. total VMs and containers, and storage usage. Try `widgets/system-monitoring-demo.html`
+- **Proxmox Backup Server widget** — node CPU/memory/uptime and per-datastore usage. Try `widgets/system-monitoring-demo.html`
+- **Beszel widget** — lightweight monitoring of multiple systems, each with status and CPU/memory/disk usage. Try `widgets/system-monitoring-demo.html`
+- **iCal widget** — events from any iCalendar (`.ics`) feed (Google Calendar, Outlook, Nextcloud exports, …) as an upcoming list or a clickable month grid; recurring events expand via a built-in RRULE parser. Try `widgets/calendar-home-demo.html`
+- **Home Assistant widget** — live states of the entities you pick (lights, switches, sensors) with on/off toggles. Try `widgets/calendar-home-demo.html`
+- **Nextcloud widget** — recent Nextcloud notifications. (For Nextcloud calendars, point the iCal widget at a calendar's exported `.ics` link.) Try `widgets/calendar-home-demo.html`
+- **OPNsense widget** — firewall summary: CPU and memory usage, version, and per-interface traffic shown as live rates. Try `widgets/opnsense-demo.html`
 
 ## Installation
 
@@ -124,12 +147,88 @@ auto-dashboard-ai/
 | `bookmarks` | Read your bookmark tree to populate the dashboard |
 | `storage` | Save settings, API key, and dashboard data locally |
 | `tabs` | Open config/dashboard pages when needed |
-| `host_permissions` | Reach the OpenWeatherMap API (weather widget) and your self-hosted Tautulli server. Tautulli can run on any local IP/port, so broad `http(s)://*/*` access is requested; requests are only ever made to the OpenWeatherMap endpoint and the Tautulli URL you configure |
+| `host_permissions` | Reach the OpenWeatherMap API (weather widget) and your self-hosted servers (Tautulli, Uptime Kuma, Sonarr, Radarr, Overseerr/Jellyseerr, Pi-hole, AdGuard Home, Plex, UniFi, SABnzbd, qBittorrent, Transmission, PeaNUT, Umami, Speedtest Tracker, ntfy, Audiobookshelf, Navidrome, Prowlarr, Tracearr, Glances, dash., Unraid, OpenMediaVault, TrueNAS, Proxmox, PBS, Beszel, Home Assistant, Nextcloud, OPNsense, and any iCal feed). These can run on any local IP/port, so broad `http(s)://*/*` access is requested; requests are only ever made to the OpenWeatherMap endpoint and the server URLs you configure |
 
 ## Tautulli widget
 
 Open **Settings → Widgets → Tautulli Integration**, enable it, then enter your Tautulli **Server URL** (e.g. `http://192.168.1.10:8181`) and **API key** (found in Tautulli under *Settings → Web Interface → API Key*). Click **Validate API Key**, then **Preview Widget** to see live activity. Set **Maximum Visible Sessions** to control how many stream cards show before the widget switches to a rotating carousel, and **Carousel Rotation Speed** to control how quickly it advances. Dashboard tiles reusing this widget are planned for a future release.
 
+## Uptime Kuma widget
+
+Open **Settings → Widgets → Uptime Kuma Integration**, enable it, then enter your Uptime Kuma **Server URL** (e.g. `http://192.168.1.10:3001`) and the **Status Page Slug** (the last part of a status-page URL, e.g. `…/status/default`). No API key is required — the widget reads a public status page. Click **Test Connection**, choose which stats to display, then **Preview Widget**. For a no-server, fully clickable demo, open `widgets/uptime-kuma-demo.html` in a browser.
+
+## Sonarr & Radarr widgets
+
+Open **Settings → Widgets → Sonarr Integration** or **Radarr Integration**, enable it, then enter the **Server URL** (Sonarr default port `8989`, Radarr `7878`) and the **API key** (found under *Settings → General → API Key* in each app). Click **Test Connection**, pick a **Default View** (upcoming list or month calendar) and how many upcoming items to show, then **Preview Widget**. Both views are always available via the toggle in the widget's header; in the calendar, click a highlighted day to see that day's releases. Radarr additionally lets you choose which **release types** (in cinemas / digital / physical) to include. For a no-server, fully clickable demo of both, open `widgets/arr-calendar-demo.html` in a browser.
+
+## Seerr widget
+
+Open **Settings → Widgets → Seerr Integration**, enable it, then enter the **Server URL** (Overseerr/Jellyseerr default port `5055`) and the **API key** (found under *Settings → General → API Key*). Click **Test Connection**, pick a **Default View** (recent requests or stats), how many requests to show, and whether to show top requesters, then **Preview Widget**. Both views are available via the toggle in the widget's header. The widget is read-only — it surfaces request status and availability but does not approve or decline requests. For a no-server, fully clickable demo, open `widgets/seerr-demo.html` in a browser.
+
+## Pi-hole & AdGuard Home widgets
+
+Open **Settings → Widgets → Pi-hole Integration** or **AdGuard Home Integration**, enable it, and enter the server URL. **Pi-hole** needs an app password (v6: *Settings → Web interface / API → App password*) or API token (v5: *Settings → API*); the version is detected automatically. **AdGuard Home** uses your dashboard **username and password** (HTTP Basic auth). Click **Test Connection**, then **Preview Widget**. Each widget shows ads blocked today, block rate, DNS queries today, and blocklist size, with a blocking on/off status pill. The widgets are read-only — they show status but do not enable/disable blocking. For a no-server, fully clickable demo of both, open `widgets/dns-hole-demo.html` in a browser.
+
+## Plex widget
+
+Open **Settings → Widgets → Plex Integration**, enable it, then enter your **Server URL** (default port `32400`) and **Plex token** (see [Finding your X-Plex-Token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)). Click **Test Connection**, then **Preview Widget** to see active streams. For a no-server, fully clickable demo, open `widgets/plex-demo.html` in a browser.
+
+## UniFi Controller widget
+
+Open **Settings → Widgets → UniFi Controller Integration**, enable it, then enter the **Controller URL** (UniFi OS / UDM typically on `443`, classic controllers on `8443`), a **local** admin username and password, and the **site** (usually `default`). Click **Test Connection**, then **Preview Widget**. The widget shows internet status with latency and uptime, plus Wi-Fi, LAN, and VPN status with user/guest counts. Note: UniFi controllers use cookie/CSRF login, so if yours uses a self-signed certificate, open its URL in the same browser once and accept the certificate first; some controllers may also require CORS allowances for browser access. For a no-server, fully clickable demo, open `widgets/unifi-demo.html` in a browser.
+
+## SABnzbd, qBittorrent & Transmission widgets
+
+Open **Settings → Widgets** and enable the client(s) you use. **SABnzbd** needs the server URL and **API key** (*Config → General → API Key*). **qBittorrent** needs the WebUI URL plus **username/password** (it logs in via cookie — you may need to relax host-header validation in *Options → Web UI* for cross-origin access). **Transmission** needs the URL and, if RPC auth is enabled, a **username/password** (optional otherwise). Click **Test Connection**, choose how many items to show, then **Preview Widget**. Each widget lists transfers with a progress bar, state badge, size, and speeds, with aggregate rates in the header. The widgets are read-only — they show transfers but do not pause/resume/delete. For a no-server, fully clickable demo of all three, open `widgets/download-client-demo.html` in a browser.
+
+## Tests
+
+Run the widget unit tests with Node (no dependencies required):
+
+```
+node test/widget.test.js                  # Tautulli widget
+node test/uptime-kuma-widget.test.js      # Uptime Kuma widget
+node test/arr-calendar-widget.test.js     # Sonarr / Radarr widget
+node test/seerr-widget.test.js            # Seerr widget
+node test/dns-hole-widget.test.js         # Pi-hole / AdGuard Home widget
+node test/plex-widget.test.js             # Plex widget
+node test/unifi-widget.test.js            # UniFi Controller widget
+node test/download-client-widget.test.js  # SABnzbd / qBittorrent / Transmission
+node test/extras-widgets.test.js          # PeaNUT / Umami / Speedtest / ntfy
+node test/media-library-widgets.test.js   # Audiobookshelf / Navidrome / Prowlarr / Tracearr
+node test/system-monitoring-widgets.test.js # Glances/Dashdot/Unraid/OMV/TrueNAS/Proxmox/PBS/Beszel
+node test/calendar-home-widgets.test.js   # iCal / Home Assistant / Nextcloud
+node test/opnsense-widget.test.js         # OPNsense
+```
+
+## OPNsense widget
+
+Open **Settings → Widgets → OPNsense Integration**, enable it, then enter the URL and an **API key + secret** (System → Access → Users → your user → API keys → "+"). Click **Test Connection**, then **Preview Widget**. The widget shows CPU and memory usage, the OPNsense version, and each interface's live receive/transmit rate (computed by diffing the cumulative byte counters between polls). Read-only. For a no-server, clickable demo, open `widgets/opnsense-demo.html` in a browser.
+
+## iCal, Home Assistant & Nextcloud widgets
+
+Open **Settings → Widgets** and enable what you want. **iCal** takes any `.ics` URL (Google Calendar's secret iCal address, an Outlook share, or a Nextcloud calendar's private link) — it shows an upcoming list or a month grid, and expands recurring events. **Home Assistant** needs the URL and a long-lived access token (Profile → Security), plus a list of entity IDs (one per line, from Developer Tools → States); toggleable entities get an on/off switch. **Nextcloud** uses your username and an app password (Settings → Security) and shows recent notifications — for Nextcloud *calendars*, add the calendar's exported `.ics` link to the iCal widget instead (CalDAV isn't read directly). Click **Test Connection**, then **Preview Widget**. For a no-server, clickable demo of all three, open `widgets/calendar-home-demo.html` in a browser.
+
+## System monitoring widgets (Glances, dash., Unraid, OpenMediaVault, TrueNAS, Proxmox, PBS, Beszel)
+
+Open **Settings → Widgets** and enable what you run. **Glances** needs the URL (username/password only if you enabled web auth); **dash.** needs just the URL. **Unraid** needs the URL and an API key (Unraid API / GraphQL). **OpenMediaVault** uses your admin username/password (cookie-session RPC). **TrueNAS** SCALE uses an API key over its WebSocket API. **Proxmox VE** and **Proxmox Backup Server** use an API token (user, realm, token id, secret) — PVE joins the token id and secret with `=`, PBS with `:`. **Beszel** uses your hub email/password (PocketBase). Click **Test Connection**, then **Preview Widget**. All are read-only.
+
+A few of these need care from a browser extension: **TrueNAS** (WebSocket — the host must be reachable over ws/wss and a self-signed cert accepted first), **OpenMediaVault** (cookie-session RPC may be blocked cross-origin), and the Proxmox/PBS endpoints over self-signed certs (open the URL once and accept the certificate). For a no-server, clickable demo of all eight, open `widgets/system-monitoring-demo.html` in a browser.
+
+## Audiobookshelf, Navidrome, Prowlarr & Tracearr widgets
+
+Open **Settings → Widgets** and enable the integration(s) you want. **Audiobookshelf** needs the server URL and an API token (*Settings → Users → your user → API Token*). **Navidrome** needs the URL and your username/password (Subsonic API). **Prowlarr** needs the URL and API key (*Settings → General → API Key*). **Tracearr** needs the URL and API key. Click **Test Connection**, then **Preview Widget**. All four are read-only. For a no-server, clickable demo of all four, open `widgets/media-library-demo.html` in a browser.
+
+## PeaNUT, Umami, Speedtest Tracker & ntfy widgets
+
+Open **Settings → Widgets** and enable the integration(s) you want. **PeaNUT** needs the server URL (username/password only if your PeaNUT requires auth). **Umami** needs the API URL, a website ID, and either an API key or a username/password, plus a time frame. **Speedtest Tracker** needs the URL and an API token (*Profile → API Tokens*). **ntfy** needs the server URL and a topic (token only for protected topics). Click **Test Connection**, then **Preview Widget**. All four are read-only. For a no-server, clickable demo of all four, open `widgets/extras-demo.html` in a browser.
+
+## Acknowledgements
+
+The Uptime Kuma, Sonarr, Radarr, Seerr, Pi-hole, AdGuard Home, Plex, UniFi Controller, SABnzbd, qBittorrent, Transmission, PeaNUT, Umami, Speedtest Tracker, ntfy, Audiobookshelf, Navidrome, Prowlarr, Tracearr, Glances, Dashdot, Unraid, OpenMediaVault, TrueNAS, Proxmox VE, Beszel, iCal, Home Assistant, Nextcloud, and OPNsense widgets' data logic and visual layouts are adapted from the [Homarr](https://github.com/homarr-labs/homarr) project, which is licensed under the Apache License 2.0. The Proxmox Backup Server widget is original work (PBS is not a Homarr integration), written against the documented PBS REST API. See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for the full attribution and license notice.
+
 ## License
 
 MIT
+
+This project incorporates Apache-2.0 licensed code; see [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md).

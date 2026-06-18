@@ -1,0 +1,23 @@
+/* Auto Dashboard AI — Speedtest Tracker widget styles. Scoped under .speedtest-widget.
+   Adapted from Homarr's Speedtest Tracker integration (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.speedtest-widget {
+  --st-down: #22c55e; --st-up: #4c8bf5; --st-ping: #f59e0b;
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.speedtest-widget .st-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.speedtest-widget .st-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.speedtest-widget .st-tools { display: flex; align-items: center; gap: 10px; }
+.speedtest-widget .st-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.speedtest-widget .st-ago { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+.speedtest-widget .st-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 320px) { .speedtest-widget .st-grid { grid-template-columns: 1fr; } }
+.speedtest-widget .st-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 16px 8px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+.speedtest-widget .st-icon { font-size: 16px; line-height: 1; font-weight: 700; }
+.speedtest-widget .st-val { font-size: 21px; font-weight: 700; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.speedtest-widget .st-lbl { font-size: 10.5px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.speedtest-widget .st-sub { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.speedtest-widget .st-down .st-icon, .speedtest-widget .st-down .st-val { color: var(--st-down); }
+.speedtest-widget .st-up .st-icon, .speedtest-widget .st-up .st-val { color: var(--st-up); }
+.speedtest-widget .st-ping .st-icon, .speedtest-widget .st-ping .st-val { color: var(--st-ping); }
+.speedtest-widget .st-empty { padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

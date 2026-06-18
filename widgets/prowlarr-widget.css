@@ -1,0 +1,24 @@
+/* Auto Dashboard AI — Prowlarr widget styles. Scoped under .prowlarr-widget.
+   Adapted from Homarr's Prowlarr integration (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.prowlarr-widget {
+  --pr-green: var(--success, #22c55e); --pr-red: var(--danger, #ef4444); --pr-gray: var(--text-muted, #a8bac8);
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.prowlarr-widget .pr-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.prowlarr-widget .pr-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.prowlarr-widget .pr-tools { display: flex; align-items: center; gap: 10px; }
+.prowlarr-widget .pr-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.prowlarr-widget .pr-count { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; padding: 4px 10px; border-radius: 999px; background: var(--success-light, rgba(34,197,94,0.12)); color: var(--success, #22c55e); border: 1px solid rgba(34,197,94,0.25); }
+.prowlarr-widget .pr-count.pr-count-warn { background: var(--warning-light, rgba(245,158,11,0.12)); color: var(--warning, #f59e0b); border-color: rgba(245,158,11,0.25); }
+.prowlarr-widget .pr-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius, 10px); overflow: hidden; background: var(--bg-secondary); }
+.prowlarr-widget .pr-row { display: grid; grid-template-columns: 12px 1fr auto; align-items: center; gap: 10px; padding: 9px 12px; border-top: 1px solid var(--border); }
+.prowlarr-widget .pr-row:first-child { border-top: none; }
+.prowlarr-widget .pr-dot { width: 9px; height: 9px; border-radius: 50%; }
+.prowlarr-widget .pr-dot.pr-ok { background: var(--pr-green); } .prowlarr-widget .pr-dot.pr-error { background: var(--pr-red); } .prowlarr-widget .pr-dot.pr-disabled { background: var(--pr-gray); }
+.prowlarr-widget .pr-main { min-width: 0; display: flex; flex-direction: column; }
+.prowlarr-widget .pr-name { font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prowlarr-widget .pr-host { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prowlarr-widget .pr-state { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
+.prowlarr-widget .pr-state.pr-ok { color: var(--pr-green); } .prowlarr-widget .pr-state.pr-error { color: var(--pr-red); } .prowlarr-widget .pr-state.pr-disabled { color: var(--pr-gray); }
+.prowlarr-widget .pr-empty { padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

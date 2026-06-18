@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Seerr Widget — Sample Dashboard</title>
+<link rel="stylesheet" href="../styles/common.css">
+<link rel="stylesheet" href="seerr-widget.css">
+<style>
+  body { margin: 0; background: var(--bg-primary); padding: 28px; }
+  .wrap { max-width: 980px; margin: 0 auto; display: grid; grid-template-columns: 1fr 320px; gap: 26px; align-items: start; }
+  @media (max-width: 820px) { .wrap { grid-template-columns: 1fr; } }
+  h1 { font: 700 20px/1.3 system-ui, sans-serif; color: var(--text-primary); margin: 0 0 4px; }
+  .lede { font: 400 13px/1.6 system-ui, sans-serif; color: var(--text-muted); margin: 0 0 22px; max-width: 80ch; }
+  .tile-host { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .panel h2 { font: 700 12px/1.3 system-ui, sans-serif; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-secondary); margin: 0 0 12px; }
+  .row-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .opt { display: flex; align-items: center; gap: 8px; margin-top: 10px; font: 500 13px/1 system-ui, sans-serif; color: var(--text-secondary); cursor: pointer; }
+  .opt input { accent-color: var(--accent); width: 15px; height: 15px; }
+  .hint { font: 400 12px/1.5 system-ui, sans-serif; color: var(--text-muted); margin: 12px 0 0; }
+</style>
+</head>
+<body>
+  <div style="max-width:980px;margin:0 auto;">
+    <h1>🎞 Seerr Widget — Sample Dashboard</h1>
+    <p class="lede">
+      A fully interactive, offline preview. No server — the demo builds raw Overseerr/Jellyseerr request
+      objects and runs them through the <em>same</em> <code>SeerrApi.mapRequest</code> /
+      <code>mapAvailability</code> logic the live widget uses. Use the <strong>Requests</strong> /
+      <strong>Stats</strong> toggle in the widget header, and the buttons on the right to change the data.
+      Layout follows Homarr's media-requests widgets as a reference template.
+    </p>
+  </div>
+
+  <div class="wrap">
+    <div>
+      <div class="tile-host"><div id="host"></div></div>
+    </div>
+    <div class="panel">
+      <h2>Scenarios</h2>
+      <div class="row-btns">
+        <button class="btn btn-secondary btn-sm" id="btn-mixed">Mixed</button>
+        <button class="btn btn-secondary btn-sm" id="btn-pending">All pending</button>
+        <button class="btn btn-secondary btn-sm" id="btn-empty">No requests</button>
+      </div>
+      <label class="opt"><input type="checkbox" id="opt-users" checked> Show top requesters (Stats)</label>
+      <p class="hint">Switch to the <strong>Stats</strong> tab to see the counts grid and top requesters.</p>
+    </div>
+  </div>
+
+<script src="seerr-widget.js"></script>
+<script>
+  'use strict';
+
+  // status: 1 pending, 2 approved, 3 declined, 4 failed, 5 completed
+  // media.status: 1 unknown, 2 pending, 3 processing, 4 partial, 5 available, 6/7 deleted
+  const TITLES = [
+    ['movie', 'Dune: Part Two', '/p1.jpg'],
+    ['tv', 'Severance', '/p2.jpg'],
+    ['movie', 'Furiosa', '/p3.jpg'],
+    ['tv', 'Shogun', '/p4.jpg'],
+    ['movie', 'Mickey 17', '/p5.jpg'],
+    ['tv', 'Foundation', '/p6.jpg'],
+  ];
+  const USERS = [
+    { id: 1, displayName: 'cory', avatar: '', requestCount: 42 },
+    { id: 2, displayName: 'jordan', avatar: '', requestCount: 27 },
+    { id: 3, displayName: 'sam', avatar: '', requestCount: 11 },
+  ];
+
+  // The mapper needs title/poster via fetchItemInfo; offline we supply it
+  // directly by pre-mapping with a fake `info` object.
+  function buildRequests(mode) {
+    if (mode === 'empty') return [];
+    return TITLES.map((t, i) => {
+      let status, mediaStatus, download = [];
+      if (mode === 'pending') { status = 1; mediaStatus = 2; }
+      else {
+        // mixed
+        status = [1, 2, 5, 2, 3, 5][i];
+        mediaStatus = [2, 3, 5, 4, 1, 5][i];
+        if (i === 1) download = [{}]; // processing flag
+      }
+      const raw = {
+        id: 100 + i, type: t[0], status,
+        createdAt: new Date(Date.now() - i * 86400000).toISOString(),
+        media: { status: mediaStatus, tmdbId: 1000 + i, downloadStatus: download },
+        requestedBy: USERS[i % USERS.length],
+      };
+      const info = { name: t[1], posterPath: null }; // no network posters offline
+      return SeerrApi.mapRequest(raw, info, 'http://demo');
+    });
+  }
+
+  function buildStats(reqs) {
+    const s = { total: reqs.length, movie: 0, tv: 0, pending: 0, approved: 0, declined: 0, processing: 0, available: 0 };
+    for (const r of reqs) {
+      if (r.type === 'tv') s.tv++; else s.movie++;
+      if (r.status === 'pending') s.pending++;
+      if (r.status === 'approved') s.approved++;
+      if (r.status === 'declined') s.declined++;
+      if (r.availability === 'processing') s.processing++;
+      if (r.availability === 'available') s.available++;
+    }
+    return s;
+  }
+
+  let mode = 'mixed';
+  let showUsers = true;
+
+  const host = document.getElementById('host');
+  const widget = new SeerrWidget(host, {
+    view: 'requests', showUsers: true,
+    dataProvider: (opts) => {
+      const reqs = buildRequests(mode);
+      return Promise.resolve({
+        requests: reqs,
+        stats: buildStats(reqs),
+        users: (opts.showUsers === false) ? [] : USERS.map((u) => ({ name: u.displayName, avatarUrl: null, requestCount: u.requestCount })),
+      });
+    },
+  });
+  widget.start();
+
+  document.getElementById('btn-mixed').addEventListener('click', () => { mode = 'mixed'; widget.poll(); });
+  document.getElementById('btn-pending').addEventListener('click', () => { mode = 'pending'; widget.poll(); });
+  document.getElementById('btn-empty').addEventListener('click', () => { mode = 'empty'; widget.poll(); });
+  document.getElementById('opt-users').addEventListener('change', (e) => { widget.setConfig({ showUsers: e.target.checked }); });
+</script>
+</body>
+</html>

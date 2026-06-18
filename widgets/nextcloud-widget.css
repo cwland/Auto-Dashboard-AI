@@ -1,0 +1,19 @@
+/* Auto Dashboard AI — Nextcloud widget styles. Scoped under .nextcloud-widget.
+   Adapted from Homarr's Nextcloud integration (Apache-2.0) — see THIRD-PARTY-LICENSES.md. */
+.nextcloud-widget {
+  --nc-accent: #0082c9;
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.nextcloud-widget .nc-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.nextcloud-widget .nc-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.nextcloud-widget .nc-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.nextcloud-widget .nc-list { display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius, 10px); overflow: hidden; background: var(--bg-secondary); }
+.nextcloud-widget .nc-row { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-top: 1px solid var(--border); }
+.nextcloud-widget .nc-row:first-child { border-top: none; }
+.nextcloud-widget .nc-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.nextcloud-widget .nc-rtitle { font-size: 13px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.nextcloud-widget .nc-time { font-size: 11px; color: var(--text-muted); white-space: nowrap; flex: 0 0 auto; }
+.nextcloud-widget .nc-msg { font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; word-break: break-word; }
+.nextcloud-widget .nc-app { font-size: 10.5px; color: var(--nc-accent); text-transform: uppercase; letter-spacing: 0.03em; font-weight: 600; }
+.nextcloud-widget .nc-empty { padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

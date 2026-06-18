@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UniFi Widget — Sample Dashboard</title>
+<link rel="stylesheet" href="../styles/common.css">
+<link rel="stylesheet" href="unifi-widget.css">
+<style>
+  body { margin: 0; background: var(--bg-primary); padding: 28px; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font: 700 20px/1.3 system-ui, sans-serif; color: var(--text-primary); margin: 0 0 4px; }
+  .lede { font: 400 13px/1.6 system-ui, sans-serif; color: var(--text-muted); margin: 0 0 22px; }
+  .tile-host { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .row-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>📡 UniFi Controller Widget — Sample Dashboard</h1>
+    <p class="lede">
+      Offline preview. The demo builds raw UniFi site-health subsystem objects and runs them through the
+      <em>same</em> <code>UnifiApi.mapSites()</code> the live widget uses (status = every site "ok"; users summed;
+      latency/uptime maxed). Use the buttons to change the network state.
+    </p>
+    <div class="tile-host"><div id="host"></div></div>
+    <div class="row-btns">
+      <button class="btn btn-secondary btn-sm" id="btn-healthy">Healthy</button>
+      <button class="btn btn-secondary btn-sm" id="btn-wan-down">WAN down</button>
+      <button class="btn btn-secondary btn-sm" id="btn-busy">Busy network</button>
+    </div>
+  </div>
+
+<script src="unifi-widget.js"></script>
+<script>
+  'use strict';
+  function health(opts) {
+    const o = Object.assign({ wan: 'ok', wwwLatency: 12, wwwUptime: 864000, wlanUsers: 24, wlanGuests: 3, lanUsers: 18, lanGuests: 0, vpnUsers: 2 }, opts);
+    return [
+      { subsystem: 'wan', status: o.wan },
+      { subsystem: 'www', status: o.wan, latency: o.wwwLatency, speedtest_ping: o.wwwLatency + 4, uptime: o.wwwUptime },
+      { subsystem: 'wlan', status: 'ok', num_user: o.wlanUsers, num_guest: o.wlanGuests },
+      { subsystem: 'lan', status: 'ok', num_user: o.lanUsers, num_guest: o.lanGuests },
+      { subsystem: 'vpn', status: 'ok', remote_user_num_active: o.vpnUsers },
+    ];
+  }
+  const scenarios = {
+    healthy: () => health({}),
+    'wan-down': () => health({ wan: 'error', wwwLatency: 0, wwwUptime: 0 }),
+    busy: () => health({ wlanUsers: 142, wlanGuests: 31, lanUsers: 64, vpnUsers: 9, wwwLatency: 38 }),
+  };
+  let scenario = 'healthy';
+
+  const widget = new UnifiWidget(document.getElementById('host'), {
+    dataProvider: () => Promise.resolve(UnifiApi.mapSites([{ health: scenarios[scenario]() }])),
+  });
+  widget.start();
+
+  document.getElementById('btn-healthy').addEventListener('click', () => { scenario = 'healthy'; widget.poll(); });
+  document.getElementById('btn-wan-down').addEventListener('click', () => { scenario = 'wan-down'; widget.poll(); });
+  document.getElementById('btn-busy').addEventListener('click', () => { scenario = 'busy'; widget.poll(); });
+</script>
+</body>
+</html>

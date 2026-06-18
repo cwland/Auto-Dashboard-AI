@@ -1,0 +1,110 @@
+/* Auto Dashboard AI — Download client widget styles (SABnzbd / qBittorrent / Transmission)
+   Uses the shared design tokens from styles/common.css (light / dark aware).
+   Self-contained: every selector is scoped under .download-widget.
+
+   Download-list layout adapted from Homarr's downloads widget as a reference
+   template. Homarr is Apache-2.0 licensed — see THIRD-PARTY-LICENSES.md. */
+
+.download-widget {
+  --dl-green: var(--success, #22c55e);
+  --dl-yellow: var(--warning, #f59e0b);
+  --dl-red: var(--danger, #ef4444);
+  --dl-blue: #4c8bf5;
+  --dl-violet: #8b5cf6;
+  --dl-orange: #f97316;
+  --dl-gray: var(--text-muted, #a8bac8);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  font-family: var(--font, system-ui, sans-serif);
+  color: var(--text-primary);
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+.download-widget .dl-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.download-widget .dl-title {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.03em;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.download-widget .dl-tools { display: flex; align-items: center; gap: 10px; }
+.download-widget .dl-error {
+  font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+  background: var(--danger-light, rgba(239, 68, 68, 0.12));
+  color: var(--danger, #ef4444); border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.download-widget .dl-rates {
+  font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+.download-widget .dl-rates.dl-paused { color: var(--text-muted); }
+
+/* ── Download list ───────────────────────────────────────────────────────── */
+.download-widget .dl-list {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+.download-widget .dl-row {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+.download-widget .dl-row:first-child { border-top: none; }
+.download-widget .dl-row-top {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+}
+.download-widget .dl-name {
+  font-size: 13px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.download-widget .dl-pct {
+  font-size: 12px; font-weight: 700; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums; flex: 0 0 auto;
+}
+.download-widget .dl-bar {
+  height: 5px; border-radius: 999px; overflow: hidden;
+  background: var(--bg-hover);
+}
+.download-widget .dl-bar-fill { height: 100%; border-radius: 999px; transition: width 0.5s ease; }
+
+.download-widget .dl-meta {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.download-widget .dl-meta-item {
+  font-size: 11.5px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.download-widget .dl-badge {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: capitalize;
+  padding: 2px 7px; border-radius: 999px;
+}
+
+/* badge + bar color variants */
+.download-widget .dl-c-green   { background: rgba(34, 197, 94, 0.16);  color: var(--dl-green); }
+.download-widget .dl-c-yellow  { background: rgba(245, 158, 11, 0.16); color: var(--dl-yellow); }
+.download-widget .dl-c-red     { background: rgba(239, 68, 68, 0.16);  color: var(--dl-red); }
+.download-widget .dl-c-blue    { background: rgba(76, 139, 245, 0.16); color: var(--dl-blue); }
+.download-widget .dl-c-violet  { background: rgba(139, 92, 246, 0.16); color: var(--dl-violet); }
+.download-widget .dl-c-orange  { background: rgba(249, 115, 22, 0.16); color: var(--dl-orange); }
+.download-widget .dl-c-gray    { background: var(--bg-hover);          color: var(--dl-gray); }
+
+.download-widget .dl-c-bg-green  { background: var(--dl-green); }
+.download-widget .dl-c-bg-yellow { background: var(--dl-yellow); }
+.download-widget .dl-c-bg-red    { background: var(--dl-red); }
+.download-widget .dl-c-bg-blue   { background: var(--dl-blue); }
+.download-widget .dl-c-bg-violet { background: var(--dl-violet); }
+.download-widget .dl-c-bg-orange { background: var(--dl-orange); }
+.download-widget .dl-c-bg-gray   { background: var(--dl-gray); }
+
+.download-widget .dl-empty {
+  padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted);
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 10px);
+}
