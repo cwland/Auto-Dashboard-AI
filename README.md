@@ -18,6 +18,7 @@ A Chrome extension that auto-generates beautiful new-tab dashboards from your bo
 - **Seerr widget** — connect [Overseerr](https://overseerr.dev/), [Jellyseerr](https://docs.jellyseerr.dev/), or Seerr to see media requests two ways (toggle inside the widget): a recent-requests list with status/availability badges and who requested each item, or a stats grid (approved / pending / processing / declined / available / TV / movies / total) with top requesters. Try `widgets/seerr-demo.html` for a clickable offline preview
 - **Pi-hole & AdGuard Home widgets** — connect a [Pi-hole](https://pi-hole.net/) (v5 or v6, auto-detected) and/or [AdGuard Home](https://adguard.com/adguard-home/overview.html) DNS server for an ad-blocking summary: ads blocked today, block rate, DNS queries today, and blocklist size, plus a blocking on/off status pill. Try `widgets/dns-hole-demo.html` for a clickable offline preview
 - **Plex widget** — connect a [Plex Media Server](https://www.plex.tv/) to see what's currently playing: active streams with media type, title, episode/album, the user, and their device. Try `widgets/plex-demo.html` for a clickable offline preview
+- **Jellyfin & Emby widgets** — connect a [Jellyfin](https://jellyfin.org/) and/or [Emby](https://emby.media/) server (URL + API key) to see what's currently playing: active sessions with media type, title, episode/album, user, device, play/pause state, and a progress bar. Both share one reusable widget
 - **UniFi Controller widget** — connect a [UniFi](https://ui.com/) controller for a network health summary: internet status with latency and uptime, plus Wi-Fi, LAN, and VPN status with connected user/guest counts. Try `widgets/unifi-demo.html` for a clickable offline preview
 - **SABnzbd, qBittorrent & Transmission widgets** — connect your download clients to see active transfers: each item with a progress bar, state badge, size, and speeds, plus aggregate down/up rates in the header. Works with [SABnzbd](https://sabnzbd.org/) (usenet), [qBittorrent](https://www.qbittorrent.org/), and [Transmission](https://transmissionbt.com/) (torrents). Try `widgets/download-client-demo.html` for a clickable offline preview
 - **PeaNUT widget** — connect a [PeaNUT](https://github.com/Brandawg93/PeaNUT) (NUT) server for a UPS summary: status, battery charge, load, runtime, voltages, power, and temperature per device. Try `widgets/extras-demo.html`
@@ -192,6 +193,7 @@ node test/arr-calendar-widget.test.js     # Sonarr / Radarr widget
 node test/seerr-widget.test.js            # Seerr widget
 node test/dns-hole-widget.test.js         # Pi-hole / AdGuard Home widget
 node test/plex-widget.test.js             # Plex widget
+node test/media-server-widget.test.js     # Jellyfin / Emby widget
 node test/unifi-widget.test.js            # UniFi Controller widget
 node test/download-client-widget.test.js  # SABnzbd / qBittorrent / Transmission
 node test/extras-widgets.test.js          # PeaNUT / Umami / Speedtest / ntfy
@@ -225,7 +227,9 @@ Open **Settings → Widgets** and enable the integration(s) you want. **PeaNUT**
 
 ## Acknowledgements
 
-The Uptime Kuma, Sonarr, Radarr, Seerr, Pi-hole, AdGuard Home, Plex, UniFi Controller, SABnzbd, qBittorrent, Transmission, PeaNUT, Umami, Speedtest Tracker, ntfy, Audiobookshelf, Navidrome, Prowlarr, Tracearr, Glances, Dashdot, Unraid, OpenMediaVault, TrueNAS, Proxmox VE, Beszel, iCal, Home Assistant, Nextcloud, and OPNsense widgets' data logic and visual layouts are adapted from the [Homarr](https://github.com/homarr-labs/homarr) project, which is licensed under the Apache License 2.0. The Proxmox Backup Server widget is original work (PBS is not a Homarr integration), written against the documented PBS REST API. See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for the full attribution and license notice.
+The Uptime Kuma, Sonarr, Radarr, Seerr, Pi-hole, AdGuard Home, Plex, Jellyfin, Emby, UniFi Controller, SABnzbd, qBittorrent, Transmission, PeaNUT, Umami, Speedtest Tracker, ntfy, Audiobookshelf, Navidrome, Prowlarr, Tracearr, Glances, Dashdot, Unraid, OpenMediaVault, TrueNAS, Proxmox VE, Beszel, iCal, Home Assistant, Nextcloud, and OPNsense widgets' data logic and visual layouts are adapted from the [Homarr](https://github.com/homarr-labs/homarr) project, which is licensed under the Apache License 2.0. The Proxmox Backup Server widget is original work (PBS is not a Homarr integration), written against the documented PBS REST API. See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for the full attribution and license notice.
+
+The integration brand icons (in `icons/integrations/`, shown in the Settings section titles and each widget's header) come from [homarr-labs/dashboard-icons](https://github.com/homarr-labs/dashboard-icons), mirroring the icon URLs Homarr uses. They are not committed — run `icons/integrations/fetch-icons.sh` once to download them locally (keeps the extension free of runtime external requests).
 
 ## License
 

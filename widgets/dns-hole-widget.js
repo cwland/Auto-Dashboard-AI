@@ -284,6 +284,7 @@
       this.el.classList.add('dns-hole-widget', `dh-${this.cfg.service}`);
       this.el.innerHTML = `
         <div class="dh-header">
+          <img class="wg-icon" src="../icons/integrations/${this.cfg.service === 'adguard' ? 'adguard-home' : 'pi-hole'}.svg" alt="">
           <div class="dh-title"></div>
           <div class="dh-tools">
             <div class="dh-error" style="display:none"></div>

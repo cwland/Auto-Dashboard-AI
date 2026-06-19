@@ -160,6 +160,7 @@
       this.el.classList.add('plex-widget');
       this.el.innerHTML = `
         <div class="plex-header">
+          <img class="wg-icon" src="../icons/integrations/plex.svg" alt="">
           <div class="plex-title">Plex — Now Playing</div>
           <div class="plex-tools">
             <div class="plex-error" style="display:none"></div>

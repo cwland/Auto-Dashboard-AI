@@ -88,7 +88,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('proxmox-widget');
-      this.el.innerHTML = `<div class="px-header"><div class="px-title">Proxmox</div><div class="px-error" style="display:none"></div></div><div class="px-body"></div>`;
+      this.el.innerHTML = `<div class="px-header"><img class="wg-icon" src="../icons/integrations/proxmox.svg" alt=""><div class="px-title">Proxmox</div><div class="px-error" style="display:none"></div></div><div class="px-body"></div>`;
       this.errorEl = this.el.querySelector('.px-error'); this.body = this.el.querySelector('.px-body');
     }
     _render(d) {

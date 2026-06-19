@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard</title>
   <link rel="stylesheet" href="../styles/common.css">
+  <link rel="stylesheet" href="vendor/gridstack.min.css">
   <style>
     html, body { height: 100%; overflow: hidden; }
     body { background: var(--bg-primary); display: flex; flex-direction: column; }
@@ -38,6 +39,27 @@
     }
     #search-input:focus { border-color: var(--border-focus); }
     #search-input::placeholder { color: var(--text-muted); }
+
+    /* Search results dropdown (does not filter the dashboard itself). */
+    .search-results {
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 12px; box-shadow: 0 10px 28px rgba(0,0,0,0.22);
+      max-height: 360px; overflow-y: auto; z-index: 1000; padding: 6px;
+      display: none;
+    }
+    .search-results.open { display: block; }
+    .search-result {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; border-radius: 8px; text-decoration: none;
+      color: var(--text-primary);
+    }
+    .search-result:hover, .search-result.active { background: var(--bg-hover); }
+    .search-result img { width: 22px; height: 22px; object-fit: contain; border-radius: 5px; flex-shrink: 0; }
+    .search-result .sr-text { min-width: 0; display: flex; flex-direction: column; }
+    .search-result .sr-title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .search-result .sr-url { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .search-empty-msg { padding: 14px; text-align: center; color: var(--text-muted); font-size: 12px; }
 
     .dash-name-row { display: flex; align-items: center; justify-content: center; gap: 5px; margin-bottom: 3px; }
     .dash-name { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.07em; }
@@ -73,10 +95,183 @@
     }
     .btn-topbar:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
     .btn-topbar.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    /* Save button while rearranging — accent, with an unsaved-changes dot. */
+    .btn-topbar-save { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-topbar-save:hover { background: var(--accent); color: #fff; filter: brightness(1.08); }
+    .btn-topbar-save.has-changes::after {
+      content: ''; width: 7px; height: 7px; border-radius: 50%;
+      background: #fff; box-shadow: 0 0 0 2px var(--accent);
+    }
 
     /* ── Dashboard area ───────────────────────────────────────────────────── */
-    .dashboard-area { flex: 1; overflow-y: auto; padding: 24px; }
+    /* Layout row holding the optional left sidebar + the dashboard area. */
+    .main-row { flex: 1; min-height: 0; display: flex; }
+    .dashboard-area { flex: 1; overflow-y: auto; padding: 24px; min-width: 0; }
+
+    /* Tabs switcher (across the top). */
+    .dash-tabs {
+      display: flex; gap: 4px; align-items: center; flex-wrap: wrap;
+      padding: 8px 24px; border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+    .dash-tab {
+      padding: 6px 14px; border-radius: 8px 8px 0 0; cursor: pointer;
+      font-size: 13px; font-weight: 500; color: var(--text-secondary);
+      border: 1px solid transparent; border-bottom: none; background: transparent;
+      white-space: nowrap;
+    }
+    .dash-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .dash-tab.active { background: var(--bg-card); color: var(--accent); border-color: var(--border); }
+
+    /* Sidebar switcher (left list). */
+    .dash-sidebar {
+      flex: 0 0 200px; width: 200px; overflow-y: auto;
+      border-right: 1px solid var(--border); background: var(--bg-secondary);
+      padding: 12px 8px; display: flex; flex-direction: column; gap: 4px;
+    }
+    .dash-side-item {
+      padding: 9px 12px; border-radius: 8px; cursor: pointer;
+      font-size: 13px; font-weight: 500; color: var(--text-secondary);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .dash-side-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .dash-side-item.active { background: var(--accent); color: #fff; }
+
+    /* Switching is locked while rearranging. */
+    body.rearrange-mode .dash-tabs,
+    body.rearrange-mode .dash-sidebar,
+    body.rearrange-mode #switcher-wrapper { opacity: 0.5; pointer-events: none; }
     .dashboard-area::-webkit-scrollbar { width: 5px; }
+
+    /* ── Grid layout (Gridstack) ──────────────────────────────────────────── */
+    .dashboard-area.grid-mode { padding: 16px; }
+    .grid-stack { width: 100%; }
+    /* Each section reads as a distinct widget card. It uses the theme's mid
+       elevation (--bg-secondary) so it contrasts with BOTH the page
+       (--bg-primary) behind it and the bookmark cards (--bg-card) on top. */
+    .grid-stack-item-content {
+      padding: 10px 12px 4px;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    }
+    /* Make the bookmark cards sit slightly proud of the section. */
+    .grid-stack .bookmark-card { box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .grid-stack .folder-section { margin: 0; height: 100%; display: flex; flex-direction: column; min-height: 0; }
+    /* No scroll regions inside a section: the section auto-grows (via fit logic
+       in newtab.js) so every icon is visible. overflow:hidden guarantees no
+       scrollbars ever — note overflow-y:auto would force overflow-x:auto too,
+       which is what produced the stray horizontal scrollbar. */
+    .grid-stack > .grid-stack-item > .grid-stack-item-content { overflow: hidden; }
+    .grid-stack .folder-section .bookmark-grid { flex: 1; min-height: 0; overflow: hidden; align-content: start; }
+
+    /* Responsive section content — icons/columns scale with the section's width.
+       The data-iconsize value is chosen per section in Edit Mode (S/M/L). */
+
+    /* Small — icon only, no text. */
+    .folder-section[data-iconsize="small"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; }
+    .folder-section[data-iconsize="small"] .bm-icon-wrapper { width: 36px; height: 36px; }
+    .folder-section[data-iconsize="small"] .bm-favicon { width: 24px; height: 24px; }
+    .folder-section[data-iconsize="small"] .bm-emoji-fallback { font-size: 20px; }
+    .folder-section[data-iconsize="small"] .bm-title { display: none; }
+    .folder-section[data-iconsize="small"] .bookmark-card { padding: 8px 4px; }
+
+    /* Medium — default icon size, single-line label. */
+    .folder-section[data-iconsize="medium"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px; }
+    .folder-section[data-iconsize="medium"] .bm-icon-wrapper { width: 48px; height: 48px; }
+    .folder-section[data-iconsize="medium"] .bm-favicon { width: 32px; height: 32px; }
+    .folder-section[data-iconsize="medium"] .bm-emoji-fallback { font-size: 24px; }
+    .folder-section[data-iconsize="medium"] .bm-title { font-size: 11px; }
+
+    /* Large — bigger icons, label allowed to wrap to ~2 lines (show most text). */
+    .folder-section[data-iconsize="large"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 14px; }
+    .folder-section[data-iconsize="large"] .bm-icon-wrapper { width: 64px; height: 64px; }
+    .folder-section[data-iconsize="large"] .bm-favicon { width: 44px; height: 44px; }
+    .folder-section[data-iconsize="large"] .bm-emoji-fallback { font-size: 32px; }
+    .folder-section[data-iconsize="large"] .bm-title {
+      font-size: 12px; white-space: normal; line-height: 1.25;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+
+    /* Per-section S/M/L selector — a pill bubble that overlaps the top of the
+       section it controls (Edit Mode only). Uses the page background for clear
+       contrast against the section's surface. */
+    .icon-size-sel {
+      position: absolute; left: 50%; top: 6px; transform: translateX(-50%);
+      display: none; gap: 3px; z-index: 20;
+      padding: 3px; border-radius: 999px;
+      background: var(--bg-primary); border: 1px solid var(--border);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.28);
+    }
+    body.rearrange-mode .icon-size-sel { display: flex; }
+    .icon-size-btn {
+      width: 22px; height: 22px; padding: 0;
+      font: 700 10px/1 var(--font); cursor: pointer;
+      border: none; background: transparent;
+      color: var(--text-secondary); border-radius: 999px;
+    }
+    .icon-size-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .icon-size-btn.active { background: var(--accent); color: #fff; }
+
+    /* Edit Mode: subtle grid overlay behind the sections to show snap targets.
+       Vertical lines every 1/12 of the width; horizontal lines every cell (60px). */
+    body.rearrange-mode .dashboard-area.grid-mode .grid-stack {
+      background-image:
+        repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px calc(100% / 24)),
+        repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px 32px);
+      background-position: 0 0;
+      opacity: 1;
+      border-radius: var(--radius-sm);
+    }
+    /* While editing, give sections an accent outline so they stand out clearly
+       against the snap-grid overlay. */
+    body.rearrange-mode .grid-stack-item-content {
+      border-color: var(--accent);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+    }
+    body.rearrange-mode .grid-stack .folder-header { cursor: move; }
+    body.rearrange-mode .grid-stack-item.ui-draggable-dragging .grid-stack-item-content {
+      border-color: var(--accent);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+    }
+    /* Gridstack's drop placeholder = where the section will land. */
+    body.rearrange-mode .grid-stack-placeholder > .placeholder-content {
+      background: var(--accent-light);
+      border: 2px dashed var(--accent);
+      border-radius: var(--radius-sm);
+    }
+
+    /* Bottom-right resize handle — visible accent grip while editing. */
+    body.rearrange-mode .grid-stack-item > .ui-resizable-se {
+      width: 18px; height: 18px;
+      right: 2px; bottom: 2px;
+      background-image: none;
+      border-right: 3px solid var(--accent);
+      border-bottom: 3px solid var(--accent);
+      border-bottom-right-radius: 5px;
+      transform: none;
+      opacity: 0.85;
+      cursor: se-resize;
+    }
+    body.rearrange-mode .grid-stack-item:hover > .ui-resizable-se { opacity: 1; }
+    /* Bottom (height-only) and right (width-only) edge handles. */
+    body.rearrange-mode .grid-stack-item > .ui-resizable-s {
+      height: 8px; bottom: 2px; left: 14px; right: 14px;
+      background: var(--accent); opacity: 0.18; border-radius: 4px; cursor: s-resize;
+    }
+    body.rearrange-mode .grid-stack-item > .ui-resizable-e {
+      width: 8px; right: 2px; top: 14px; bottom: 14px;
+      background: var(--accent); opacity: 0.18; border-radius: 4px; cursor: e-resize;
+    }
+    body.rearrange-mode .grid-stack-item:hover > .ui-resizable-s,
+    body.rearrange-mode .grid-stack-item:hover > .ui-resizable-e { opacity: 0.4; }
+    body.rearrange-mode .grid-stack-item.ui-resizable-resizing .grid-stack-item-content {
+      border-color: var(--accent);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+    }
 
     /* ── Folder sections ──────────────────────────────────────────────────── */
     .folder-section { margin-bottom: 32px; }
@@ -90,6 +285,20 @@
     .folder-icon   { font-size: 16px; }
     .folder-name   { font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.07em; }
     .folder-count  { font-size: 11px; color: var(--text-muted); margin-left: auto; }
+
+    /* In grid mode the section title sits in a colored bubble at the top so it
+       stands out as the section's label. */
+    .grid-stack .folder-header { border-bottom: none; padding-bottom: 0; margin-bottom: 10px; }
+    .grid-stack .folder-icon { display: none; }
+    .grid-stack .folder-name {
+      background: var(--accent-light);
+      color: var(--accent);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      max-width: 100%;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
 
     /* Highlight folder as drop target */
     .folder-section.folder-drop-active .folder-header {
@@ -145,6 +354,9 @@
     .card-info-btn:hover   { background: var(--accent); color: #fff; border-color: var(--accent); }
     .card-remove-btn:hover { background: var(--danger);  color: #fff; border-color: var(--danger);  }
 
+    /* The remove (✕) button only appears in rearrange mode */
+    .card-remove-btn { display: none; }
+
     /* Icon */
     .bm-icon-wrapper {
       width: 48px; height: 48px; border-radius: 12px; overflow: hidden;
@@ -199,8 +411,10 @@
     }
     /* Suppress normal hover lift in rearrange */
     body.rearrange-mode .bookmark-card:hover { transform: none; box-shadow: none; }
-    /* Hide info/remove buttons in rearrange */
-    body.rearrange-mode .card-actions { display: none; }
+    /* Rearrange mode: hide the info button, always reveal the remove (✕) button */
+    body.rearrange-mode .card-actions { opacity: 1; pointer-events: all; }
+    body.rearrange-mode .card-info-btn { display: none; }
+    body.rearrange-mode .card-remove-btn { display: flex; }
 
     /* Drag handle pip (shown only in rearrange) */
     .drag-handle {
@@ -236,26 +450,6 @@
       animation: none !important;
       transition: none !important;
     }
-
-    /* ── Rearrange save bar (fixed bottom) ───────────────────────────────── */
-    #rearrange-bar {
-      display: none;
-      position: fixed; bottom: 0; left: 0; right: 0;
-      padding: 14px 28px;
-      background: var(--bg-secondary); border-top: 1px solid var(--border);
-      align-items: center; justify-content: space-between; gap: 12px;
-      z-index: 50; box-shadow: 0 -4px 20px rgba(0,0,0,0.3);
-    }
-    #rearrange-bar.visible { display: flex; }
-
-    .rearrange-bar-left { font-size: 13px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
-    .rearrange-changed-badge {
-      display: none; padding: 2px 8px;
-      background: var(--warning-light); color: var(--warning);
-      border-radius: 10px; font-size: 11px; font-weight: 600;
-    }
-    .rearrange-changed-badge.visible { display: inline-block; }
-    .rearrange-bar-actions { display: flex; gap: 8px; }
 
     /* ── Search ───────────────────────────────────────────────────────────── */
     .bookmark-card.search-hidden  { display: none; }
@@ -429,7 +623,6 @@
       .bookmark-card:hover { box-shadow: 0 4px 12px rgba(99,102,241,0.15); }
       .bm-icon-wrapper { background: #f1f5f9; }
       .card-action-btn { background: #ffffff; border-color: #e2e8f0; }
-      #rearrange-bar  { box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }
       .drag-ghost     { box-shadow: 0 12px 36px rgba(0,0,0,0.2); }
     }
   </style>
@@ -442,6 +635,7 @@
     <div class="search-wrapper">
       <span class="search-icon">🔍</span>
       <input type="text" id="search-input" placeholder="Search bookmarks…" autocomplete="off">
+      <div class="search-results" id="search-results"></div>
     </div>
   </div>
 
@@ -476,27 +670,24 @@
       <select id="dashboard-select"></select>
     </div>
     <button class="btn-topbar" id="rearrange-btn">⇄ Rearrange</button>
+    <button class="btn-topbar btn-topbar-save" id="rearrange-save-btn" style="display:none;">✓ Save</button>
+    <button class="btn-topbar" id="rearrange-cancel-btn" style="display:none;">✕ Cancel</button>
     <a href="../config/config.html" class="btn-topbar">⚙️ Settings</a>
   </div>
 </div>
 
-<!-- ── Dashboard ────────────────────────────────────────────────────────────── -->
-<div class="dashboard-area" id="dashboard-area">
-  <div id="loading-state">
-    <span class="spinner"></span>
-    <span>Loading dashboard…</span>
-  </div>
-</div>
+<!-- ── Tabs switcher (shown only in tabs mode) ──────────────────────────────── -->
+<div id="dash-tabs" class="dash-tabs" style="display:none;"></div>
 
-<!-- ── Rearrange bar ─────────────────────────────────────────────────────────── -->
-<div id="rearrange-bar">
-  <div class="rearrange-bar-left">
-    <span>🔀 Drag cards to reorder — drop onto a folder name to move between sections</span>
-    <span class="rearrange-changed-badge" id="rearrange-changed-badge">Unsaved changes</span>
-  </div>
-  <div class="rearrange-bar-actions">
-    <button class="btn btn-secondary" id="rearrange-cancel-btn">Cancel</button>
-    <button class="btn btn-primary"   id="rearrange-save-btn">Save Layout</button>
+<!-- ── Dashboard ────────────────────────────────────────────────────────────── -->
+<div class="main-row">
+  <!-- Sidebar switcher (shown only in sidebar mode) -->
+  <div id="dash-sidebar" class="dash-sidebar" style="display:none;"></div>
+  <div class="dashboard-area" id="dashboard-area">
+    <div id="loading-state">
+      <span class="spinner"></span>
+      <span>Loading dashboard…</span>
+    </div>
   </div>
 </div>
 
@@ -651,6 +842,7 @@
 <!-- Shared description tooltip — shown on ℹ button hover -->
 <div class="bm-desc-tooltip" id="bm-desc-tooltip"></div>
 
+<script src="vendor/gridstack-all.js"></script>
 <script src="newtab.js"></script>
 </body>
 </html>

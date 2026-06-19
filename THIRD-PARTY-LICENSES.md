@@ -42,6 +42,14 @@ session XML parsing, and the currently-playing type mapping are derived from
 Homarr's Plex integration (media-server interface). The now-playing list
 follows Homarr's media-server widget as a reference template.
 
+**Jellyfin & Emby** (`widgets/media-server-widget.js`) — the `/Sessions`
+fetching, the now-playing session mapping (series/season/episode, album/artist,
+play/pause, progress), and the media-type mapping are derived from Homarr's
+Jellyfin and Emby integrations (media-server interface). The original uses the
+Jellyfin SDK; this is a framework-free rewrite against the documented Emby/
+Jellyfin REST API (`/Sessions`, `/System/Info`). The now-playing list follows
+Homarr's media-server widget as a reference template.
+
 **UniFi Controller** (`widgets/unifi-widget.js`) — the site-health →
 NetworkControllerSummary mapping (per-subsystem status via "every site ok", and
 numeric aggregation by sum/max across sites) is derived from Homarr's UniFi
@@ -148,6 +156,9 @@ API-token auth with a ":" separator between the token id and secret.
   - `packages/integrations/src/media-organizer/media-organizer.ts`
   - `packages/integrations/src/interfaces/calendar/calendar-types.ts`
   - `packages/widgets/src/calendar/component.tsx`
+  - `packages/integrations/src/jellyfin/jellyfin-integration.ts`
+  - `packages/integrations/src/emby/emby-integration.ts`
+  - `packages/integrations/src/interfaces/media-server/media-server-types.ts`
   - `packages/integrations/src/overseerr/overseerr-integration.ts`
   - `packages/integrations/src/seerr/seerr-integration.ts`
   - `packages/integrations/src/interfaces/media-requests/media-request-types.ts`
@@ -227,3 +238,24 @@ The full text of the Apache License 2.0 is available at
 https://www.apache.org/licenses/LICENSE-2.0. Portions of the files listed above
 have been modified from their original form (rewritten from TypeScript/React to
 framework-free JavaScript for use in a browser extension).
+
+---
+
+## Dashboard Icons
+
+The integration brand icons shown in the Settings → Widgets section titles and
+in each widget's header (stored in `icons/integrations/`) are sourced from the
+**homarr-labs/dashboard-icons** collection. Each icon URL mirrors exactly what
+Homarr references in `packages/definitions/src/integration.ts`, so the icons
+match Homarr's own integration list. The two integrations that are not Homarr
+integrations (Tautulli, Proxmox Backup Server) use the matching `dashboard-icons`
+slug.
+
+- Project: Dashboard Icons (homarr-labs/dashboard-icons)
+- Source: https://github.com/homarr-labs/dashboard-icons
+- Distributed under the terms in that repository's `LICENSE`.
+
+The icon image files are not committed to this repository; they are downloaded
+locally by `icons/integrations/fetch-icons.sh`. Each brand name, logo, and mark
+remains the property of its respective owner and is used here only to identify
+the corresponding service.

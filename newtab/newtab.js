@@ -1,6 +1,25 @@
 // Auto Dashboard AI — New Tab Page
 'use strict';
 
+// ─── Integration icon fallback ────────────────────────────────────────────────
+// Hide widget-header brand icons (.wg-icon) that haven't been downloaded yet
+// (icons/integrations/fetch-icons.sh) rather than showing a broken image. Done
+// here because MV3's CSP blocks inline onerror= handlers on extension pages.
+(function () {
+  function hideBroken(img) {
+    if (img && img.tagName === 'IMG' &&
+        (img.classList.contains('int-icon') || img.classList.contains('wg-icon'))) {
+      img.style.display = 'none';
+    }
+  }
+  window.addEventListener('error', function (e) { hideBroken(e.target); }, true);
+  window.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('img.int-icon, img.wg-icon').forEach(function (img) {
+      if (img.complete && img.naturalWidth === 0) hideBroken(img);
+    });
+  });
+})();
+
 // Last-resort icon when no real favicon and no AI brand-icon guess succeed.
 // Mirrors the constant in config/config.js so dashboards look consistent
 // whether an icon was resolved at generation time or re-resolved here.
@@ -14,6 +33,18 @@ const GENERIC_ICON_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
 
 // User settings (clock format, weather, etc.) — populated by loadData()
 let settings = {};
+
+// Apply the saved named theme to <html> (overrides the design tokens in
+// common.css). 'auto'/empty follows the OS light/dark default.
+function applyTheme(theme) {
+  const t = theme && theme !== 'auto' ? theme : null;
+  if (t) document.documentElement.setAttribute('data-theme', t);
+  else document.documentElement.removeAttribute('data-theme');
+}
+
+// Apply the theme as early as possible (before first paint) to avoid a flash
+// of the default palette, then loadData() re-applies once settings are read.
+chrome.storage.local.get('settings', ({ settings: s }) => applyTheme(s && s.theme));
 
 const state = {
   dashboards: [],
@@ -45,14 +76,14 @@ const pDrag = {
 const dashboardArea    = document.getElementById('dashboard-area');
 const dashboardSelect  = document.getElementById('dashboard-select');
 const switcherWrapper  = document.getElementById('switcher-wrapper');
+const dashTabs         = document.getElementById('dash-tabs');
+const dashSidebar      = document.getElementById('dash-sidebar');
 const searchInput      = document.getElementById('search-input');
 const clockEl          = document.getElementById('clock');
 const dateEl           = document.getElementById('date-display');
 const rearrangeBtn     = document.getElementById('rearrange-btn');
-const rearrangeBar     = document.getElementById('rearrange-bar');
 const rearrangeSaveBtn = document.getElementById('rearrange-save-btn');
 const rearrangeCancel  = document.getElementById('rearrange-cancel-btn');
-const changedBadge     = document.getElementById('rearrange-changed-badge');
 const editModal        = document.getElementById('edit-modal');
 const dashEditModal    = document.getElementById('dash-edit-modal');
 const dashEditBtn      = document.getElementById('dash-edit-btn');
@@ -61,7 +92,18 @@ const dashEditBtn      = document.getElementById('dash-edit-btn');
 
 async function init() {
   await loadData();    // loads settings first so clock renders correctly
+
+  // New-tab override is off by default: a bare new tab (no explicit ?dash=)
+  // shows a simple launcher instead of taking over the page. Explicit opens
+  // (?dash=…, e.g. from the popup or browser-start) always show the dashboard.
+  const hasDashParam = !!new URLSearchParams(window.location.search).get('dash');
+  if (!hasDashParam && settings.newTabOverride !== true) { showNewTabDisabled(); return; }
+
   startClock();
+
+  // Search bar can be turned off in settings (default on).
+  const searchWrap = document.querySelector('.search-wrapper');
+  if (searchWrap) searchWrap.style.display = settings.searchEnabled === false ? 'none' : '';
 
   if (state.dashboards.length === 0) { showEmptyState(); return; }
 
@@ -87,12 +129,19 @@ async function loadData() {
   state.defaultDashboardId = stored.defaultDashboardId || null;
   settings                 = stored.settings            || {};
 
-  // Allow ?dash=dash_xxx to preview a specific dashboard
+  applyTheme(settings.theme);
+
+  // Allow ?dash=dash_xxx to preview a specific dashboard (honored even if hidden).
   const paramDashId = new URLSearchParams(window.location.search).get('dash');
   const paramDash   = paramDashId && state.dashboards.find((d) => d.id === paramDashId);
-  state.activeDashboardId = paramDash
-    ? paramDashId
-    : (state.defaultDashboardId || state.dashboards[0]?.id || null);
+  if (paramDash) {
+    state.activeDashboardId = paramDashId;
+  } else {
+    // Otherwise pick the default (if visible) or the first visible dashboard.
+    const visible = state.dashboards.filter((d) => d.active !== false);
+    const def = visible.find((d) => d.id === state.defaultDashboardId);
+    state.activeDashboardId = (def && def.id) || visible[0]?.id || state.dashboards[0]?.id || null;
+  }
 }
 
 // ─── Clock ────────────────────────────────────────────────────────────────────
@@ -165,26 +214,73 @@ const pad = (n) => String(n).padStart(2, '0');
 
 // ─── Dashboard switcher ───────────────────────────────────────────────────────
 
-function populateSwitcher() {
-  if (state.dashboards.length <= 1) return;
-  switcherWrapper.style.display = 'flex';
-  dashboardSelect.innerHTML = '';
-  state.dashboards
-    .slice()
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .forEach((dash) => {
+// Dashboards visible in the switcher (active flag defaults to true).
+function visibleDashboards() {
+  return state.dashboards.filter((d) => d.active !== false);
+}
+
+// Switch to a dashboard. Blocked while rearranging (can't change in edit mode).
+function switchDashboard(id) {
+  if (state.rearrangeMode) return;
+  if (id === state.activeDashboardId) return;
+  state.activeDashboardId = id;
+  renderDashboard(id);
+  renderSwitcher();
+}
+
+// Render whichever switcher style the user picked (dropdown | tabs | sidebar),
+// showing only active dashboards.
+function renderSwitcher() {
+  const style = (settings.dashboardSwitcher) || 'dropdown';
+  const list = visibleDashboards();
+
+  // Hide all switcher UIs first.
+  if (switcherWrapper) switcherWrapper.style.display = 'none';
+  if (dashTabs) dashTabs.style.display = 'none';
+  if (dashSidebar) dashSidebar.style.display = 'none';
+
+  if (list.length <= 1) return;   // nothing to switch between
+
+  if (style === 'tabs' && dashTabs) {
+    dashTabs.style.display = 'flex';
+    dashTabs.innerHTML = '';
+    list.forEach((d) => {
+      const t = document.createElement('button');
+      t.className = 'dash-tab' + (d.id === state.activeDashboardId ? ' active' : '');
+      t.textContent = d.name;
+      t.addEventListener('click', () => switchDashboard(d.id));
+      dashTabs.appendChild(t);
+    });
+  } else if (style === 'sidebar' && dashSidebar) {
+    dashSidebar.style.display = 'flex';
+    dashSidebar.innerHTML = '';
+    list.forEach((d) => {
+      const it = document.createElement('div');
+      it.className = 'dash-side-item' + (d.id === state.activeDashboardId ? ' active' : '');
+      it.textContent = d.name;
+      it.title = d.name;
+      it.addEventListener('click', () => switchDashboard(d.id));
+      dashSidebar.appendChild(it);
+    });
+  } else if (switcherWrapper) {   // dropdown (default)
+    switcherWrapper.style.display = 'flex';
+    dashboardSelect.innerHTML = '';
+    list.forEach((d) => {
       const opt = document.createElement('option');
-      opt.value = dash.id;
-      opt.textContent = dash.id === state.defaultDashboardId ? `${dash.name} ★` : dash.name;
-      if (dash.id === state.activeDashboardId) opt.selected = true;
+      opt.value = d.id;
+      opt.textContent = d.id === state.defaultDashboardId ? `${d.name} ★` : d.name;
+      if (d.id === state.activeDashboardId) opt.selected = true;
       dashboardSelect.appendChild(opt);
     });
-  dashboardSelect.addEventListener('change', () => {
-    state.activeDashboardId = dashboardSelect.value;
-    exitRearrangeMode(true);
-    renderDashboard(state.activeDashboardId);
-  });
+    if (!dashboardSelect.dataset.bound) {
+      dashboardSelect.dataset.bound = '1';
+      dashboardSelect.addEventListener('change', () => switchDashboard(dashboardSelect.value));
+    }
+  }
 }
+
+// Kept for the init call site.
+function populateSwitcher() { renderSwitcher(); }
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 
@@ -202,22 +298,405 @@ function renderDashboard(dashId) {
   dashboardArea.innerHTML = '';
   const cmp = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
-  // Group bookmarks by folder
+  // Group bookmarks by folder/section, preserving the saved bookmark order.
   const groups = {};
+  const seen = [];
   dash.bookmarks.forEach((bm) => {
     const key = bm.folder || 'General';
-    if (!groups[key]) groups[key] = [];
+    if (!groups[key]) { groups[key] = []; seen.push(key); }
     groups[key].push(bm);
   });
 
-  const folderNames = Object.keys(groups).sort((a, b) => cmp.compare(a, b));
+  // Section order: honor the dashboard's saved sectionOrder (set by the creation
+  // wizard) when present; otherwise fall back to alphabetical. Sections not in
+  // the saved list are appended in first-seen order. Bookmark order within each
+  // section is preserved as stored (no alphabetical re-sort).
+  let folderNames;
+  if (Array.isArray(dash.sectionOrder) && dash.sectionOrder.length) {
+    const present = new Set(seen);
+    folderNames = dash.sectionOrder.filter((s) => present.has(s));
+    seen.forEach((s) => { if (!folderNames.includes(s)) folderNames.push(s); });
+  } else {
+    folderNames = seen.slice().sort((a, b) => cmp.compare(a, b));
+  }
+
+  // Grid layout when Gridstack is bundled; otherwise the classic stacked
+  // sections (graceful fallback so the dashboard always renders).
+  if (window.GridStack) {
+    dashboardArea.classList.add('grid-mode');
+    renderDashboardGrid(dash, folderNames, groups);
+  } else {
+    dashboardArea.classList.remove('grid-mode');
+    folderNames.forEach((folderName) => {
+      dashboardArea.appendChild(buildFolderSection(folderName, groups[folderName]));
+    });
+  }
+}
+
+// ─── Grid layout (Gridstack) ───────────────────────────────────────────────────
+// Step 1: each section becomes a grid item on a 12-column canvas. The grid is
+// locked here (staticGrid); drag, resize and collision land in later steps.
+
+let gridInstance = null;
+const GRID_COLS = 24;   // denser grid → finer snapping + sections can go small
+const GRID_CELL = 32;   // px per grid row
+const GRID_MIN_W = 2;   // minimum section width (cols)
+const GRID_MIN_H = 3;   // minimum section height (rows)
+
+// Gridstack ships horizontal (left/width %) CSS only for a 12-column grid.
+// For any other column count we generate the matching rules once.
+function injectGridColumnCss(cols) {
+  const id = 'gs-col-css';
+  let el = document.getElementById(id);
+  if (el && el.dataset.cols === String(cols)) return;
+  if (!el) { el = document.createElement('style'); el.id = id; document.head.appendChild(el); }
+  el.dataset.cols = String(cols);
+  let css = `.gs-${cols} > .grid-stack-item { width: ${100 / cols}%; }`;
+  for (let i = 1; i <= cols; i++) css += `.gs-${cols} > .grid-stack-item[gs-w="${i}"]{width:${i * 100 / cols}%}`;
+  for (let i = 1; i < cols; i++) css += `.gs-${cols} > .grid-stack-item[gs-x="${i}"]{left:${i * 100 / cols}%}`;
+  el.textContent = css;
+}
+
+// Per-section icon size. Each size fixes the icon footprint; the grid simply
+// fits more/fewer columns as the section is resized (icons no longer scale).
+//   cellPx = min column width for one icon, rowPx = height of one icon row.
+const ICON_SIZES = {
+  small:  { cellPx: 56,  rowPx: 56 },
+  medium: { cellPx: 100, rowPx: 96 },
+  large:  { cellPx: 140, rowPx: 124 },
+};
+const HEADER_PX = 46;
+const DEFAULT_ICON_SIZE = 'medium';
+
+function storedIconSize(name) {
+  const dash = getActiveDash();
+  return (dash && dash.layout && dash.layout[name] && dash.layout[name].iconSize) || DEFAULT_ICON_SIZE;
+}
+
+// Reflect a section's icon size on its DOM + the selector's active button.
+function applyIconSize(el, size) {
+  const sec = el.querySelector('.folder-section');
+  if (sec) sec.dataset.iconsize = size;
+  el.querySelectorAll('.icon-size-btn').forEach((b) => b.classList.toggle('active', b.dataset.size === size));
+}
+
+function applyAllIconSizes() {
+  document.querySelectorAll('.grid-stack > .grid-stack-item').forEach((el) => {
+    applyIconSize(el, storedIconSize(el.dataset.folder));
+  });
+}
+
+// Deterministic text width via canvas (avoids layout-timing flakiness of
+// scrollWidth). Mirrors the title-bubble font (uppercase, 700, 11.5px) plus its
+// letter-spacing, bubble padding and the section's content padding.
+function measureTextPx(text, font) {
+  const c = (measureTextPx._c || (measureTextPx._c = document.createElement('canvas')));
+  const ctx = c.getContext('2d');
+  ctx.font = font;
+  return ctx.measureText(text).width;
+}
+function nameMinPx(name) {
+  const txt = (name || '').toUpperCase();
+  const base = measureTextPx(txt, '700 11.5px system-ui, -apple-system, sans-serif');
+  const letterSpacing = 0.07 * 11.5 * Math.max(0, txt.length - 1);
+  return base + letterSpacing + 24 /* bubble pad */ + 10 /* buffer */;
+}
+
+const CONTENT_PAD_X = 26;  // grid-stack-item-content left+right padding (+ hair)
+
+// Minimum width (cols) so a section always fits the wider of: one icon, the
+// full title bubble, or the S/M/L selector row — for a given cell width. The
+// content's horizontal padding is added so a single icon column never overflows.
+function sectionMinW(name, iconSize, cellW) {
+  const spec = ICON_SIZES[iconSize] || ICON_SIZES.medium;
+  const innerPx = Math.max(spec.cellPx, nameMinPx(name), 100); // 100 ≈ selector row
+  // Clamp to the column count — a min-w larger than max-w would wedge Gridstack
+  // (sections become un-draggable / un-resizable).
+  return Math.min(GRID_COLS, Math.max(GRID_MIN_W, Math.ceil((innerPx + CONTENT_PAD_X) / (cellW || 1))));
+}
+
+// Measure actual overflow and grow a section until its icon grid has NO
+// scrollbars (vertical or horizontal). This is exact (unlike the row estimate),
+// so it catches cases the estimate misses — e.g. switching to Large icons.
+function fitSectionToContent(el) {
+  if (!gridInstance || !el) return;
+  const node = el.gridstackNode;
+  const content = el.querySelector('.grid-stack-item-content');
+  const grid = el.querySelector('.bookmark-grid');
+  const gridStackEl = el.closest('.grid-stack');
+  if (!node || !content || !grid || !gridStackEl) return;
+  const cellW = (gridStackEl.clientWidth / GRID_COLS) || 1;
+  let w = node.w, h = node.h, changed = false;
+  const overflowY = Math.max(grid.scrollHeight - grid.clientHeight, content.scrollHeight - content.clientHeight);
+  if (overflowY > 0.5) { h += Math.ceil(overflowY / GRID_CELL); changed = true; }
+  const overflowX = content.scrollWidth - content.clientWidth;
+  if (overflowX > 0.5) { w = Math.min(GRID_COLS, w + Math.ceil(overflowX / cellW)); changed = true; }
+  if (changed) gridInstance.update(el, { w, h });
+}
+
+function fitAllSectionsToContent() {
+  document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(fitSectionToContent);
+}
+
+// Minimum cells so a section can show ALL its icons at the chosen size, given
+// its current width. Shrinking the width pushes the required height up, so a
+// section can never be made too small to hold every icon — or to hide its name.
+function sectionMinCells(el) {
+  const node = el.gridstackNode;
+  const gridStackEl = el.closest('.grid-stack');
+  if (!node || !gridStackEl) return null;
+  const cellW = gridStackEl.clientWidth / GRID_COLS || 1;
+  const size = storedIconSize(el.dataset.folder);
+  const spec = ICON_SIZES[size] || ICON_SIZES.medium;
+  const minW = sectionMinW(el.dataset.folder, size, cellW);
+
+  // Measure the ACTUAL icon content height at the current width (the bottom of
+  // the last card), rather than estimating rows. This lets a section shrink to
+  // exactly below its icons, regardless of icon size / column count. The grid is
+  // flex:1 so its own height stretches — we measure the cards, not the box.
+  const bmGrid = el.querySelector('.bookmark-grid');
+  const cards = bmGrid ? bmGrid.querySelectorAll('.bookmark-card') : [];
+  let contentH = spec.rowPx;  // fallback when nothing's laid out yet
+  if (cards.length && bmGrid) {
+    const gridTop = bmGrid.getBoundingClientRect().top;
+    const last = cards[cards.length - 1];
+    contentH = Math.max(0, last.getBoundingClientRect().bottom - gridTop) + 6; // + small bottom pad
+  }
+  const minH = Math.max(GRID_MIN_H, Math.ceil((HEADER_PX + contentH) / GRID_CELL));
+  return { minW, minH };
+}
+
+// Push the live min-width/height onto a node so Gridstack resists shrinking a
+// section below the space its icons need *during* a drag. minH depends on the
+// current width (narrower → more rows → taller), so this is recomputed each
+// resize frame. This guarantees icons are never clipped/hidden — they just flow
+// onto more rows as the section narrows.
+function setSectionLiveMin(el) {
+  const node = el && el.gridstackNode;
+  const m = sectionMinCells(el);
+  if (!node || !m) return;
+  node.minW = m.minW; node.minH = m.minH;
+  el.setAttribute('gs-min-w', m.minW);
+  el.setAttribute('gs-min-h', m.minH);
+}
+
+// Grow a section if it's smaller than the space its icons need (final safety
+// net on release / size change / initial render).
+function enforceSectionMin(el) {
+  if (!gridInstance || !el) return;
+  const node = el.gridstackNode;
+  const m = sectionMinCells(el);
+  if (!node || !m) return;
+  el.setAttribute('gs-min-w', m.minW);
+  el.setAttribute('gs-min-h', m.minH);
+  node.minW = m.minW; node.minH = m.minH;
+  let w = node.w, h = node.h, changed = false;
+  if (w < m.minW) { w = m.minW; changed = true; }
+  if (h < m.minH) { h = m.minH; changed = true; }
+  if (changed) gridInstance.update(el, { w, h });
+}
+
+function enforceAllSectionMins() {
+  document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(enforceSectionMin);
+}
+
+// Edit-mode handler: change a section's icon size, re-fit, and flag unsaved.
+function setSectionIconSize(name, size) {
+  const dash = getActiveDash();
+  if (!dash) return;
+  if (!dash.layout[name]) dash.layout[name] = {};
+  dash.layout[name].iconSize = size;
+  const el = document.querySelector(`.grid-stack > .grid-stack-item[data-folder="${CSS.escape(name)}"]`);
+  if (el) {
+    applyIconSize(el, size);
+    enforceSectionMin(el);
+    // Auto-grow the section so the new icon size never causes scrollbars, even
+    // if the window/section isn't resized.
+    requestAnimationFrame(() => { fitSectionToContent(el); syncGridAttrs(); });
+  }
+  markRearrangeChanged();
+}
+
+// Small S/M/L selector shown on each section while editing.
+function buildIconSizeSelector(name, current) {
+  const wrap = document.createElement('div');
+  wrap.className = 'icon-size-sel';
+  [['small', 'S'], ['medium', 'M'], ['large', 'L']].forEach(([sz, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'icon-size-btn' + (sz === current ? ' active' : '');
+    b.dataset.size = sz;
+    b.textContent = label;
+    b.title = sz.charAt(0).toUpperCase() + sz.slice(1) + ' icons';
+    b.addEventListener('pointerdown', (e) => e.stopPropagation()); // don't start a section drag
+    b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); setSectionIconSize(name, sz); });
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+
+// Force the gs-x/y/w/h DOM attributes to match the engine's node geometry.
+// Our 24-column grid positions items via attribute-keyed CSS, so if an attribute
+// lags behind the engine (can happen on resize/drag stop) the section visually
+// snaps back to its old size. Re-syncing here keeps DOM and engine in lockstep.
+function syncGridAttrs() {
+  if (!gridInstance || !gridInstance.engine) return;
+  gridInstance.engine.nodes.forEach((n) => {
+    if (!n.el) return;
+    n.el.setAttribute('gs-x', n.x);
+    n.el.setAttribute('gs-y', n.y);
+    n.el.setAttribute('gs-w', n.w);
+    n.el.setAttribute('gs-h', n.h);
+  });
+}
+
+// Rough pixel→row estimate for a section's default height, from its item count
+// and column width. Refined once resizing exists; users can resize after.
+function estimateSectionRows(count, w) {
+  const iconsPerRow = Math.max(1, Math.floor(w / 2)); // ~2 grid cols per icon at default scale
+  const rows = Math.ceil(count / iconsPerRow);
+  const px = 52 + rows * 92;                            // header + icon rows
+  return Math.max(GRID_MIN_H, Math.ceil(px / GRID_CELL));
+}
+
+// Ensure dash.layout has {x,y,w,h} for every current section, auto-placing any
+// new ones into a tidy left-to-right flow. Returns the layout map.
+function ensureDashLayout(dash, folderNames, groups) {
+  const DEF_W = 8;   // ~1/3 width on the 24-col grid
+
+  // Migrate a layout saved at a different grid density (e.g. the old 12-column
+  // grid) so sections keep their proportions instead of rendering half-width.
+  if (dash.layout && typeof dash.layout === 'object') {
+    const oldCols = dash.gridCols || 12;
+    const oldCell = dash.gridCell || 60;
+    if (oldCols !== GRID_COLS || oldCell !== GRID_CELL) {
+      const fx = GRID_COLS / oldCols;
+      const fh = oldCell / GRID_CELL;
+      Object.values(dash.layout).forEach((p) => {
+        if (!p) return;
+        p.x = Math.round((p.x || 0) * fx);
+        p.w = Math.max(GRID_MIN_W, Math.round((p.w || DEF_W) * fx));
+        p.y = Math.round((p.y || 0) * fh);
+        p.h = Math.max(GRID_MIN_H, Math.round((p.h || GRID_MIN_H) * fh));
+      });
+    }
+  }
+  dash.gridCols = GRID_COLS;
+  dash.gridCell = GRID_CELL;
+
+  const layout = (dash.layout && typeof dash.layout === 'object') ? dash.layout : {};
+  let cx = 0, cy = 0, rowH = 0;
   folderNames.forEach((name) => {
-    groups[name].sort((a, b) => cmp.compare(a.title || '', b.title || ''));
+    if (!layout[name] || !Number.isFinite(layout[name].w)) {
+      const prev = layout[name] || {};   // may carry iconSize set by the wizard
+      const w = DEF_W;
+      const h = estimateSectionRows(groups[name].length, w);
+      if (cx + w > GRID_COLS) { cx = 0; cy += rowH; rowH = 0; }
+      layout[name] = { x: cx, y: cy, w, h, iconSize: prev.iconSize || DEFAULT_ICON_SIZE };
+      cx += w; rowH = Math.max(rowH, h);
+    }
+  });
+  // Drop layout entries for sections that no longer exist.
+  Object.keys(layout).forEach((k) => { if (!folderNames.includes(k)) delete layout[k]; });
+  dash.layout = layout;
+  return layout;
+}
+
+function renderDashboardGrid(dash, folderNames, groups) {
+  injectGridColumnCss(GRID_COLS);
+  const layout = ensureDashLayout(dash, folderNames, groups);
+
+  // Tear down any previous grid instance before rebuilding.
+  if (gridInstance) { try { gridInstance.destroy(false); } catch (_) {} gridInstance = null; }
+
+  const gridEl = document.createElement('div');
+  gridEl.className = 'grid-stack';
+  dashboardArea.appendChild(gridEl);
+
+  // Approx cell width now (grid is full-width minus the dashboard padding) so we
+  // can stamp a name-aware gs-min-w before init — Gridstack then clamps any
+  // saved-too-small width on load and resists shrinking past the name on resize.
+  const areaW = dashboardArea.clientWidth || 1200;   // fallback if not laid out yet
+  const cellW0 = Math.max(1, (areaW - 32) / GRID_COLS);
+
+  folderNames.forEach((name) => {
+    const pos = layout[name] || {};
+    const iconSize = pos.iconSize || DEFAULT_ICON_SIZE;
+    const minW = sectionMinW(name, iconSize, cellW0);
+    const w = Math.min(GRID_COLS, Math.max(Number.isFinite(pos.w) ? pos.w : minW, minW));
+    const item = document.createElement('div');
+    item.className = 'grid-stack-item';
+    item.dataset.folder = name;
+    if (Number.isFinite(pos.x)) item.setAttribute('gs-x', pos.x);
+    if (Number.isFinite(pos.y)) item.setAttribute('gs-y', pos.y);
+    item.setAttribute('gs-w', w);
+    if (Number.isFinite(pos.h)) item.setAttribute('gs-h', pos.h);
+    item.setAttribute('gs-min-w', minW);
+    item.setAttribute('gs-min-h', GRID_MIN_H);
+    item.setAttribute('gs-max-w', GRID_COLS);
+
+    const content = document.createElement('div');
+    content.className = 'grid-stack-item-content';
+    const section = buildFolderSection(name, groups[name]);
+    section.dataset.iconsize = iconSize;
+    content.appendChild(section);
+    item.appendChild(content);
+    item.appendChild(buildIconSizeSelector(name, iconSize)); // floating S/M/L toolbar above the section
+    gridEl.appendChild(item);
   });
 
-  folderNames.forEach((folderName) => {
-    dashboardArea.appendChild(buildFolderSection(folderName, groups[folderName]));
+  gridInstance = GridStack.init({
+    column: GRID_COLS,
+    cellHeight: GRID_CELL,
+    margin: 8,
+    float: true,
+    staticGrid: true,   // locked until Edit Mode unlocks it
+    animate: true,
+    handle: '.folder-header',         // sections are dragged by their header
+    draggable: { handle: '.folder-header' },
+    resizable: { handles: 'e, se, s' }, // right, corner, and bottom (height-only) handles
+    alwaysShowResizeHandle: true,     // visible whenever resize is enabled (Edit Mode)
+    // Keep the fixed multi-column grid at all window sizes. Without this,
+    // Gridstack collapses to one full-width column on narrow windows, which
+    // resets every section to full width and snaps the icons back to largest.
+    disableOneColumnMode: true,
+  }, gridEl);
+
+  // Flag unsaved changes when a section is moved/resized in Edit Mode, and keep
+  // DOM attributes synced with the engine so resized sizes hold.
+  gridInstance.on('change', () => {
+    if (state.rearrangeMode) markRearrangeChanged();
+    syncGridAttrs();
   });
+  // Keep the live min-size in sync so icons can never be squeezed out: as the
+  // section narrows, its required height rises and Gridstack won't let it shrink
+  // past the point where every icon fits.
+  gridInstance.on('resizestart', (e, el) => setSectionLiveMin(el));
+  gridInstance.on('resize', (e, el) => setSectionLiveMin(el));
+  gridInstance.on('resizestop', (e, el) => {
+    enforceSectionMin(el);
+    requestAnimationFrame(() => { fitSectionToContent(el); syncGridAttrs(); });
+  });
+
+  applyAllIconSizes();       // reflect each section's stored icon size
+  enforceAllSectionMins();   // estimate-based floor (fits icons + name)
+  // Exact pass once laid out: grow any section so all icons show with no overflow.
+  // The grid is static in view mode, so briefly unlock for the programmatic fit.
+  requestAnimationFrame(() => {
+    if (!gridInstance) return;
+    const wasStatic = !state.rearrangeMode;
+    if (wasStatic) gridInstance.setStatic(false);
+    fitAllSectionsToContent();
+    syncGridAttrs();
+    if (wasStatic) gridInstance.setStatic(true);
+  });
+
+  // If we re-render while in Edit Mode (rare), keep the grid unlocked.
+  if (state.rearrangeMode) {
+    gridInstance.setStatic(false);
+    gridInstance.enableMove(true);
+    gridInstance.enableResize(true);
+  }
 }
 
 // ─── Folder section ───────────────────────────────────────────────────────────
@@ -232,7 +711,6 @@ function buildFolderSection(folderName, bookmarks) {
   header.innerHTML = `
     <span class="folder-icon">📁</span>
     <span class="folder-name">${escapeHtml(getFolderDisplayName(folderName))}</span>
-    <span class="folder-count">${bookmarks.length} item${bookmarks.length !== 1 ? 's' : ''}</span>
   `;
 
   const grid = document.createElement('div');
@@ -407,15 +885,29 @@ function setupRearrangeControls() {
   rearrangeCancel.addEventListener('click', () => exitRearrangeMode(true));
 }
 
+// Snapshot of dash.layout taken when entering edit mode, used to revert on Cancel.
+let layoutSnapshot = null;
+
 function enterRearrangeMode() {
   state.rearrangeMode     = true;
   state.rearrangeModified = false;
   document.body.classList.add('rearrange-mode');
-  rearrangeBtn.classList.add('active');
-  rearrangeBtn.textContent = '✕ Exit Rearrange';
-  rearrangeBar.classList.add('visible');
-  changedBadge.classList.remove('visible');
+  // Swap the top "Rearrange" button for Save + Cancel.
+  rearrangeBtn.style.display = 'none';
+  rearrangeSaveBtn.style.display = '';
+  rearrangeCancel.style.display = '';
+  rearrangeSaveBtn.classList.remove('has-changes');
   searchInput.blur();
+
+  // Grid mode: unlock the grid so sections can be dragged (resize stays off
+  // until Step 3). The grid overlay is shown via body.rearrange-mode CSS.
+  if (gridInstance) {
+    const dash = getActiveDash();
+    layoutSnapshot = dash ? JSON.parse(JSON.stringify(dash.layout || {})) : null;
+    gridInstance.setStatic(false);
+    gridInstance.enableMove(true);
+    gridInstance.enableResize(true);
+  }
 }
 
 function exitRearrangeMode(discard = false) {
@@ -427,9 +919,21 @@ function exitRearrangeMode(discard = false) {
   state.rearrangeMode     = false;
   state.rearrangeModified = false;
   document.body.classList.remove('rearrange-mode');
-  rearrangeBtn.classList.remove('active');
-  rearrangeBtn.textContent = '⇄ Rearrange';
-  rearrangeBar.classList.remove('visible');
+  // Restore the top "Rearrange" button; hide Save + Cancel.
+  rearrangeBtn.style.display = '';
+  rearrangeSaveBtn.style.display = 'none';
+  rearrangeCancel.style.display = 'none';
+  rearrangeSaveBtn.classList.remove('has-changes');
+
+  // Re-lock the grid.
+  if (gridInstance) {
+    gridInstance.setStatic(true);
+    if (discard && layoutSnapshot) {
+      const dash = getActiveDash();
+      if (dash) dash.layout = layoutSnapshot;
+    }
+    layoutSnapshot = null;
+  }
 
   // Reset any FLIP translate on cards before re-rendering
   document.querySelectorAll('.bookmark-card').forEach((c) => {
@@ -440,21 +944,62 @@ function exitRearrangeMode(discard = false) {
   if (discard) renderDashboard(state.activeDashboardId);
 }
 
+// Read the current grid geometry back into dash.layout (per-section x/y/w/h).
+function captureGridLayout(dash) {
+  if (!gridInstance) return;
+  const layout = dash.layout || (dash.layout = {});
+  gridInstance.engine.nodes.forEach((n) => {
+    const name = n.el && n.el.dataset.folder;
+    if (!name) return;
+    // Merge so we keep the chosen iconSize (and any other props), and capture
+    // the live icon size from the section's data attribute.
+    const sec = n.el.querySelector('.folder-section');
+    const iconSize = (sec && sec.dataset.iconsize) || (layout[name] && layout[name].iconSize) || DEFAULT_ICON_SIZE;
+    layout[name] = Object.assign({}, layout[name], { x: n.x, y: n.y, w: n.w, h: n.h, iconSize });
+  });
+  // Section order follows top-to-bottom, left-to-right grid position.
+  dash.sectionOrder = gridInstance.engine.nodes
+    .slice()
+    .sort((a, b) => (a.y - b.y) || (a.x - b.x))
+    .map((n) => n.el && n.el.dataset.folder)
+    .filter(Boolean);
+}
+
 async function saveRearrangement() {
   const dash = getActiveDash();
   if (!dash) return;
 
-  // Read current DOM order
-  const newBookmarks = [];
-  document.querySelectorAll('.folder-section').forEach((section) => {
-    const folderName = section.dataset.folder;
-    section.querySelectorAll('.bookmark-card').forEach((card) => {
-      const bm = dash.bookmarks.find((b) => b.id === card.dataset.bmId);
-      if (bm) newBookmarks.push({ ...bm, folder: folderName });
+  if (gridInstance) {
+    // Grid mode: first grow any section that would show scrollbars, then
+    // persist section positions/sizes + derived order…
+    fitAllSectionsToContent();
+    captureGridLayout(dash);
+    // …and the bookmark order within each section (and any cross-section moves).
+    const newBookmarks = [];
+    document.querySelectorAll('.grid-stack .folder-section').forEach((section) => {
+      const folderName = section.dataset.folder;
+      section.querySelectorAll('.bookmark-card').forEach((card) => {
+        const bm = dash.bookmarks.find((b) => b.id === card.dataset.bmId);
+        if (bm) newBookmarks.push({ ...bm, folder: folderName });
+      });
     });
-  });
+    if (newBookmarks.length) dash.bookmarks = newBookmarks;
+  } else {
+    // Classic mode: read DOM order (sections + bookmarks within them).
+    const newBookmarks = [];
+    const sectionOrder = [];
+    document.querySelectorAll('.folder-section').forEach((section) => {
+      const folderName = section.dataset.folder;
+      sectionOrder.push(folderName);
+      section.querySelectorAll('.bookmark-card').forEach((card) => {
+        const bm = dash.bookmarks.find((b) => b.id === card.dataset.bmId);
+        if (bm) newBookmarks.push({ ...bm, folder: folderName });
+      });
+    });
+    dash.bookmarks = newBookmarks;
+    dash.sectionOrder = sectionOrder;
+  }
 
-  dash.bookmarks = newBookmarks;
   await chromeSet({ dashboards: state.dashboards });
 
   exitRearrangeMode(false); // DOM is already correct; don't re-render
@@ -463,7 +1008,7 @@ async function saveRearrangement() {
 
 function markRearrangeChanged() {
   state.rearrangeModified = true;
-  changedBadge.classList.add('visible');
+  rearrangeSaveBtn.classList.add('has-changes');  // highlight Save when there are unsaved edits
 }
 
 // ─── Pointer-events drag with FLIP animation ──────────────────────────────────
@@ -473,6 +1018,9 @@ function markRearrangeChanged() {
 function initCardPointerDrag(cardEl) {
   cardEl.addEventListener('pointerdown', (e) => {
     if (!state.rearrangeMode || e.button !== 0) return;
+    // In grid mode, sections are dragged by their header; bookmark cards stay
+    // reorderable within (and across) sections — so card drag stays enabled.
+    if (e.target.closest('.card-actions')) return; // let the remove (✕) button receive the click
     e.preventDefault();
     dragStart(cardEl, e);
   });
@@ -891,10 +1439,7 @@ async function saveDashEdit() {
 
   // Re-render so name, text visibility, and any un-customized icon shapes update
   renderDashboard(state.activeDashboardId);
-
-  // Update the switcher dropdown label in place (avoid re-binding its listener)
-  const opt = dashboardSelect?.querySelector(`option[value="${dash.id}"]`);
-  if (opt) opt.textContent = dash.id === state.defaultDashboardId ? `${dash.name} ★` : dash.name;
+  renderSwitcher();   // refresh the switcher label across all modes
 
   showToast('Dashboard updated ✓');
 }
@@ -931,8 +1476,22 @@ async function removeBookmark(bmId) {
 
 function setupSearch() {
   searchInput.addEventListener('input', () =>
-    filterBookmarks(searchInput.value.trim().toLowerCase())
+    renderSearchResults(searchInput.value.trim().toLowerCase())
   );
+  searchInput.addEventListener('focus', () => {
+    if (searchInput.value.trim()) renderSearchResults(searchInput.value.trim().toLowerCase());
+  });
+  // Enter opens the top result.
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const first = document.querySelector('#search-results .search-result');
+      if (first) { window.open(first.href, '_self'); }
+    }
+  });
+  // Click outside closes the dropdown.
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.search-wrapper')) closeSearchResults();
+  });
 
   document.addEventListener('keydown', (e) => {
     if (
@@ -946,28 +1505,78 @@ function setupSearch() {
     if (e.key === 'Escape') {
       if (editModal.classList.contains('visible')) { closeEditModal(); return; }
       searchInput.value = '';
-      filterBookmarks('');
+      closeSearchResults();
       searchInput.blur();
     }
   });
 }
 
-function filterBookmarks(query) {
-  document.querySelectorAll('.bookmark-card').forEach((card) => {
-    const match =
-      !query ||
-      card.dataset.title.includes(query) ||
-      card.dataset.url.includes(query)   ||
-      card.dataset.desc.includes(query);
-    card.classList.toggle('search-hidden', !match);
-  });
-  document.querySelectorAll('.folder-section').forEach((section) => {
-    const visible = section.querySelectorAll('.bookmark-card:not(.search-hidden)').length;
-    section.classList.toggle('search-empty', visible === 0);
-  });
+function closeSearchResults() {
+  const box = document.getElementById('search-results');
+  if (box) { box.classList.remove('open'); box.innerHTML = ''; }
+}
+
+function searchFaviconFor(url) {
+  try { return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}&sz=64`; }
+  catch { return ''; }
+}
+
+// Show matching bookmarks from the ACTIVE dashboard in a dropdown below the
+// search box. Does not filter/hide anything on the dashboard itself.
+function renderSearchResults(query) {
+  const box = document.getElementById('search-results');
+  if (!box) return;
+  if (!query) { closeSearchResults(); return; }
+
+  const dash = getActiveDash();
+  const bms = (dash && dash.bookmarks) || [];
+  const matches = bms.filter((b) =>
+    (b.title || '').toLowerCase().includes(query) ||
+    (b.url || '').toLowerCase().includes(query) ||
+    (b.description || '').toLowerCase().includes(query)
+  ).slice(0, 12);
+
+  box.innerHTML = '';
+  if (!matches.length) {
+    const m = document.createElement('div');
+    m.className = 'search-empty-msg';
+    m.textContent = 'No matches in this dashboard';
+    box.appendChild(m);
+  } else {
+    matches.forEach((b, i) => {
+      const a = document.createElement('a');
+      a.className = 'search-result' + (i === 0 ? ' active' : '');
+      a.href = b.url; a.target = '_self'; a.rel = 'noopener noreferrer';
+      const img = document.createElement('img');
+      img.alt = '';
+      img.src = b.resolved_icon || searchFaviconFor(b.url);
+      img.onerror = () => { img.style.visibility = 'hidden'; };
+      const txt = document.createElement('span'); txt.className = 'sr-text';
+      const t = document.createElement('span'); t.className = 'sr-title'; t.textContent = b.title || b.url;
+      const u = document.createElement('span'); u.className = 'sr-url'; u.textContent = b.url;
+      txt.append(t, u);
+      a.append(img, txt);
+      box.appendChild(a);
+    });
+  }
+  box.classList.add('open');
 }
 
 // ─── Empty state ──────────────────────────────────────────────────────────────
+
+// Shown on a bare new tab when "Show dashboard on new tab" is off. Keeps the
+// new tab clean but one click away from the dashboard.
+function showNewTabDisabled() {
+  const def = state.defaultDashboardId || state.dashboards[0]?.id || '';
+  const openHref = def ? `newtab.html?dash=${def}` : '../config/config.html?tab=dashboards';
+  document.body.innerHTML = `
+    <div style="height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;text-align:center;color:var(--text-muted);padding:40px;background:var(--bg-primary);">
+      <div style="font-size:44px;">🗂️</div>
+      <div style="font-size:15px;color:var(--text-secondary);max-width:320px;">Your dashboard isn't set to take over new tabs.</div>
+      <a href="${openHref}" style="display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#fff;padding:10px 22px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:500;">Open Dashboard →</a>
+      <a href="../config/config.html?tab=settings" style="font-size:12px;color:var(--text-muted);text-decoration:underline;">Settings</a>
+    </div>`;
+}
 
 function showEmptyState() {
   dashboardArea.innerHTML = `

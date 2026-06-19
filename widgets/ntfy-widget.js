@@ -92,7 +92,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('ntfy-widget');
-      this.el.innerHTML = `<div class="nt-header"><div class="nt-title">ntfy${this.cfg.topic ? ` — ${escapeHtml(this.cfg.topic)}` : ''}</div><div class="nt-error" style="display:none"></div></div><div class="nt-body"></div>`;
+      this.el.innerHTML = `<div class="nt-header"><img class="wg-icon" src="../icons/integrations/ntfy.svg" alt=""><div class="nt-title">ntfy${this.cfg.topic ? ` — ${escapeHtml(this.cfg.topic)}` : ''}</div><div class="nt-error" style="display:none"></div></div><div class="nt-body"></div>`;
       this.errorEl = this.el.querySelector('.nt-error'); this.body = this.el.querySelector('.nt-body');
     }
     _render() {

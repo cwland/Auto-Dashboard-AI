@@ -412,6 +412,7 @@
       this.el.classList.add('tautulli-widget');
       this.el.innerHTML = `
         <div class="tw-header">
+          <img class="wg-icon" src="../icons/integrations/tautulli.svg" alt="">
           <div class="tw-header-title"></div>
           <div class="tw-header-summary"></div>
           <div class="tw-error" style="display:none"></div>

@@ -292,6 +292,7 @@
       this.el.classList.add('arr-calendar-widget', `arr-${this.cfg.service}`);
       this.el.innerHTML = `
         <div class="arr-header">
+          <img class="wg-icon" src="../icons/integrations/${this.cfg.service === 'radarr' ? 'radarr' : 'sonarr'}.svg" alt="">
           <div class="arr-title"></div>
           <div class="arr-tools">
             <div class="arr-error" style="display:none"></div>

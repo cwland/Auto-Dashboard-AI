@@ -80,7 +80,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('prowlarr-widget');
-      this.el.innerHTML = `<div class="pr-header"><div class="pr-title">Prowlarr</div><div class="pr-tools"><div class="pr-error" style="display:none"></div><span class="pr-count"></span></div></div><div class="pr-body"></div>`;
+      this.el.innerHTML = `<div class="pr-header"><img class="wg-icon" src="../icons/integrations/prowlarr.svg" alt=""><div class="pr-title">Prowlarr</div><div class="pr-tools"><div class="pr-error" style="display:none"></div><span class="pr-count"></span></div></div><div class="pr-body"></div>`;
       this.errorEl = this.el.querySelector('.pr-error'); this.countEl = this.el.querySelector('.pr-count'); this.body = this.el.querySelector('.pr-body');
     }
     _render(indexers) {

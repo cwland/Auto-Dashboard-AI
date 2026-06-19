@@ -270,6 +270,7 @@
       this.el.classList.add('seerr-widget');
       this.el.innerHTML = `
         <div class="seerr-header">
+          <img class="wg-icon" src="../icons/integrations/seerr.svg" alt="">
           <div class="seerr-title">Media Requests</div>
           <div class="seerr-tools">
             <div class="seerr-error" style="display:none"></div>

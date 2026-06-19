@@ -192,7 +192,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('ical-widget');
-      this.el.innerHTML = `<div class="ic-header"><div class="ic-title"></div><div class="ic-tools"><div class="ic-error" style="display:none"></div><div class="ic-view-toggle"><button class="ic-tab" data-view="upcoming" type="button">Upcoming</button><button class="ic-tab" data-view="calendar" type="button">Calendar</button></div></div></div><div class="ic-body"></div>`;
+      this.el.innerHTML = `<div class="ic-header"><img class="wg-icon" src="../icons/integrations/ical.svg" alt=""><div class="ic-title"></div><div class="ic-tools"><div class="ic-error" style="display:none"></div><div class="ic-view-toggle"><button class="ic-tab" data-view="upcoming" type="button">Upcoming</button><button class="ic-tab" data-view="calendar" type="button">Calendar</button></div></div></div><div class="ic-body"></div>`;
       this.titleEl = this.el.querySelector('.ic-title'); this.errorEl = this.el.querySelector('.ic-error'); this.toggleEl = this.el.querySelector('.ic-view-toggle'); this.body = this.el.querySelector('.ic-body');
       this.titleEl.textContent = this.cfg.title || 'Calendar';
       this.toggleEl.style.display = this.cfg.showViewToggle ? '' : 'none';

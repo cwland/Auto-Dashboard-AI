@@ -213,6 +213,7 @@
       this.el.classList.add('unifi-widget');
       this.el.innerHTML = `
         <div class="uf-header">
+          <img class="wg-icon" src="../icons/integrations/unifi.png" alt="">
           <div class="uf-title">UniFi — Network</div>
           <div class="uf-tools">
             <div class="uf-error" style="display:none"></div>

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jellyfin / Emby Widget — Sample Dashboard</title>
+<link rel="stylesheet" href="../styles/common.css">
+<link rel="stylesheet" href="media-server-widget.css">
+<style>
+  body { margin: 0; background: var(--bg-primary); padding: 28px; }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  h1 { font: 700 20px/1.3 system-ui, sans-serif; color: var(--text-primary); margin: 0 0 4px; }
+  .lede { font: 400 13px/1.6 system-ui, sans-serif; color: var(--text-muted); margin: 0 0 22px; }
+  .tile-host { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; margin-bottom: 18px; }
+  .row-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Jellyfin / Emby Widget — Sample Dashboard</h1>
+    <p class="lede">
+      Offline preview. The demo builds raw <code>/Sessions</code> objects and runs them through the
+      <em>same</em> <code>MediaServerApi.mapSessions()</code> the live widget uses (episode → season·episode,
+      music → album, movie, play/pause and progress). One reusable widget renders both Jellyfin and Emby.
+    </p>
+
+    <div class="tile-host"><div id="jellyfin-host"></div></div>
+    <div class="tile-host"><div id="emby-host"></div></div>
+
+    <div class="row-btns">
+      <button class="btn btn-secondary btn-sm" id="btn-mixed">Mixed sessions</button>
+      <button class="btn btn-secondary btn-sm" id="btn-one">Single movie</button>
+      <button class="btn btn-secondary btn-sm" id="btn-empty">Nothing playing</button>
+    </div>
+  </div>
+
+<script src="media-server-widget.js"></script>
+<script>
+  'use strict';
+  // Raw /Sessions payloads (Jellyfin/Emby shape). Ticks are 100-ns units.
+  const mixed = [
+    { Id: 's1', UserName: 'cory', Client: 'Jellyfin Web', DeviceName: 'Chrome',
+      PlayState: { PositionTicks: 30000000000, IsPaused: false },
+      NowPlayingItem: { Type: 'Episode', SeriesName: 'Severance', SeasonName: 'Season 2', IndexNumber: 4, Name: 'Cold Harbor', RunTimeTicks: 60000000000 } },
+    { Id: 's2', UserName: 'jordan', Client: 'Jellyfin for Roku', DeviceName: 'Living Room TV',
+      PlayState: { PositionTicks: 18000000000, IsPaused: true },
+      NowPlayingItem: { Type: 'Movie', Name: 'Dune: Part Two', ProductionYear: 2024, RunTimeTicks: 166000000000 } },
+    { Id: 's3', UserName: 'sam', Client: 'Finamp', DeviceName: 'iPhone',
+      PlayState: { PositionTicks: 90000000000, IsPaused: false },
+      NowPlayingItem: { Type: 'Audio', AlbumArtist: 'Daft Punk', Album: 'Discovery', Name: 'Digital Love', RunTimeTicks: 180000000000 } },
+  ];
+  const one = [mixed[1]];
+
+  let mode = 'mixed';
+  const data = () => mode === 'empty' ? [] : (mode === 'one' ? one : mixed);
+
+  function makeWidget(hostId, service) {
+    const w = new MediaServerWidget(document.getElementById(hostId), {
+      service,
+      dataProvider: () => Promise.resolve(MediaServerApi.mapSessions(data())),
+    });
+    w.start();
+    return w;
+  }
+  const widgets = [makeWidget('jellyfin-host', 'jellyfin'), makeWidget('emby-host', 'emby')];
+
+  const setMode = (m) => { mode = m; widgets.forEach((w) => w.poll()); };
+  document.getElementById('btn-mixed').addEventListener('click', () => setMode('mixed'));
+  document.getElementById('btn-one').addEventListener('click', () => setMode('one'));
+  document.getElementById('btn-empty').addEventListener('click', () => setMode('empty'));
+</script>
+</body>
+</html>

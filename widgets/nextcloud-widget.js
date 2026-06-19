@@ -88,7 +88,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('nextcloud-widget');
-      this.el.innerHTML = `<div class="nc-header"><div class="nc-title">Nextcloud</div><div class="nc-error" style="display:none"></div></div><div class="nc-body"></div>`;
+      this.el.innerHTML = `<div class="nc-header"><img class="wg-icon" src="../icons/integrations/nextcloud.svg" alt=""><div class="nc-title">Nextcloud</div><div class="nc-error" style="display:none"></div></div><div class="nc-body"></div>`;
       this.errorEl = this.el.querySelector('.nc-error'); this.body = this.el.querySelector('.nc-body');
     }
     _render() {

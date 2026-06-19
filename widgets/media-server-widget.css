@@ -1,0 +1,109 @@
+/* Auto Dashboard AI — Jellyfin / Emby widget styles
+   Uses the shared design tokens from styles/common.css (light / dark aware).
+   Self-contained: every selector is scoped under .ms-widget.
+
+   Now-playing layout adapted from Homarr's media-server widget as a reference
+   template. Homarr is Apache-2.0 licensed — see THIRD-PARTY-LICENSES.md. */
+
+.ms-widget {
+  --ms-accent: #00a4dc;          /* Jellyfin blue (default) */
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  font-family: var(--font, system-ui, sans-serif);
+  color: var(--text-primary);
+}
+.ms-widget.ms-emby { --ms-accent: #52b54b; }   /* Emby green */
+
+.ms-widget .ms-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ms-widget .ms-title {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.ms-widget .ms-tools { display: flex; align-items: center; gap: 10px; }
+.ms-widget .ms-error {
+  font-size: 12px; font-weight: 600;
+  padding: 3px 9px; border-radius: 999px;
+  background: var(--danger-light, rgba(239, 68, 68, 0.12));
+  color: var(--danger, #ef4444);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.ms-widget .ms-count {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.03em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 999px;
+  background: color-mix(in srgb, var(--ms-accent) 16%, transparent);
+  color: var(--ms-accent);
+  border: 1px solid color-mix(in srgb, var(--ms-accent) 30%, transparent);
+}
+
+.ms-widget .ms-list {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  overflow: hidden;
+  background: var(--bg-secondary);
+}
+.ms-widget .ms-row {
+  display: grid;
+  grid-template-columns: 26px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+.ms-widget .ms-row:first-child { border-top: none; }
+.ms-widget .ms-row.ms-paused { opacity: 0.62; }
+.ms-widget .ms-type { font-size: 16px; text-align: center; }
+.ms-widget .ms-row-main { min-width: 0; }
+.ms-widget .ms-row-title {
+  font-size: 13.5px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ms-widget .ms-row-sub {
+  font-size: 12px; color: var(--text-muted); margin-top: 1px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ms-widget .ms-progress {
+  margin-top: 6px; height: 3px; border-radius: 999px;
+  background: var(--bg-hover); overflow: hidden;
+}
+.ms-widget .ms-progress span {
+  display: block; height: 100%; border-radius: 999px;
+  background: var(--ms-accent);
+}
+.ms-widget .ms-row-user {
+  display: flex; align-items: center; gap: 8px; max-width: 150px;
+}
+.ms-widget .ms-avatar {
+  width: 26px; height: 26px; border-radius: 50%;
+  object-fit: cover; flex: 0 0 auto; background: var(--bg-hover);
+}
+.ms-widget .ms-avatar-fallback {
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff; background: var(--ms-accent);
+}
+.ms-widget .ms-row-usermeta { min-width: 0; display: flex; flex-direction: column; }
+.ms-widget .ms-username {
+  font-size: 12px; font-weight: 600; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ms-widget .ms-device {
+  font-size: 11px; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ms-widget .ms-empty {
+  padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted);
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius, 10px);
+}

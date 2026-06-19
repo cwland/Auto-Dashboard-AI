@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="../widgets/seerr-widget.css">
   <link rel="stylesheet" href="../widgets/dns-hole-widget.css">
   <link rel="stylesheet" href="../widgets/plex-widget.css">
+  <link rel="stylesheet" href="../widgets/media-server-widget.css">
   <link rel="stylesheet" href="../widgets/unifi-widget.css">
   <link rel="stylesheet" href="../widgets/download-client-widget.css">
   <link rel="stylesheet" href="../widgets/peanut-widget.css">
@@ -291,6 +292,80 @@
       letter-spacing: 0.08em;
       margin-bottom: 14px;
     }
+    /* Brand icon shown before an integration's section title. Files live in
+       icons/integrations/ and are fetched via icons/integrations/fetch-icons.sh.
+       If an icon hasn't been downloaded yet it is hidden (onerror), so the
+       heading still reads cleanly. */
+    .int-icon {
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      vertical-align: -3px;
+      margin-right: 7px;
+      border-radius: 3px;
+    }
+
+    /* ── Integrations catalog (redesigned Widgets tab) ──────────────────── */
+    .int-toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 14px; }
+    .int-search { flex:1; min-width:200px; position:relative; }
+    .int-search input { width:100%; padding:9px 12px 9px 32px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); color:var(--text-primary); font-size:13px; }
+    .int-search input:focus { outline:none; border-color:var(--border-focus); }
+    .int-search::before { content:"🔍"; position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:12px; opacity:.7; }
+    .int-filter { display:flex; gap:6px; flex-wrap:wrap; }
+    .int-chip { padding:7px 12px; border-radius:999px; border:1px solid var(--border); background:var(--bg-card); color:var(--text-secondary); font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
+    .int-chip.active { background:var(--accent-light); border-color:var(--accent); color:var(--text-primary); }
+    .int-count { color:var(--text-muted); font-size:12px; margin:0 0 14px; }
+
+    .int-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(186px,1fr)); gap:14px; }
+    .int-card { position:relative; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg);
+      padding:20px 16px 14px; display:flex; flex-direction:column; align-items:center; text-align:center;
+      transition:border-color .15s, box-shadow .15s, transform .12s, opacity .15s; min-height:184px; }
+    .int-card.clickable { cursor:pointer; }
+    .int-card.clickable:hover { border-color:#3a3a52; transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,.35); }
+    .int-card.state-disabled { opacity:.6; }
+    .int-card.state-disabled .int-card-ico { filter:grayscale(.85); }
+    .int-card.state-enabled { border-color:var(--warning); }
+    .int-card.state-active { border-color:var(--success); }
+    .int-badge { position:absolute; top:10px; left:10px; font-size:10.5px; font-weight:700; letter-spacing:.02em; padding:3px 8px; border-radius:999px; display:none; align-items:center; gap:4px; }
+    .int-card.state-enabled .int-badge.setup { display:inline-flex; background:var(--warning-light); color:var(--warning); }
+    .int-card.state-active .int-badge.active { display:inline-flex; background:var(--success-light); color:var(--success); }
+    .int-card-ico { width:52px; height:52px; object-fit:contain; border-radius:12px; margin:6px 0 12px; }
+    .int-card-nm { font-size:14.5px; font-weight:700; margin:0; line-height:1.2; }
+    .int-card-cat { font-size:11px; color:var(--text-muted); margin:3px 0 0; text-transform:uppercase; letter-spacing:.05em; }
+    .int-card-wc { font-size:12px; color:var(--text-secondary); margin:8px 0 0; font-weight:600; }
+    .int-card-wc b { color:var(--accent); }
+    .int-card-foot { margin-top:auto; padding-top:14px; width:100%; display:flex; justify-content:center; }
+    .int-card-hint { position:absolute; left:0; right:0; bottom:-2px; font-size:11px; color:var(--warning); opacity:0; transition:opacity .2s; pointer-events:none; }
+    .int-card.flash .int-card-hint { opacity:1; }
+
+    /* compact toggle for cards */
+    .int-sw { position:relative; display:inline-block; width:40px; height:22px; flex:0 0 auto; }
+    .int-sw input { opacity:0; width:0; height:0; }
+    .int-sw .int-sl { position:absolute; inset:0; cursor:pointer; background:#3a3a4e; border-radius:999px; transition:.2s; }
+    .int-sw .int-sl::before { content:""; position:absolute; height:16px; width:16px; left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s; }
+    .int-sw input:checked + .int-sl { background:var(--accent); }
+    .int-card.state-active .int-sw input:checked + .int-sl { background:var(--success); }
+    .int-sw input:checked + .int-sl::before { transform:translateX(18px); }
+
+    /* config modal */
+    .int-overlay { position:fixed; inset:0; background:rgba(8,8,12,.66); backdrop-filter:blur(3px); display:none; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; z-index:60; }
+    .int-overlay.open { display:flex; }
+    .int-modal { width:100%; max-width:560px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:0 24px 60px rgba(0,0,0,.5); overflow:hidden; }
+    .int-m-head { display:flex; align-items:center; gap:13px; padding:18px 20px; border-bottom:1px solid var(--border); }
+    .int-m-head img { width:38px; height:38px; object-fit:contain; border-radius:9px; flex:0 0 auto; }
+    .int-m-t { flex:1; min-width:0; }
+    .int-m-t h3 { margin:0; font-size:16px; font-weight:700; }
+    .int-m-t p { margin:2px 0 0; font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
+    .int-m-x { background:none; border:none; color:var(--text-muted); font-size:24px; line-height:1; cursor:pointer; padding:2px 8px; border-radius:8px; }
+    .int-m-x:hover { background:var(--bg-hover); color:var(--text-primary); }
+    .int-m-body { padding:20px; max-height:60vh; overflow-y:auto; }
+    /* the relocated #<svc>-config form, shown and de-bordered inside the modal */
+    .int-m-body > [id$="-config"] { display:block !important; }
+    .int-m-body > [id$="-config"] > div { border-top:none !important; margin-top:0 !important; padding-top:0 !important; }
+    .int-m-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-top:1px solid var(--border); background:var(--bg-card); }
+    .int-m-note { font-size:11.5px; color:var(--text-muted); flex:1; }
+    .int-m-actions { display:flex; gap:8px; }
+    #int-m-save.is-ready { background:var(--success); }
 
     .api-key-row { display: flex; gap: 8px; }
     .api-key-row .input { flex: 1; }
@@ -481,7 +556,10 @@
     }
 
     .dashboard-card-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-    .dashboard-card-actions { display: flex; gap: 6px; }
+    .dashboard-card-actions { display: flex; gap: 6px; align-items: center; }
+    .dash-active { display: flex; align-items: center; gap: 6px; margin-right: 4px; cursor: pointer; }
+    .dash-active-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .dashboard-card.is-inactive { opacity: 0.6; }
 
     /* ── Progress overlay ────────────────────────────────────────────────── */
     #progress-overlay {
@@ -627,6 +705,133 @@
       .folder-toggle { background: #f1f5f9; border-color: #cbd5e1; }
       .tree-folder:hover .folder-toggle { background: var(--accent-light); }
     }
+    /* ── Theme picker ───────────────────────────────────────────────────── */
+    .theme-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+    .theme-section-label { grid-column:1/-1; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:10px 0 0; }
+    .theme-card { border:1px solid var(--border); border-radius:var(--radius); padding:10px; cursor:pointer; background:var(--bg-secondary); transition:border-color .15s, transform .12s, box-shadow .15s; }
+    .theme-card:hover { border-color:var(--accent); transform:translateY(-1px); }
+    .theme-card.active { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-light); }
+    .theme-swatches { display:flex; gap:4px; margin-bottom:8px; }
+    .theme-swatches .swatch { flex:1; height:26px; border-radius:5px; border:1px solid rgba(128,128,128,.25); }
+    .theme-name { font-size:12.5px; font-weight:600; color:var(--text-primary); }
+
+    /* ── Integration "view sample" button + sample modal ────────────────── */
+    .int-sample-btn { position:absolute; top:9px; right:9px; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border); border-radius:7px; background:var(--bg-secondary); color:var(--text-muted); font-size:12px; line-height:1; cursor:pointer; opacity:.7; transition:opacity .15s, border-color .15s, color .15s; z-index:2; }
+    .int-sample-btn:hover { opacity:1; border-color:var(--accent); color:var(--accent); }
+
+    /* ── Integration modal: refresh-interval row ─────────────────────────── */
+    .int-m-poll { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 20px; border-top:1px solid var(--border); background:var(--bg-card); }
+    .int-m-poll-label { font-size:13px; font-weight:600; color:var(--text-secondary); }
+    .int-m-poll .select { width:auto; min-width:150px; }
+
+    /* ── Dashboard Setup page (wizard step 1) ───────────────────────────── */
+    .dash-setup { max-width: 720px; margin: 0 auto; padding: 8px 0 48px; }
+    .dash-setup-head { display:flex; align-items:center; justify-content:space-between; gap:16px; margin: 6px 0 22px; }
+    .dash-setup-title { font-size: 20px; font-weight: 800; letter-spacing:-.01em; }
+    #dashboard-list .dashboard-card { display:flex; align-items:center; gap:10px; }
+    #dashboard-list .dashboard-card[draggable="true"] { cursor: default; }
+    #dashboard-list .dashboard-card.dragging { opacity:.45; }
+    #dashboard-list .dashboard-card.drag-over { box-shadow: 0 -2px 0 var(--accent); }
+    .dash-grip { color: var(--text-muted); font-size:17px; line-height:1; cursor:grab; user-select:none; flex:0 0 auto; padding:2px; }
+    .dash-grip:active { cursor:grabbing; }
+
+    /* ── Dashboard creation wizard ──────────────────────────────────────── */
+    .wiz-overlay { position:fixed; inset:0; background:rgba(8,8,12,.66); backdrop-filter:blur(3px); display:none; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; z-index:70; }
+    .wiz-overlay.open { display:flex; }
+    .wiz-modal { width:100%; max-width:560px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:0 24px 60px rgba(0,0,0,.5); display:flex; flex-direction:column; max-height:calc(100vh - 80px); overflow:hidden; }
+    .wiz-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid var(--border); }
+    .wiz-title { font-size:17px; font-weight:800; }
+    .wiz-steps { font-size:11.5px; color:var(--text-muted); margin-top:3px; text-transform:uppercase; letter-spacing:.04em; }
+    .wiz-x { background:none; border:none; color:var(--text-muted); font-size:24px; line-height:1; cursor:pointer; padding:2px 8px; border-radius:8px; }
+    .wiz-x:hover { background:var(--bg-hover); color:var(--text-primary); }
+    .wiz-body { padding:20px; overflow-y:auto; }
+    .wiz-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-top:1px solid var(--border); background:var(--bg-card); }
+    .wiz-opt { color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0; }
+    .wiz-hint { font-size:12px; color:var(--text-muted); margin-top:6px; }
+    .wiz-err { color:var(--danger); font-size:12px; margin-top:6px; }
+    .wiz-body textarea.input { resize:vertical; font-family:var(--font); line-height:1.5; }
+
+    /* wizard step 2 — organization */
+    .wiz-org { display:flex; flex-direction:column; gap:10px; margin-top:8px; }
+    .wiz-org-card { display:flex; gap:11px; align-items:flex-start; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; transition:border-color .15s, background .15s; }
+    .wiz-org-card:hover { border-color:#3a3a52; }
+    .wiz-org-card:has(input:checked) { border-color:var(--accent); background:var(--accent-light); }
+    .wiz-org-card input { margin-top:3px; accent-color:var(--accent); flex:0 0 auto; }
+    .wiz-org-title { font-weight:700; font-size:14px; }
+    .wiz-org-desc { font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+    .wiz-sel-head { display:flex; align-items:center; justify-content:space-between; margin:18px 0 8px; }
+    #wiz-tree-mount .bookmark-tree { max-height:300px; overflow-y:auto; }
+
+    /* wizard step 2 — two-column (options left, tall tree right) */
+    .wiz-modal.wiz-wide { max-width: 920px; height: calc(100vh - 64px); }
+    .wiz-modal.wiz-wide .wiz-body { display: flex; flex-direction: column; overflow: hidden; }
+    #wiz-step-2 { flex: 1; min-height: 0; }
+    #wiz-step-2 > .wiz-org-cols { display: grid; grid-template-columns: 300px 1fr; gap: 22px; flex: 1; min-height: 0; width: 100%; }
+    .wiz-org-left { min-width: 0; overflow-y: auto; }
+    .wiz-org-right { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+    .wiz-org-right .wiz-sel-head { margin: 0 0 8px; }
+    #wiz-tree-mount { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #wiz-tree-mount .tree-controls { flex: 0 0 auto; }
+    #wiz-tree-mount .bookmark-tree { flex: 1; min-height: 0; max-height: none; overflow-y: auto; }
+    @media (max-width: 760px) {
+      .wiz-modal.wiz-wide { height: auto; max-width: 560px; }
+      .wiz-modal.wiz-wide .wiz-body { display: block; overflow-y: auto; }
+      #wiz-step-2 > .wiz-org-cols { grid-template-columns: 1fr; }
+      #wiz-tree-mount .bookmark-tree { max-height: 320px; }
+    }
+
+    /* wizard step 3 — processing */
+    .wiz-proc { display:flex; flex-direction:column; align-items:center; text-align:center; padding:40px 12px 28px; gap:16px; }
+    .wiz-proc-status { font-size:15px; font-weight:700; }
+    .wiz-proc-barwrap { width:100%; max-width:360px; height:7px; background:var(--bg-hover); border-radius:999px; overflow:hidden; }
+    .wiz-proc-bar { height:100%; width:0; background:var(--accent); border-radius:999px; transition:width .3s ease; }
+    .wiz-proc-msg { font-size:12.5px; color:var(--text-muted); min-height:16px; }
+    .wiz-proc-err { width:100%; max-width:440px; }
+
+    /* wizard step 4 — preview & edit */
+    #wiz-step-4 { flex:1; min-height:0; flex-direction:column; }
+    #wiz-preview { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:14px; padding:2px; }
+    .wiz-sec { border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
+    .wiz-sec.dragging, .wiz-bm.dragging { opacity:.45; }
+    .wiz-sec.drag-over { box-shadow:0 -2px 0 var(--accent); }
+    .wiz-sec-head { display:flex; align-items:center; gap:8px; padding:9px 10px; border-bottom:1px solid var(--border); }
+    .wiz-sec-head .dash-grip { cursor:grab; }
+    .wiz-sec-name { flex:1; min-width:0; background:transparent; border:1px solid transparent; border-radius:6px; color:var(--text-primary); font-weight:700; font-size:14px; padding:4px 6px; }
+    .wiz-sec-name:hover { border-color:var(--border); }
+    .wiz-sec-name:focus { outline:none; border-color:var(--border-focus); background:var(--bg-secondary); }
+    .wiz-sec-count { font-size:11px; color:var(--text-muted); padding:2px 8px; background:var(--bg-hover); border-radius:999px; }
+    /* Per-section icon-size selector (S/M/L) in the wizard preview. */
+    .wiz-sec-size { display:flex; gap:0; border:1px solid var(--border); border-radius:7px; overflow:hidden; }
+    .wiz-size-btn { background:var(--bg-secondary); border:none; border-left:1px solid var(--border); color:var(--text-secondary); cursor:pointer; font:700 11px/1 var(--font); width:24px; height:24px; }
+    .wiz-size-btn:first-child { border-left:none; }
+    .wiz-size-btn:hover { color:var(--text-primary); }
+    .wiz-size-btn.active { background:var(--accent); color:#fff; }
+    .wiz-sec-del, .wiz-bm-edit-btn, .wiz-bm-del { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:14px; padding:4px 6px; border-radius:6px; line-height:1; }
+    .wiz-sec-del:disabled { opacity:.3; cursor:not-allowed; }
+    .wiz-sec-del:not(:disabled):hover, .wiz-bm-del:hover { color:var(--danger); background:var(--danger-light); }
+    .wiz-bm-edit-btn:hover { color:var(--accent); background:var(--accent-light); }
+    .wiz-sec-bms { display:flex; flex-direction:column; min-height:18px; padding:6px; gap:2px; }
+    .wiz-sec-bms.empty { padding:14px; text-align:center; color:var(--text-muted); font-size:12px; }
+    .wiz-bm { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; }
+    .wiz-bm:hover { background:var(--bg-hover); }
+    .wiz-bm .dash-grip { cursor:grab; }
+    .wiz-bm-ico { width:20px; height:20px; border-radius:5px; object-fit:contain; flex:0 0 auto; background:var(--bg-hover); }
+    .wiz-bm-title { flex:1; min-width:0; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .wiz-bm-overlay { position:fixed; inset:0; background:rgba(8,8,12,.55); display:none; align-items:flex-start; justify-content:center; padding:60px 16px; overflow-y:auto; z-index:80; }
+    .wiz-bm-overlay.open { display:flex; }
+    .wiz-bm-modal { width:100%; max-width:440px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:0 24px 60px rgba(0,0,0,.5); }
+    .wiz-bm-head { display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--border); font-weight:700; }
+    .wiz-bm-body { padding:18px; }
+    .wiz-bm-foot { display:flex; justify-content:flex-end; gap:8px; padding:14px 18px; border-top:1px solid var(--border); background:var(--bg-card); }
+    #wiz-bm-icon-prev { width:24px; height:24px; }
+
+    /* wizard step 4 — edit-mode header (title / shape / show-text) */
+    .wiz-edit-hdr { flex:0 0 auto; padding:0 2px 14px; margin-bottom:12px; border-bottom:1px solid var(--border); }
+    .wiz-edit-row { display:flex; align-items:flex-end; gap:24px; flex-wrap:wrap; }
+    .wiz-refresh-status { margin-top:10px; font-size:13px; line-height:1.4; color:var(--text-secondary); }
+    .wiz-refresh-status.is-ok { color:var(--accent); }
+    .wiz-refresh-status.is-warn { color:var(--danger); }
+
   </style>
 </head>
 <body>
@@ -655,8 +860,8 @@
       <button class="tab-btn" data-tab="dashboards">
         <span class="tab-icon">📊</span> Dashboards
       </button>
-      <button class="tab-btn" data-tab="widgets">
-        <span class="tab-icon">🧩</span> Widgets
+      <button class="tab-btn" data-tab="integrations">
+        <span class="tab-icon">🧩</span> Integrations
       </button>
     </nav>
   </header>
@@ -684,8 +889,8 @@
         <div class="gs-step">
           <div class="gs-step-num">1</div>
           <div class="gs-step-body">
-            <h3>Get an OpenRouter API Key</h3>
-            <p>This extension uses <strong>OpenRouter</strong> to power the AI enrichment — it gives you access to dozens of models from a single key. Free-tier credits are available and are more than enough to generate several dashboards.</p>
+            <h3>Get an AI Provider API Key</h3>
+            <p>Pick an <strong>AI provider</strong> in Settings (OpenAI, Anthropic, Google, Groq, and more) and paste its API key. <strong>OpenRouter</strong> is the easiest place to start — one key gives you access to dozens of models, with free-tier credits that are more than enough to generate several dashboards.</p>
             <div class="step-actions">
               <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">Open OpenRouter →</a>
             </div>
@@ -873,49 +1078,141 @@
   <div class="tab-panel" id="tab-settings">
     <div class="settings-content">
 
-      <!-- API Key -->
+      <!-- AI Provider -->
       <div class="card">
-        <div class="section-title">OpenRouter API Key</div>
+        <div class="section-title">AI Provider</div>
+        <div class="form-group">
+          <label class="label" for="ai-provider-select">Provider</label>
+          <select class="select" id="ai-provider-select"></select>
+          <p id="ai-provider-desc" style="font-size:12px;color:var(--text-muted);margin-top:6px;"></p>
+        </div>
+
+        <div class="form-group">
+          <label class="label" for="model-select">Model</label>
+          <select class="select" id="model-select"></select>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+            <a id="ai-provider-models-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);"></a>
+          </p>
+        </div>
+
         <div class="form-group">
           <label class="label" for="api-key">API Key</label>
           <div class="api-key-row">
-            <input class="input input-mono" type="text" id="api-key" placeholder="sk-or-v1-..." autocomplete="off">
+            <input class="input input-mono" type="text" id="api-key" placeholder="Paste your API key…" autocomplete="off">
             <button class="btn btn-ghost eyeball-btn" id="api-key-toggle" title="Hide key">🙈</button>
             <button class="btn btn-secondary" id="validate-btn">Validate</button>
           </div>
+          <div id="validation-result" style="display:none;"></div>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">
+            Get a key at <a id="ai-provider-key-link" href="#" target="_blank" rel="noopener" style="color:var(--accent);"></a>
+          </p>
         </div>
-        <div id="validation-result" style="display:none;"></div>
-        <p style="font-size:12px;color:var(--text-muted);margin-top:8px;">
-          Get your free API key at <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--accent);">openrouter.ai/keys</a>
+
+        <details class="form-group" style="margin-bottom:0;">
+          <summary style="cursor:pointer;font-size:13px;font-weight:600;color:var(--text-secondary);">Advanced</summary>
+          <div style="margin-top:14px;">
+            <label class="label" for="ai-custom-model">Custom model ID (optional)</label>
+            <input class="input input-mono" type="text" id="ai-custom-model" placeholder="Overrides the dropdown above" autocomplete="off">
+            <p style="font-size:12px;color:var(--text-muted);margin:4px 0 14px;">
+              Enter an exact model id if the one you want isn't in the list.
+            </p>
+            <label class="label" for="ai-endpoint">API Endpoint</label>
+            <div class="api-key-row">
+              <input class="input input-mono" type="text" id="ai-endpoint" autocomplete="off">
+              <button class="btn btn-ghost" id="ai-endpoint-reset" title="Reset to default">↺</button>
+            </div>
+            <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
+              Override only if you route this provider through a proxy. Reset (↺) returns to the default.
+            </p>
+          </div>
+        </details>
+
+        <p style="font-size:12px;color:var(--text-muted);margin:14px 0 0;">
+          Used to generate bookmark descriptions and resolve icons. Fast, cheap models work well for this task.
         </p>
       </div>
 
-      <!-- Model -->
+      <!-- Theme -->
       <div class="card">
-        <div class="section-title">AI Model</div>
-        <div class="form-group">
-          <label class="label" for="model-select">Model</label>
-          <select class="select" id="model-select">
-            <optgroup label="⭐ Recommended">
-              <option value="google/gemini-flash-1.5">Gemini Flash 1.5 — Fast &amp; Efficient (Recommended)</option>
-              <option value="openai/gpt-4o-mini">GPT-4o Mini — Balanced</option>
-              <option value="anthropic/claude-3-haiku">Claude 3 Haiku — High Quality</option>
-              <option value="google/gemini-pro-1.5">Gemini Pro 1.5 — Best Quality</option>
-            </optgroup>
-            <optgroup label="🆓 Free Tier">
-              <option value="meta-llama/llama-3.1-8b-instruct:free">Llama 3.1 8B — Free</option>
-              <option value="google/gemma-2-9b-it:free">Gemma 2 9B — Free</option>
-              <option value="mistralai/mistral-7b-instruct:free">Mistral 7B — Free</option>
-            </optgroup>
-            <optgroup label="💎 Premium">
-              <option value="anthropic/claude-3-5-sonnet">Claude 3.5 Sonnet — Premium</option>
-              <option value="openai/gpt-4o">GPT-4o — Premium</option>
-            </optgroup>
-          </select>
+        <div class="section-title">Theme</div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;">Applies to this settings page and your new-tab dashboard. Each swatch shows page background, card background, text, and accent.</p>
+      <div class="theme-grid" id="theme-grid">
+        <div class="theme-card" data-theme="auto"><div class="theme-swatches theme-swatches-auto"><span class="swatch" style="background:#0f0f13"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#6366f1"></span><span class="swatch" style="background:linear-gradient(135deg,#0f0f13 50%,#ffffff 50%)"></span></div><div class="theme-name">Auto (System)</div></div>
+        <div class="theme-section-label">Light</div>
+        <div class="theme-card" data-theme="default"><div class="theme-swatches"><span class="swatch" style="background:#f0edf8"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#1a1226"></span><span class="swatch" style="background:#6d28d9"></span></div><div class="theme-name">Violet</div></div>
+        <div class="theme-card" data-theme="lavender"><div class="theme-swatches"><span class="swatch" style="background:#faf5ff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#3b0764"></span><span class="swatch" style="background:#8b5cf6"></span></div><div class="theme-name">Lavender</div></div>
+        <div class="theme-card" data-theme="rose"><div class="theme-swatches"><span class="swatch" style="background:#fdf2f8"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#500724"></span><span class="swatch" style="background:#be185d"></span></div><div class="theme-name">Rose</div></div>
+        <div class="theme-card" data-theme="sakura"><div class="theme-swatches"><span class="swatch" style="background:#fff1f2"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#4c0519"></span><span class="swatch" style="background:#e11d48"></span></div><div class="theme-name">Sakura</div></div>
+        <div class="theme-card" data-theme="crimson"><div class="theme-swatches"><span class="swatch" style="background:#fff8f6"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#2d0e0e"></span><span class="swatch" style="background:#7f1d1d"></span></div><div class="theme-name">Crimson</div></div>
+        <div class="theme-card" data-theme="copper"><div class="theme-swatches"><span class="swatch" style="background:#fffbeb"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#451a03"></span><span class="swatch" style="background:#b45309"></span></div><div class="theme-name">Copper</div></div>
+        <div class="theme-card" data-theme="stone"><div class="theme-swatches"><span class="swatch" style="background:#fafaf9"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#1c1917"></span><span class="swatch" style="background:#57534e"></span></div><div class="theme-name">Stone</div></div>
+        <div class="theme-card" data-theme="slate"><div class="theme-swatches"><span class="swatch" style="background:#f3f4f6"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#111827"></span><span class="swatch" style="background:#374151"></span></div><div class="theme-name">Slate</div></div>
+        <div class="theme-card" data-theme="forest"><div class="theme-swatches"><span class="swatch" style="background:#f0fdf4"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#052e16"></span><span class="swatch" style="background:#14532d"></span></div><div class="theme-name">Forest</div></div>
+        <div class="theme-card" data-theme="sage"><div class="theme-swatches"><span class="swatch" style="background:#f7fee7"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#1a2e05"></span><span class="swatch" style="background:#4d7c0f"></span></div><div class="theme-name">Sage</div></div>
+        <div class="theme-card" data-theme="ocean"><div class="theme-swatches"><span class="swatch" style="background:#ecfeff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0c2a3a"></span><span class="swatch" style="background:#0e7490"></span></div><div class="theme-name">Ocean</div></div>
+        <div class="theme-card" data-theme="arctic"><div class="theme-swatches"><span class="swatch" style="background:#f0f9ff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0c4a6e"></span><span class="swatch" style="background:#0284c7"></span></div><div class="theme-name">Arctic</div></div>
+        <div class="theme-card" data-theme="cobalt"><div class="theme-swatches"><span class="swatch" style="background:#eff6ff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#1e3a8a"></span><span class="swatch" style="background:#1d4ed8"></span></div><div class="theme-name">Cobalt</div></div>
+        <div class="theme-card" data-theme="navy"><div class="theme-swatches"><span class="swatch" style="background:#eef2f7"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0f2744"></span><span class="swatch" style="background:#1e3a5f"></span></div><div class="theme-name">Executive Navy</div></div>
+        <div class="theme-section-label">Dark</div>
+        <div class="theme-card" data-theme="midnight"><div class="theme-swatches"><span class="swatch" style="background:#0f0e1a"></span><span class="swatch" style="background:#1e1c2e"></span><span class="swatch" style="background:#e8e6f0"></span><span class="swatch" style="background:#6366f1"></span></div><div class="theme-name">Midnight</div></div>
+        <div class="theme-card" data-theme="aubergine"><div class="theme-swatches"><span class="swatch" style="background:#1a0533"></span><span class="swatch" style="background:#2d0d54"></span><span class="swatch" style="background:#e9d5ff"></span><span class="swatch" style="background:#a855f7"></span></div><div class="theme-name">Aubergine</div></div>
+        <div class="theme-card" data-theme="matrix"><div class="theme-swatches"><span class="swatch" style="background:#020c06"></span><span class="swatch" style="background:#0a1f0e"></span><span class="swatch" style="background:#4ade80"></span><span class="swatch" style="background:#22c55e"></span></div><div class="theme-name">Matrix</div></div>
+        <div class="theme-card" data-theme="deepsea"><div class="theme-swatches"><span class="swatch" style="background:#042f2e"></span><span class="swatch" style="background:#134e4a"></span><span class="swatch" style="background:#99f6e4"></span><span class="swatch" style="background:#14b8a6"></span></div><div class="theme-name">Deep Sea</div></div>
+        <div class="theme-card" data-theme="indigonight"><div class="theme-swatches"><span class="swatch" style="background:#18181b"></span><span class="swatch" style="background:#27272a"></span><span class="swatch" style="background:#e4e4e7"></span><span class="swatch" style="background:#6366f1"></span></div><div class="theme-name">Indigo Night</div></div>
+        <div class="theme-card" data-theme="eclipse"><div class="theme-swatches"><span class="swatch" style="background:#111827"></span><span class="swatch" style="background:#1f2937"></span><span class="swatch" style="background:#f9fafb"></span><span class="swatch" style="background:#64748b"></span></div><div class="theme-name">Eclipse</div></div>
+        <div class="theme-card" data-theme="obsidian"><div class="theme-swatches"><span class="swatch" style="background:#09090b"></span><span class="swatch" style="background:#18181b"></span><span class="swatch" style="background:#e4e4e7"></span><span class="swatch" style="background:#71717a"></span></div><div class="theme-name">Obsidian</div></div>
+        <div class="theme-card" data-theme="espresso"><div class="theme-swatches"><span class="swatch" style="background:#0c0700"></span><span class="swatch" style="background:#1a0e03"></span><span class="swatch" style="background:#fef9c3"></span><span class="swatch" style="background:#b45309"></span></div><div class="theme-name">Espresso</div></div>
+        <div class="theme-card" data-theme="bronze"><div class="theme-swatches"><span class="swatch" style="background:#0a0700"></span><span class="swatch" style="background:#1a1100"></span><span class="swatch" style="background:#fef9c3"></span><span class="swatch" style="background:#d97706"></span></div><div class="theme-name">Bronze</div></div>
+        <div class="theme-card" data-theme="volcanic"><div class="theme-swatches"><span class="swatch" style="background:#0c0500"></span><span class="swatch" style="background:#1c0c04"></span><span class="swatch" style="background:#fed7aa"></span><span class="swatch" style="background:#ea580c"></span></div><div class="theme-name">Volcanic</div></div>
+      </div>
+      </div>
+
+      <!-- Startup & New Tab -->
+      <div class="card">
+        <div class="section-title">🚀 Startup &amp; New Tab</div>
+
+        <div class="toggle-row">
+          <div>
+            <label class="label" style="margin-bottom:2px;">Show dashboard on new tab</label>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Replace the browser's new-tab page with your default dashboard. When off, new tabs show a simple page with a button to open it.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="newtab-override-toggle">
+            <span class="toggle-slider"></span>
+          </label>
         </div>
-        <p style="font-size:12px;color:var(--text-muted);">
-          Used to generate bookmark descriptions and resolve icons. Free tier models work well for this task.
-        </p>
+
+        <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
+          <div>
+            <label class="label" style="margin-bottom:2px;">Open dashboard on browser start</label>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Automatically open your default dashboard in a new tab each time the browser launches.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="open-on-startup-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
+          <div>
+            <label class="label" style="margin-bottom:2px;">Show search bar</label>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Show the search box on the dashboard. As you type, matches from the active dashboard appear in a dropdown.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="search-enabled-toggle" checked>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="form-group" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);margin-bottom:0;">
+          <label class="label">Dashboard switcher style</label>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">How to switch between dashboards on the new-tab page (only active dashboards are shown).</p>
+          <div class="radio-group">
+            <label class="radio-option"><input type="radio" name="switcher-style" value="dropdown"> Dropdown menu</label>
+            <label class="radio-option"><input type="radio" name="switcher-style" value="tabs"> Tabs across the top</label>
+            <label class="radio-option"><input type="radio" name="switcher-style" value="sidebar"> List on the left side</label>
+          </div>
+        </div>
       </div>
 
       <!-- Clock & Date -->
@@ -974,10 +1271,21 @@
   </div>
 
   <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <!-- Tab: Widgets                                                           -->
+  <!-- Tab: Integrations                                                      -->
   <!-- ══════════════════════════════════════════════════════════════════════ -->
-  <div class="tab-panel" id="tab-widgets">
-    <div class="settings-content">
+  <div class="tab-panel" id="tab-integrations">
+
+    <div class="int-toolbar">
+      <div class="int-search"><input type="text" id="int-search" placeholder="Search integrations…" autocomplete="off"></div>
+      <div class="int-filter" id="int-filters"></div>
+    </div>
+    <p class="int-count" id="int-count"></p>
+    <div class="int-grid" id="integrations-grid"></div>
+
+    <!-- Hidden store: the existing per-integration config forms. The catalog
+         relocates each #<svc>-config into the config modal on open and moves it
+         back here on close, so all existing validate/preview wiring is reused. -->
+    <div class="settings-content" id="integration-config-store" style="display:none;">
 
       <!-- Weather Widget -->
       <div class="card">
@@ -1063,7 +1371,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">📺 Tautulli Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/tautulli.svg" alt="">Tautulli Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Live Plex stream activity &amp; analytics from your Tautulli server
             </p>
@@ -1154,7 +1462,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">📈 Uptime Kuma Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/uptime-kuma.svg" alt="">Uptime Kuma Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               At-a-glance monitor health &amp; 24-hour uptime from your Uptime Kuma status page
             </p>
@@ -1173,9 +1481,6 @@
               <strong>status page</strong> (no API key needed) and summarizes monitor health.
               Learn more at
               <a href="https://github.com/louislam/uptime-kuma" target="_blank" rel="noopener" style="color:var(--accent);">uptime-kuma</a>.
-              Integration logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
             </p>
 
             <div class="form-group">
@@ -1261,7 +1566,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">📺 Sonarr Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/sonarr.svg" alt="">Sonarr Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Upcoming TV episodes from your Sonarr library — as a list or a month calendar
             </p>
@@ -1277,10 +1582,7 @@
 
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://sonarr.tv/" target="_blank" rel="noopener" style="color:var(--accent);">Sonarr</a>
-              manages your TV library. This widget reads its release calendar. Calendar logic adapted from the
-              Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
+              manages your TV library. This widget reads its release calendar.
             </p>
 
             <div class="form-group">
@@ -1351,7 +1653,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🎬 Radarr Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/radarr.svg" alt="">Radarr Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Upcoming movie releases from your Radarr library — as a list or a month calendar
             </p>
@@ -1367,10 +1669,7 @@
 
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://radarr.video/" target="_blank" rel="noopener" style="color:var(--accent);">Radarr</a>
-              manages your movie library. This widget reads its release calendar. Calendar logic adapted from the
-              Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
+              manages your movie library. This widget reads its release calendar.
             </p>
 
             <div class="form-group">
@@ -1459,7 +1758,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🎞 Seerr Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/seerr.svg" alt="">Seerr Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Media requests &amp; stats from Overseerr, Jellyseerr, or Seerr
             </p>
@@ -1478,9 +1777,6 @@
               <a href="https://overseerr.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Overseerr</a>,
               <a href="https://docs.jellyseerr.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Jellyseerr</a>,
               and Seerr — they share one compatible API. This widget shows recent requests and request stats.
-              Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
             </p>
 
             <div class="form-group">
@@ -1551,7 +1847,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🛡 Pi-hole Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/pi-hole.svg" alt="">Pi-hole Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Ad-blocking stats from your Pi-hole DNS server (v5 and v6 supported)
             </p>
@@ -1568,9 +1864,7 @@
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://pi-hole.net/" target="_blank" rel="noopener" style="color:var(--accent);">Pi-hole</a>
               is a network-wide DNS ad blocker. The widget shows queries blocked, block rate, and blocklist size.
-              The version (v5 or v6) is detected automatically. Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
+              The version (v5 or v6) is detected automatically.
             </p>
 
             <div class="form-group">
@@ -1612,7 +1906,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🛡 AdGuard Home Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/adguard-home.svg" alt="">AdGuard Home Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Ad-blocking stats from your AdGuard Home DNS server
             </p>
@@ -1629,9 +1923,7 @@
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://adguard.com/adguard-home/overview.html" target="_blank" rel="noopener" style="color:var(--accent);">AdGuard Home</a>
               is a network-wide DNS ad blocker. The widget shows queries blocked, block rate, and blocklist size.
-              It authenticates with your admin username and password. Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
+              It authenticates with your admin username and password.
             </p>
 
             <div class="form-group">
@@ -1678,7 +1970,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🎬 Plex Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/plex.svg" alt="">Plex Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               See what's currently playing on your Plex Media Server
             </p>
@@ -1694,10 +1986,7 @@
 
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://www.plex.tv/" target="_blank" rel="noopener" style="color:var(--accent);">Plex</a>
-              is a media server. This widget lists active streaming sessions. Logic adapted from the
-              Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
+              is a media server. This widget lists active streaming sessions.
             </p>
 
             <div class="form-group">
@@ -1735,11 +2024,91 @@
         </div>
       </div>
 
+      <!-- Jellyfin Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/jellyfin.svg" alt="">Jellyfin Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              See what's currently playing on your Jellyfin media server
+            </p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="jellyfin-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="jellyfin-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://jellyfin.org/" target="_blank" rel="noopener" style="color:var(--accent);">Jellyfin</a>
+              is a free media server. This widget lists active streaming sessions.
+            </p>
+            <div class="form-group">
+              <label class="label" for="jellyfin-url">Jellyfin Server URL</label>
+              <input class="input" type="text" id="jellyfin-url" placeholder="e.g. http://192.168.1.10:8096" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">The base address of your Jellyfin server, including http(s):// and port (default 8096).</p>
+            </div>
+            <div class="form-group">
+              <label class="label">API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="jellyfin-api-key" placeholder="Paste your Jellyfin API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="jellyfin-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="jellyfin-validate-btn">Test Connection</button>
+              </div>
+              <div id="jellyfin-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Create one under <strong>Dashboard → Advanced → API Keys</strong> in Jellyfin.</p>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="jellyfin-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="jellyfin-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Emby Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/emby.svg" alt="">Emby Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">
+              See what's currently playing on your Emby media server
+            </p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="emby-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="emby-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://emby.media/" target="_blank" rel="noopener" style="color:var(--accent);">Emby</a>
+              is a media server. This widget lists active streaming sessions.
+            </p>
+            <div class="form-group">
+              <label class="label" for="emby-url">Emby Server URL</label>
+              <input class="input" type="text" id="emby-url" placeholder="e.g. http://192.168.1.10:8096" autocomplete="off">
+              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">The base address of your Emby server, including http(s):// and port (default 8096).</p>
+            </div>
+            <div class="form-group">
+              <label class="label">API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="emby-api-key" placeholder="Paste your Emby API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="emby-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-secondary" id="emby-validate-btn">Test Connection</button>
+              </div>
+              <div id="emby-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Create one under <strong>Settings → Advanced → API Keys</strong> in Emby.</p>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="emby-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="emby-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- UniFi Controller Integration -->
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">📡 UniFi Controller Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/unifi.png" alt="">UniFi Controller Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Network health summary from your UniFi controller (WWW / Wi-Fi / LAN / VPN)
             </p>
@@ -1756,10 +2125,7 @@
             <p class="banner banner-warning" style="margin-bottom:18px;">
               UniFi controllers use a cookie/CSRF login. If your controller uses a self-signed
               certificate, open its URL in this browser once and accept the certificate first.
-              Some controllers may also need CORS allowances for browser access. Logic adapted from the
-              Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
+              Some controllers may also need CORS allowances for browser access.
             </p>
 
             <div class="form-group">
@@ -1814,7 +2180,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">⬇️ SABnzbd Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/sabnzbd.svg" alt="">SABnzbd Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Usenet download queue &amp; history from your SABnzbd server
             </p>
@@ -1828,9 +2194,7 @@
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://sabnzbd.org/" target="_blank" rel="noopener" style="color:var(--accent);">SABnzbd</a>
-              is a usenet downloader. Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
+              is a usenet downloader.
             </p>
             <div class="form-group">
               <label class="label" for="sabnzbd-url">SABnzbd URL</label>
@@ -1867,7 +2231,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">⬇️ qBittorrent Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/qbittorrent.svg" alt="">qBittorrent Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Torrent transfers &amp; rates from your qBittorrent client
             </p>
@@ -1882,9 +2246,7 @@
             <p class="banner banner-warning" style="margin-bottom:18px;">
               qBittorrent's WebUI uses a cookie login and may reject cross-origin requests; you might need to
               disable <em>"Enable Host header validation"</em> / enable CSRF-friendly settings in
-              <strong>Options → Web UI</strong>. Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
+              <strong>Options → Web UI</strong>.
             </p>
             <div class="form-group">
               <label class="label" for="qbittorrent-url">qBittorrent WebUI URL</label>
@@ -1922,7 +2284,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">⬇️ Transmission Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/transmission.svg" alt="">Transmission Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">
               Torrent transfers &amp; rates from your Transmission daemon
             </p>
@@ -1936,9 +2298,7 @@
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://transmissionbt.com/" target="_blank" rel="noopener" style="color:var(--accent);">Transmission</a>
-              RPC. Username/password are optional if RPC auth is disabled. Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a>
-              project — see THIRD-PARTY-LICENSES.
+              RPC. Username/password are optional if RPC auth is disabled.
             </p>
             <div class="form-group">
               <label class="label" for="transmission-url">Transmission URL</label>
@@ -1977,7 +2337,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🔋 PeaNUT Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/peanut.svg" alt="">PeaNUT Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">UPS status &amp; battery from your PeaNUT (NUT) server</p>
           </div>
           <label class="toggle-switch"><input type="checkbox" id="peanut-toggle"><span class="toggle-slider"></span></label>
@@ -1987,8 +2347,6 @@
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://github.com/Brandawg93/PeaNUT" target="_blank" rel="noopener" style="color:var(--accent);">PeaNUT</a>
               is a web dashboard for NUT (Network UPS Tools). Username/password are only needed if your PeaNUT requires auth.
-              Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
             </p>
             <div class="form-group"><label class="label" for="peanut-url">PeaNUT URL</label>
               <input class="input" type="text" id="peanut-url" placeholder="e.g. http://192.168.1.10:8080" autocomplete="off"></div>
@@ -2014,7 +2372,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">📊 Umami Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/umami.svg" alt="">Umami Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">Website analytics — visitors, pageviews &amp; bounce rate</p>
           </div>
           <label class="toggle-switch"><input type="checkbox" id="umami-toggle"><span class="toggle-slider"></span></label>
@@ -2023,8 +2381,7 @@
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://umami.is/" target="_blank" rel="noopener" style="color:var(--accent);">Umami</a> web analytics.
-              Use an <strong>API key</strong> (Umami Cloud / API client) or a username + password (self-hosted). Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+              Use an <strong>API key</strong> (Umami Cloud / API client) or a username + password (self-hosted).
             </p>
             <div class="form-group"><label class="label" for="umami-url">Umami API URL</label>
               <input class="input" type="text" id="umami-url" placeholder="e.g. https://umami.example.com/api" autocomplete="off">
@@ -2062,7 +2419,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🚀 Speedtest Tracker Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/speedtest-tracker.png" alt="">Speedtest Tracker Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">Latest internet download / upload / ping &amp; averages</p>
           </div>
           <label class="toggle-switch"><input type="checkbox" id="speedtest-toggle"><span class="toggle-slider"></span></label>
@@ -2071,8 +2428,7 @@
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://docs.speedtest-tracker.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Speedtest Tracker</a>
-              records scheduled speed tests. Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+              records scheduled speed tests.
             </p>
             <div class="form-group"><label class="label" for="speedtest-url">Speedtest Tracker URL</label>
               <input class="input" type="text" id="speedtest-url" placeholder="e.g. http://192.168.1.10:8765" autocomplete="off"></div>
@@ -2096,7 +2452,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🔔 ntfy Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/ntfy.svg" alt="">ntfy Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">Recent notifications from an ntfy topic</p>
           </div>
           <label class="toggle-switch"><input type="checkbox" id="ntfy-toggle"><span class="toggle-slider"></span></label>
@@ -2105,8 +2461,7 @@
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://ntfy.sh/" target="_blank" rel="noopener" style="color:var(--accent);">ntfy</a> pub-sub notifications.
-              A token is only needed for protected topics. Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+              A token is only needed for protected topics.
             </p>
             <div class="form-group"><label class="label" for="ntfy-url">ntfy Server URL</label>
               <input class="input" type="text" id="ntfy-url" placeholder="e.g. https://ntfy.sh or http://192.168.1.10:8080" autocomplete="off"></div>
@@ -2137,7 +2492,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">📚 Audiobookshelf Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/audiobookshelf.svg" alt="">Audiobookshelf Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">Audiobook &amp; podcast library summary</p>
           </div>
           <label class="toggle-switch"><input type="checkbox" id="audiobookshelf-toggle"><span class="toggle-slider"></span></label>
@@ -2146,8 +2501,6 @@
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://www.audiobookshelf.org/" target="_blank" rel="noopener" style="color:var(--accent);">Audiobookshelf</a> media server.
-              Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
             </p>
             <div class="form-group"><label class="label" for="audiobookshelf-url">Server URL</label>
               <input class="input" type="text" id="audiobookshelf-url" placeholder="e.g. http://192.168.1.10:13378" autocomplete="off"></div>
@@ -2171,7 +2524,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🎵 Navidrome Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/navidrome.svg" alt="">Navidrome Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">Music library counts &amp; now playing</p>
           </div>
           <label class="toggle-switch"><input type="checkbox" id="navidrome-toggle"><span class="toggle-slider"></span></label>
@@ -2180,8 +2533,6 @@
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://www.navidrome.org/" target="_blank" rel="noopener" style="color:var(--accent);">Navidrome</a> music server (Subsonic API).
-              Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
             </p>
             <div class="form-group"><label class="label" for="navidrome-url">Server URL</label>
               <input class="input" type="text" id="navidrome-url" placeholder="e.g. http://192.168.1.10:4533" autocomplete="off"></div>
@@ -2206,7 +2557,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">🔎 Prowlarr Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/prowlarr.svg" alt="">Prowlarr Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">Indexer health from your Prowlarr</p>
           </div>
           <label class="toggle-switch"><input type="checkbox" id="prowlarr-toggle"><span class="toggle-slider"></span></label>
@@ -2215,8 +2566,6 @@
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-info" style="margin-bottom:18px;">
               <a href="https://prowlarr.com/" target="_blank" rel="noopener" style="color:var(--accent);">Prowlarr</a> indexer manager.
-              Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
             </p>
             <div class="form-group"><label class="label" for="prowlarr-url">Prowlarr URL</label>
               <input class="input" type="text" id="prowlarr-url" placeholder="e.g. http://192.168.1.10:9696" autocomplete="off"></div>
@@ -2240,7 +2589,7 @@
       <div class="card">
         <div class="toggle-row">
           <div>
-            <div class="section-title" style="margin-bottom:3px;">📈 Tracearr Integration</div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/tracearr.svg" alt="">Tracearr Integration</div>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">Media stream monitor — active streams, users &amp; violations</p>
           </div>
           <label class="toggle-switch"><input type="checkbox" id="tracearr-toggle"><span class="toggle-slider"></span></label>
@@ -2248,8 +2597,7 @@
         <div id="tracearr-config" style="display:none;">
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-info" style="margin-bottom:18px;">
-              Tracearr media-stream analytics (Plex / Jellyfin / Emby). Logic adapted from the Apache-2.0 licensed
-              <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.
+              Tracearr media-stream analytics (Plex / Jellyfin / Emby).
             </p>
             <div class="form-group"><label class="label" for="tracearr-url">Tracearr URL</label>
               <input class="input" type="text" id="tracearr-url" placeholder="e.g. http://192.168.1.10:3000" autocomplete="off"></div>
@@ -2271,11 +2619,11 @@
       <!-- Glances Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">📟 Glances Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">System monitoring — CPU, memory, disks, network</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/glances.svg" alt="">Glances Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">System monitoring — CPU, memory, disks, network</p></div>
           <label class="toggle-switch"><input type="checkbox" id="glances-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="glances-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://nicolargo.github.io/glances/" target="_blank" rel="noopener" style="color:var(--accent);">Glances</a> v4 web server. Username/password only if you enabled web auth. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://nicolargo.github.io/glances/" target="_blank" rel="noopener" style="color:var(--accent);">Glances</a> v4 web server. Username/password only if you enabled web auth.</p>
           <div class="form-group"><label class="label" for="glances-url">Glances URL</label><input class="input" type="text" id="glances-url" placeholder="e.g. http://192.168.1.10:61208" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="glances-username">Username <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label><input class="input" type="text" id="glances-username" placeholder="web auth username (if set)" autocomplete="off"></div>
           <div class="form-group"><label class="label">Password <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label><div class="api-key-row"><input class="input input-mono" type="text" id="glances-password" placeholder="web auth password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="glances-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="glances-validate-btn">Test Connection</button></div><div id="glances-validation-result" style="display:none;margin-top:8px;"></div></div>
@@ -2286,11 +2634,11 @@
       <!-- Dashdot Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">📟 Dash. (dashdot) Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Server stats dashboard — CPU, RAM, storage, network</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/dashdot.png" alt="">Dash. (dashdot) Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Server stats dashboard — CPU, RAM, storage, network</p></div>
           <label class="toggle-switch"><input type="checkbox" id="dashdot-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="dashdot-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://getdashdot.com/" target="_blank" rel="noopener" style="color:var(--accent);">dash.</a> server dashboard (no auth). Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://getdashdot.com/" target="_blank" rel="noopener" style="color:var(--accent);">dash.</a> server dashboard (no auth).</p>
           <div class="form-group"><label class="label" for="dashdot-url">Dash. URL</label><div class="api-key-row"><input class="input" type="text" id="dashdot-url" placeholder="e.g. http://192.168.1.10:3001" autocomplete="off"><button class="btn btn-secondary" id="dashdot-validate-btn">Test Connection</button></div><div id="dashdot-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="dashdot-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="dashdot-preview-hint">Test the connection to enable a live preview.</p></div>
         </div></div>
@@ -2299,11 +2647,11 @@
       <!-- Unraid Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">🟧 Unraid Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Server health &amp; array disks from the Unraid API</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/unraid.svg" alt="">Unraid Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Server health &amp; array disks from the Unraid API</p></div>
           <label class="toggle-switch"><input type="checkbox" id="unraid-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="unraid-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;">Requires the <a href="https://docs.unraid.net/API/" target="_blank" rel="noopener" style="color:var(--accent);">Unraid API</a> (GraphQL) enabled with an API key. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-info" style="margin-bottom:18px;">Requires the <a href="https://docs.unraid.net/API/" target="_blank" rel="noopener" style="color:var(--accent);">Unraid API</a> (GraphQL) enabled with an API key.</p>
           <div class="form-group"><label class="label" for="unraid-url">Unraid URL</label><input class="input" type="text" id="unraid-url" placeholder="e.g. http://192.168.1.10" autocomplete="off"></div>
           <div class="form-group"><label class="label">API Key</label><div class="api-key-row"><input class="input input-mono" type="text" id="unraid-api-key" placeholder="Unraid API key…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="unraid-key-toggle" title="Hide key">🙈</button><button class="btn btn-secondary" id="unraid-validate-btn">Test Connection</button></div><div id="unraid-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="unraid-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="unraid-preview-hint">Test the connection to enable a live preview.</p></div>
@@ -2313,11 +2661,11 @@
       <!-- OpenMediaVault Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">🔵 OpenMediaVault Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">NAS system health, filesystems &amp; SMART</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/openmediavault.svg" alt="">OpenMediaVault Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">NAS system health, filesystems &amp; SMART</p></div>
           <label class="toggle-switch"><input type="checkbox" id="openmediavault-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="openmediavault-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-warning" style="margin-bottom:18px;"><a href="https://www.openmediavault.org/" target="_blank" rel="noopener" style="color:var(--accent);">OpenMediaVault</a> uses a cookie-session RPC API which may reject cross-origin browser requests. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-warning" style="margin-bottom:18px;"><a href="https://www.openmediavault.org/" target="_blank" rel="noopener" style="color:var(--accent);">OpenMediaVault</a> uses a cookie-session RPC API which may reject cross-origin browser requests.</p>
           <div class="form-group"><label class="label" for="openmediavault-url">OMV URL</label><input class="input" type="text" id="openmediavault-url" placeholder="e.g. http://192.168.1.10" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="openmediavault-username">Username</label><input class="input" type="text" id="openmediavault-username" placeholder="OMV admin username" autocomplete="off"></div>
           <div class="form-group"><label class="label">Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="openmediavault-password" placeholder="OMV admin password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="openmediavault-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="openmediavault-validate-btn">Test Connection</button></div><div id="openmediavault-validation-result" style="display:none;margin-top:8px;"></div></div>
@@ -2328,11 +2676,11 @@
       <!-- TrueNAS Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">🟦 TrueNAS Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">NAS health &amp; pools (SCALE WebSocket API)</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/truenas.svg" alt="">TrueNAS Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">NAS health &amp; pools (SCALE WebSocket API)</p></div>
           <label class="toggle-switch"><input type="checkbox" id="truenas-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="truenas-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-warning" style="margin-bottom:18px;"><a href="https://www.truenas.com/" target="_blank" rel="noopener" style="color:var(--accent);">TrueNAS</a> SCALE uses a WebSocket JSON-RPC API; browser access requires the host reachable over ws/wss and a self-signed cert accepted first. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-warning" style="margin-bottom:18px;"><a href="https://www.truenas.com/" target="_blank" rel="noopener" style="color:var(--accent);">TrueNAS</a> SCALE uses a WebSocket JSON-RPC API; browser access requires the host reachable over ws/wss and a self-signed cert accepted first.</p>
           <div class="form-group"><label class="label" for="truenas-url">TrueNAS URL</label><input class="input" type="text" id="truenas-url" placeholder="e.g. http://192.168.1.10" autocomplete="off"></div>
           <div class="form-group"><label class="label">API Key</label><div class="api-key-row"><input class="input input-mono" type="text" id="truenas-api-key" placeholder="TrueNAS API key…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="truenas-key-toggle" title="Hide key">🙈</button><button class="btn btn-secondary" id="truenas-validate-btn">Test Connection</button></div><div id="truenas-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Create one in TrueNAS under <strong>Credentials → API Keys</strong>.</p></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="truenas-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="truenas-preview-hint">Test the connection to enable a live preview.</p></div>
@@ -2342,11 +2690,11 @@
       <!-- Proxmox Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">🖥 Proxmox VE Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Cluster health — nodes, VMs, containers, storage</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/proxmox.svg" alt="">Proxmox VE Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Cluster health — nodes, VMs, containers, storage</p></div>
           <label class="toggle-switch"><input type="checkbox" id="proxmox-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="proxmox-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.proxmox.com/" target="_blank" rel="noopener" style="color:var(--accent);">Proxmox VE</a> via an API token (<strong>Datacenter → Permissions → API Tokens</strong>). Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.proxmox.com/" target="_blank" rel="noopener" style="color:var(--accent);">Proxmox VE</a> via an API token (<strong>Datacenter → Permissions → API Tokens</strong>).</p>
           <div class="form-group"><label class="label" for="proxmox-url">Proxmox URL</label><input class="input" type="text" id="proxmox-url" placeholder="e.g. https://192.168.1.10:8006" autocomplete="off"></div>
           <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
             <div><label class="label" for="proxmox-username">User</label><input class="input" type="text" id="proxmox-username" placeholder="root" autocomplete="off"></div>
@@ -2361,11 +2709,11 @@
       <!-- Proxmox Backup Server Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">💾 Proxmox Backup Server Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Node health &amp; datastore usage (PBS)</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/proxmox-backup-server.svg" alt="">Proxmox Backup Server Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Node health &amp; datastore usage (PBS)</p></div>
           <label class="toggle-switch"><input type="checkbox" id="pbs-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="pbs-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.proxmox.com/en/proxmox-backup-server" target="_blank" rel="noopener" style="color:var(--accent);">Proxmox Backup Server</a> via an API token. (Not a Homarr integration — built against the documented PBS REST API; see THIRD-PARTY-LICENSES.)</p>
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.proxmox.com/en/proxmox-backup-server" target="_blank" rel="noopener" style="color:var(--accent);">Proxmox Backup Server</a> via an API token. Built against the documented PBS REST API.</p>
           <div class="form-group"><label class="label" for="pbs-url">PBS URL</label><input class="input" type="text" id="pbs-url" placeholder="e.g. https://192.168.1.10:8007" autocomplete="off"></div>
           <div class="form-group" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
             <div><label class="label" for="pbs-username">User</label><input class="input" type="text" id="pbs-username" placeholder="root" autocomplete="off"></div>
@@ -2380,11 +2728,11 @@
       <!-- Beszel Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">🐿 Beszel Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Lightweight server monitoring — per-system CPU/mem/disk</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/beszel.svg" alt="">Beszel Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Lightweight server monitoring — per-system CPU/mem/disk</p></div>
           <label class="toggle-switch"><input type="checkbox" id="beszel-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="beszel-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://beszel.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Beszel</a> hub (PocketBase) login. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://beszel.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Beszel</a> hub (PocketBase) login.</p>
           <div class="form-group"><label class="label" for="beszel-url">Beszel Hub URL</label><input class="input" type="text" id="beszel-url" placeholder="e.g. http://192.168.1.10:8090" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="beszel-username">Email / Username</label><input class="input" type="text" id="beszel-username" placeholder="Beszel account email" autocomplete="off"></div>
           <div class="form-group"><label class="label">Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="beszel-password" placeholder="Beszel password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="beszel-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="beszel-validate-btn">Test Connection</button></div><div id="beszel-validation-result" style="display:none;margin-top:8px;"></div></div>
@@ -2395,11 +2743,11 @@
       <!-- iCal Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">📅 iCal Calendar Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Events from any iCalendar (.ics) feed — upcoming list or month grid</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/ical.svg" alt="">iCal Calendar Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Events from any iCalendar (.ics) feed — upcoming list or month grid</p></div>
           <label class="toggle-switch"><input type="checkbox" id="ical-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="ical-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;">Works with any <code>.ics</code> feed: Google Calendar (secret iCal address), Outlook, or a <strong>Nextcloud</strong> calendar's private link (Calendar app → ⋯ → Copy private link). Parser adapted from the Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> iCal integration — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-info" style="margin-bottom:18px;">Works with any <code>.ics</code> feed: Google Calendar (secret iCal address), Outlook, or a <strong>Nextcloud</strong> calendar's private link (Calendar app → ⋯ → Copy private link).</p>
           <div class="form-group"><label class="label" for="ical-name">Calendar Name</label><input class="input" type="text" id="ical-name" placeholder="e.g. Family" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="ical-url">iCal (.ics) URL</label><div class="api-key-row"><input class="input input-mono" type="text" id="ical-url" placeholder="https://…/calendar.ics" autocomplete="off"><button class="btn btn-secondary" id="ical-validate-btn">Test Feed</button></div><div id="ical-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group"><label class="label" for="ical-view">Default View</label><select class="select" id="ical-view" style="width:200px;"><option value="upcoming" selected>Upcoming events (list)</option><option value="calendar">Month calendar</option></select></div>
@@ -2410,11 +2758,11 @@
       <!-- Home Assistant Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">🏠 Home Assistant Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Live entity states with toggles for lights, switches &amp; more</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/home-assistant.svg" alt="">Home Assistant Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Live entity states with toggles for lights, switches &amp; more</p></div>
           <label class="toggle-switch"><input type="checkbox" id="homeassistant-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="homeassistant-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.home-assistant.io/" target="_blank" rel="noopener" style="color:var(--accent);">Home Assistant</a> via a long-lived access token (Profile → Security → Long-lived access tokens). Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.<br><span style="color:var(--text-muted);">Tip: to show a Home Assistant calendar, use the iCal widget with HA's calendar export URL.</span></p>
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.home-assistant.io/" target="_blank" rel="noopener" style="color:var(--accent);">Home Assistant</a> via a long-lived access token (Profile → Security → Long-lived access tokens).<br><span style="color:var(--text-muted);">Tip: to show a Home Assistant calendar, use the iCal widget with HA's calendar export URL.</span></p>
           <div class="form-group"><label class="label" for="homeassistant-url">Home Assistant URL</label><input class="input" type="text" id="homeassistant-url" placeholder="e.g. http://192.168.1.10:8123" autocomplete="off"></div>
           <div class="form-group"><label class="label">Long-Lived Access Token</label><div class="api-key-row"><input class="input input-mono" type="text" id="homeassistant-token" placeholder="Paste your access token…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="homeassistant-key-toggle" title="Hide token">🙈</button><button class="btn btn-secondary" id="homeassistant-validate-btn">Test Connection</button></div><div id="homeassistant-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group"><label class="label" for="homeassistant-entities">Entities</label><textarea class="input" id="homeassistant-entities" rows="4" placeholder="One entity ID per line, e.g.&#10;light.kitchen&#10;switch.office&#10;sensor.living_room_temperature" style="resize:vertical;font-family:var(--font-mono);font-size:12px;"></textarea><p style="font-size:12px;color:var(--text-muted);margin-top:4px;">Find IDs in HA under <strong>Developer Tools → States</strong>.</p></div>
@@ -2426,11 +2774,11 @@
       <!-- OPNsense Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">🛡 OPNsense Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Firewall summary — CPU, memory &amp; interface traffic</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/opnsense.svg" alt="">OPNsense Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Firewall summary — CPU, memory &amp; interface traffic</p></div>
           <label class="toggle-switch"><input type="checkbox" id="opnsense-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="opnsense-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://opnsense.org/" target="_blank" rel="noopener" style="color:var(--accent);">OPNsense</a> via an API key + secret (<strong>System → Access → Users → (your user) → API keys</strong>, "+" to create). Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://opnsense.org/" target="_blank" rel="noopener" style="color:var(--accent);">OPNsense</a> via an API key + secret (<strong>System → Access → Users → (your user) → API keys</strong>, "+" to create).</p>
           <div class="form-group"><label class="label" for="opnsense-url">OPNsense URL</label><input class="input" type="text" id="opnsense-url" placeholder="e.g. https://192.168.1.1" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="opnsense-key">API Key</label><input class="input input-mono" type="text" id="opnsense-key" placeholder="API key…" autocomplete="off"></div>
           <div class="form-group"><label class="label">API Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="opnsense-secret" placeholder="API secret…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="opnsense-key-toggle" title="Hide secret">🙈</button><button class="btn btn-secondary" id="opnsense-validate-btn">Test Connection</button></div><div id="opnsense-validation-result" style="display:none;margin-top:8px;"></div></div>
@@ -2441,11 +2789,11 @@
       <!-- Nextcloud Integration -->
       <div class="card">
         <div class="toggle-row">
-          <div><div class="section-title" style="margin-bottom:3px;">☁ Nextcloud Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Recent Nextcloud notifications</p></div>
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/nextcloud.svg" alt="">Nextcloud Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Recent Nextcloud notifications</p></div>
           <label class="toggle-switch"><input type="checkbox" id="nextcloud-toggle"><span class="toggle-slider"></span></label>
         </div>
         <div id="nextcloud-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
-          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://nextcloud.com/" target="_blank" rel="noopener" style="color:var(--accent);">Nextcloud</a> notifications via the OCS API. Use an <strong>app password</strong> (Settings → Security → Devices &amp; sessions). For Nextcloud <em>calendars</em>, add the calendar's private iCal link to the iCal widget. Adapted from Apache-2.0 <a href="https://github.com/homarr-labs/homarr" target="_blank" rel="noopener" style="color:var(--accent);">Homarr</a> — see THIRD-PARTY-LICENSES.</p>
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://nextcloud.com/" target="_blank" rel="noopener" style="color:var(--accent);">Nextcloud</a> notifications via the OCS API. Use an <strong>app password</strong> (Settings → Security → Devices &amp; sessions). For Nextcloud <em>calendars</em>, add the calendar's private iCal link to the iCal widget.</p>
           <div class="form-group"><label class="label" for="nextcloud-url">Nextcloud URL</label><input class="input" type="text" id="nextcloud-url" placeholder="e.g. https://cloud.example.com" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="nextcloud-username">Username</label><input class="input" type="text" id="nextcloud-username" placeholder="Nextcloud username" autocomplete="off"></div>
           <div class="form-group"><label class="label">App Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="nextcloud-password" placeholder="App password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="nextcloud-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="nextcloud-validate-btn">Test Connection</button></div><div id="nextcloud-validation-result" style="display:none;margin-top:8px;"></div></div>
@@ -2453,6 +2801,44 @@
         </div></div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- Integration sample modal (offline demo of the widget for an integration) -->
+  <div class="int-overlay" id="int-sample-modal" role="dialog" aria-modal="true">
+    <div class="int-modal" style="max-width:880px;">
+      <div class="int-m-head">
+        <img id="int-sample-ico" alt="">
+        <div class="int-m-t"><h3 id="int-sample-name"></h3><p>Offline sample — demo data, no server needed</p></div>
+        <a id="int-sample-open" href="#" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="margin-right:8px;">Open in tab ↗</a>
+        <button class="int-m-x" id="int-sample-close" title="Close" type="button">&times;</button>
+      </div>
+      <iframe id="int-sample-frame" title="Widget sample" style="width:100%;height:64vh;border:0;display:block;background:var(--bg-primary);"></iframe>
+    </div>
+  </div>
+
+
+  <!-- Integration configuration modal (shared; body is filled with the
+       relocated #<svc>-config form for the selected integration) -->
+  <div class="int-overlay" id="int-modal" role="dialog" aria-modal="true">
+    <div class="int-modal">
+      <div class="int-m-head">
+        <img id="int-m-ico" alt="">
+        <div class="int-m-t"><h3 id="int-m-name"></h3><p id="int-m-cat"></p></div>
+        <button class="int-m-x" id="int-m-close" title="Close" type="button">&times;</button>
+      </div>
+      <div class="int-m-body" id="int-m-body"></div>
+      <div class="int-m-poll" id="int-m-poll" style="display:none;">
+        <span class="int-m-poll-label">Refresh interval</span>
+        <select class="select" id="int-poll-select"></select>
+      </div>
+      <div class="int-m-foot">
+        <span class="int-m-note" id="int-m-note">Validate the connection to enable Save.</span>
+        <div class="int-m-actions">
+          <button class="btn btn-ghost" id="int-m-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="int-m-save" type="button" disabled>Save</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -2548,6 +2934,9 @@
   </div>
 
   <!-- Plex preview modal -->
+  <div class="modal-overlay" id="jellyfin-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3><img src="../icons/integrations/jellyfin.svg" alt="" style="width:20px;height:20px;vertical-align:-4px;margin-right:6px;">Jellyfin Widget Preview</h3><button class="modal-close-btn" id="jellyfin-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Live data from your Jellyfin server, refreshing every 15 seconds.</p><div id="jellyfin-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="jellyfin-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="emby-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3><img src="../icons/integrations/emby.svg" alt="" style="width:20px;height:20px;vertical-align:-4px;margin-right:6px;">Emby Widget Preview</h3><button class="modal-close-btn" id="emby-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Live data from your Emby server, refreshing every 15 seconds.</p><div id="emby-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="emby-preview-done">Close</button></div></div></div>
+
   <div class="modal-overlay" id="plex-preview-modal">
     <div class="modal-box modal-wide">
       <div class="modal-header">
@@ -2720,7 +3109,7 @@
     </div>
   </div>
 
-  <!-- Global save bar — visible on Settings and Widgets tabs when there are unsaved changes -->
+  <!-- Global save bar — Settings tab only (Integrations save from their own modal) -->
   <div class="save-bar" id="save-bar">
     <button class="btn btn-ghost" id="discard-btn">Discard</button>
     <button class="btn btn-primary" id="save-btn" disabled>Save Settings</button>
@@ -2730,7 +3119,19 @@
   <!-- Tab: Dashboards                                                        -->
   <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div class="tab-panel" id="tab-dashboards">
-    <div class="dash-layout">
+
+    <!-- Dashboard Setup: centered list + Create button (drag the grip to reorder) -->
+    <div class="dash-setup">
+      <div class="dash-setup-head">
+        <div class="dash-setup-title">Your Dashboards</div>
+        <button class="btn btn-primary btn-lg" id="create-dashboard-btn">+ Create Dashboard</button>
+      </div>
+      <div id="dashboard-list" class="dashboard-list"></div>
+    </div>
+
+    <!-- Legacy creator -- hidden; kept so existing bookmark/generate code keeps
+         its element refs until the wizard replaces it. -->
+    <div class="dash-layout" id="legacy-create-ui" style="display:none;">
 
       <!-- Left: Bookmark Selector -->
       <div class="dash-panel">
@@ -2811,7 +3212,7 @@
           <span>📋</span> Saved Dashboards
         </div>
         <div class="dash-panel-body">
-          <div id="dashboard-list" class="dashboard-list">
+          <div id="legacy-dashboard-list" class="dashboard-list">
             <div class="empty-state">
               <div class="empty-icon">📊</div>
               <p>No dashboards yet.</p>
@@ -2894,12 +3295,121 @@
   </div>
 </div>
 
+  <!-- Dashboard creation wizard -->
+  <div class="wiz-overlay" id="dash-wizard" role="dialog" aria-modal="true">
+    <div class="wiz-modal">
+      <div class="wiz-head">
+        <div>
+          <div class="wiz-title">Create Dashboard</div>
+          <div class="wiz-steps" id="wiz-stepind">Step 1 of 4 · Details</div>
+        </div>
+        <button class="wiz-x" id="wiz-close" type="button" title="Close">&times;</button>
+      </div>
+      <div class="wiz-body">
+        <section class="wiz-step" id="wiz-step-1">
+          <div class="form-group">
+            <label class="label" for="wiz-title">Dashboard Title <span style="color:var(--danger);">*</span></label>
+            <input class="input" type="text" id="wiz-title" placeholder="e.g. Homelab" autocomplete="off">
+            <div class="wiz-err" id="wiz-title-err" style="display:none;">Please enter a title.</div>
+          </div>
+          <div class="form-group">
+            <label class="label" for="wiz-desc">Description <span class="wiz-opt">(optional)</span></label>
+            <textarea class="input" id="wiz-desc" rows="2" placeholder="What this dashboard is for…"></textarea>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="label" for="wiz-theme">Theme <span class="wiz-opt">(optional)</span></label>
+            <input class="input" type="text" id="wiz-theme" placeholder="e.g. dev tools, media, finance — or a short sentence" autocomplete="off">
+            <p class="wiz-hint">Comma-separated keywords or a short sentence. Used as context when the AI organizes your bookmarks.</p>
+          </div>
+        </section>
+                        <section class="wiz-step" id="wiz-step-2" style="display:none;">
+          <div class="wiz-org-cols">
+            <div class="wiz-org-left">
+              <label class="label">How should bookmarks be organized into sections?</label>
+              <div class="wiz-org">
+                <label class="wiz-org-card"><input type="radio" name="wiz-org" value="folder" checked><div><div class="wiz-org-title">📁 Use folder names</div><div class="wiz-org-desc">Your bookmark folders become dashboard sections. Bookmarks not in a folder go to “Other.”</div></div></label>
+                <label class="wiz-org-card"><input type="radio" name="wiz-org" value="dynamic"><div><div class="wiz-org-title">✨ Dynamic AI categorization</div><div class="wiz-org-desc">AI groups bookmarks by title, URL, description &amp; your theme into meaningful sections.</div></div></label>
+              </div>
+              <div class="form-group" id="wiz-maxsec-row" style="display:none;margin-top:14px;">
+                <label class="label" for="wiz-maxsec">Maximum number of sections</label>
+                <input class="input" type="number" id="wiz-maxsec" min="1" max="30" value="8" style="width:120px;">
+                <p class="wiz-hint">The most category sections the AI may create (it may use fewer).</p>
+              </div>
+              <div class="form-group" style="margin-top:18px;margin-bottom:0;">
+                <label class="label">Icon shape</label>
+                <div class="shape-picker" id="wiz-shape-picker">
+                  <label class="shape-option selected" data-shape="rounded"><input type="radio" name="wiz-shape" value="rounded" checked><span class="shape-swatch shape-rounded"></span><span class="shape-option-label">Rounded</span></label>
+                  <label class="shape-option" data-shape="square"><input type="radio" name="wiz-shape" value="square"><span class="shape-swatch shape-square"></span><span class="shape-option-label">Square</span></label>
+                  <label class="shape-option" data-shape="circle"><input type="radio" name="wiz-shape" value="circle"><span class="shape-swatch shape-circle"></span><span class="shape-option-label">Circle</span></label>
+                  <label class="shape-option" data-shape="squircle"><input type="radio" name="wiz-shape" value="squircle"><span class="shape-swatch shape-squircle"></span><span class="shape-option-label">Squircle</span></label>
+                </div>
+              </div>
+              <div class="toggle-row" style="margin-top:14px;">
+                <label class="label" for="wiz-text-toggle" style="margin:0;">Show text below icons</label>
+                <label class="toggle-switch"><input type="checkbox" id="wiz-text-toggle" checked><span class="toggle-slider"></span></label>
+              </div>
+
+            </div>
+            <div class="wiz-org-right">
+              <div class="wiz-sel-head">
+                <span class="label" style="margin:0;">Select bookmarks &amp; folders</span>
+                <span class="wiz-hint" style="margin:0;"><b id="wiz-sel-count">0</b> selected</span>
+              </div>
+              <div id="wiz-tree-mount"></div>
+              <div class="wiz-err" id="wiz-sel-err" style="display:none;margin-top:8px;flex:0 0 auto;">Select at least one bookmark.</div>
+            </div>
+          </div>
+        </section>
+
+
+                <section class="wiz-step" id="wiz-step-3" style="display:none;">
+          <div class="wiz-proc">
+            <span class="spinner" id="wiz-proc-spin" style="width:34px;height:34px;border-width:3px;"></span>
+            <div class="wiz-proc-status" id="wiz-proc-status">Preparing…</div>
+            <div class="wiz-proc-barwrap"><div class="wiz-proc-bar" id="wiz-proc-bar"></div></div>
+            <div class="wiz-proc-msg" id="wiz-proc-msg"></div>
+            <div class="wiz-proc-err" id="wiz-proc-err" style="display:none;">
+              <div class="banner banner-danger" id="wiz-proc-err-text" style="display:block;"></div>
+              <button class="btn btn-secondary" id="wiz-proc-back" type="button" style="margin-top:14px;">← Back to organization</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="wiz-step" id="wiz-step-4" style="display:none;"><div id="wiz-edit-hdr" class="wiz-edit-hdr" style="display:none;"></div><div id="wiz-preview" class="wiz-preview"></div></section>
+      </div>
+      <div class="wiz-foot">
+        <button class="btn btn-ghost" id="wiz-back" type="button" disabled>Back</button>
+        <button class="btn btn-primary" id="wiz-next" type="button">Next</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Wizard: bookmark edit modal -->
+  <div class="wiz-bm-overlay" id="wiz-bm-edit" role="dialog" aria-modal="true">
+    <div class="wiz-bm-modal">
+      <div class="wiz-bm-head"><span>Edit bookmark</span><button class="wiz-x" id="wiz-bm-close" type="button" title="Close">&times;</button></div>
+      <div class="wiz-bm-body">
+        <div class="form-group"><label class="label" for="wiz-bm-title">Title</label><input class="input" type="text" id="wiz-bm-title" autocomplete="off"></div>
+        <div class="form-group"><label class="label" for="wiz-bm-desc">Description</label><textarea class="input" id="wiz-bm-desc" rows="2"></textarea></div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="label" for="wiz-bm-icon">Icon URL</label>
+          <div class="api-key-row"><input class="input input-mono" type="text" id="wiz-bm-icon" placeholder="https://…/icon.png" autocomplete="off"><img id="wiz-bm-icon-prev" class="wiz-bm-ico" alt=""></div>
+          <p class="wiz-hint" id="wiz-bm-icon-hint">Paste an image URL — it’s downloaded and stored with the dashboard.</p>
+        </div>
+      </div>
+      <div class="wiz-bm-foot"><button class="btn btn-ghost" id="wiz-bm-cancel" type="button">Cancel</button><button class="btn btn-primary" id="wiz-bm-save" type="button">Save</button></div>
+    </div>
+  </div>
+
+
 <script src="../widgets/tautulli-widget.js"></script>
 <script src="../widgets/uptime-kuma-widget.js"></script>
 <script src="../widgets/arr-calendar-widget.js"></script>
 <script src="../widgets/seerr-widget.js"></script>
 <script src="../widgets/dns-hole-widget.js"></script>
 <script src="../widgets/plex-widget.js"></script>
+<script src="../widgets/media-server-widget.js"></script>
 <script src="../widgets/unifi-widget.js"></script>
 <script src="../widgets/download-client-widget.js"></script>
 <script src="../widgets/peanut-widget.js"></script>

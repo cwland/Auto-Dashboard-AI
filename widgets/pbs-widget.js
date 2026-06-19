@@ -92,7 +92,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('pbs-widget');
-      this.el.innerHTML = `<div class="pbs-header"><div class="pbs-title">Proxmox Backup</div><div class="pbs-error" style="display:none"></div></div><div class="pbs-body"></div>`;
+      this.el.innerHTML = `<div class="pbs-header"><img class="wg-icon" src="../icons/integrations/proxmox-backup-server.svg" alt=""><div class="pbs-title">Proxmox Backup</div><div class="pbs-error" style="display:none"></div></div><div class="pbs-body"></div>`;
       this.errorEl = this.el.querySelector('.pbs-error'); this.body = this.el.querySelector('.pbs-body');
     }
     _render(d) {

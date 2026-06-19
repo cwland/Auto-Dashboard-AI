@@ -94,7 +94,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('ha-widget');
-      this.el.innerHTML = `<div class="ha-header"><div class="ha-title">Home Assistant</div><div class="ha-error" style="display:none"></div></div><div class="ha-body"></div>`;
+      this.el.innerHTML = `<div class="ha-header"><img class="wg-icon" src="../icons/integrations/home-assistant.svg" alt=""><div class="ha-title">Home Assistant</div><div class="ha-error" style="display:none"></div></div><div class="ha-body"></div>`;
       this.errorEl = this.el.querySelector('.ha-error'); this.body = this.el.querySelector('.ha-body');
       this.body.addEventListener('click', (e) => {
         const btn = e.target.closest && e.target.closest('[data-toggle]');

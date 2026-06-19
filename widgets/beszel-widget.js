@@ -105,7 +105,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('beszel-widget');
-      this.el.innerHTML = `<div class="bz-header"><div class="bz-title">Beszel</div><div class="bz-tools"><div class="bz-error" style="display:none"></div><span class="bz-count"></span></div></div><div class="bz-body"></div>`;
+      this.el.innerHTML = `<div class="bz-header"><img class="wg-icon" src="../icons/integrations/beszel.svg" alt=""><div class="bz-title">Beszel</div><div class="bz-tools"><div class="bz-error" style="display:none"></div><span class="bz-count"></span></div></div><div class="bz-body"></div>`;
       this.errorEl = this.el.querySelector('.bz-error'); this.countEl = this.el.querySelector('.bz-count'); this.body = this.el.querySelector('.bz-body');
     }
     _render() {

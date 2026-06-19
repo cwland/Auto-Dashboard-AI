@@ -112,7 +112,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('tracearr-widget');
-      this.el.innerHTML = `<div class="tc-header"><div class="tc-title">Tracearr</div><div class="tc-error" style="display:none"></div></div><div class="tc-body"></div>`;
+      this.el.innerHTML = `<div class="tc-header"><img class="wg-icon" src="../icons/integrations/tracearr.svg" alt=""><div class="tc-title">Tracearr</div><div class="tc-error" style="display:none"></div></div><div class="tc-body"></div>`;
       this.errorEl = this.el.querySelector('.tc-error'); this.body = this.el.querySelector('.tc-body');
     }
     _render(d) {

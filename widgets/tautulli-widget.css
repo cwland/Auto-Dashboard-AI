@@ -31,7 +31,12 @@
   text-transform: uppercase;
   color: var(--text-muted);
   margin-bottom: 2px;
+  display: inline-block;
+  vertical-align: middle;
 }
+/* The tw-header is block-flow (not flex), so keep the brand icon inline with
+   the title text rather than stacked above it. */
+.tautulli-widget .tw-header .wg-icon { vertical-align: middle; margin-right: 8px; }
 .tautulli-widget .tw-header-summary {
   font-size: 13.5px;
   font-weight: 500;

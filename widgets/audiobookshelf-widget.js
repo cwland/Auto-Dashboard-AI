@@ -97,7 +97,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('abs-widget');
-      this.el.innerHTML = `<div class="abs-header"><div class="abs-title">Audiobookshelf</div><div class="abs-error" style="display:none"></div></div><div class="abs-body"></div>`;
+      this.el.innerHTML = `<div class="abs-header"><img class="wg-icon" src="../icons/integrations/audiobookshelf.svg" alt=""><div class="abs-title">Audiobookshelf</div><div class="abs-error" style="display:none"></div></div><div class="abs-body"></div>`;
       this.errorEl = this.el.querySelector('.abs-error'); this.body = this.el.querySelector('.abs-body');
     }
     _render(d) {

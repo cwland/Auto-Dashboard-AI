@@ -137,7 +137,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('umami-widget');
-      this.el.innerHTML = `<div class="um-header"><div class="um-title">Umami</div><div class="um-tools"><div class="um-error" style="display:none"></div><span class="um-tf"></span></div></div><div class="um-body"></div>`;
+      this.el.innerHTML = `<div class="um-header"><img class="wg-icon" src="../icons/integrations/umami.svg" alt=""><div class="um-title">Umami</div><div class="um-tools"><div class="um-error" style="display:none"></div><span class="um-tf"></span></div></div><div class="um-body"></div>`;
       this.errorEl = this.el.querySelector('.um-error'); this.tfEl = this.el.querySelector('.um-tf'); this.body = this.el.querySelector('.um-body');
     }
     _render(d) {

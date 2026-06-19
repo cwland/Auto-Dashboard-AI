@@ -333,6 +333,7 @@
       this.el.classList.add('download-widget', `dl-${this.cfg.service}`);
       this.el.innerHTML = `
         <div class="dl-header">
+          <img class="wg-icon" src="../icons/integrations/${this.cfg.service}.svg" alt="">
           <div class="dl-title"></div>
           <div class="dl-tools">
             <div class="dl-error" style="display:none"></div>

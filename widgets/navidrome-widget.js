@@ -132,7 +132,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('navidrome-widget');
-      this.el.innerHTML = `<div class="nv-header"><div class="nv-title">Navidrome</div><div class="nv-error" style="display:none"></div></div><div class="nv-body"></div>`;
+      this.el.innerHTML = `<div class="nv-header"><img class="wg-icon" src="../icons/integrations/navidrome.svg" alt=""><div class="nv-title">Navidrome</div><div class="nv-error" style="display:none"></div></div><div class="nv-body"></div>`;
       this.errorEl = this.el.querySelector('.nv-error'); this.body = this.el.querySelector('.nv-body');
     }
     _render(d) {

@@ -102,7 +102,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('speedtest-widget');
-      this.el.innerHTML = `<div class="st-header"><div class="st-title">Speedtest</div><div class="st-tools"><div class="st-error" style="display:none"></div><span class="st-ago"></span></div></div><div class="st-body"></div>`;
+      this.el.innerHTML = `<div class="st-header"><img class="wg-icon" src="../icons/integrations/speedtest-tracker.png" alt=""><div class="st-title">Speedtest</div><div class="st-tools"><div class="st-error" style="display:none"></div><span class="st-ago"></span></div></div><div class="st-body"></div>`;
       this.errorEl = this.el.querySelector('.st-error'); this.agoEl = this.el.querySelector('.st-ago'); this.body = this.el.querySelector('.st-body');
     }
     _render(d) {

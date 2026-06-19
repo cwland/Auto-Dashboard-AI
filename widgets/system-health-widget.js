@@ -310,6 +310,7 @@
   }
   function fmtPct(n) { return `${Math.round((Number(n) || 0) * 10) / 10}%`; }
   const TITLE = { glances: 'Glances', dashdot: 'dash.', unraid: 'Unraid', openmediavault: 'OpenMediaVault', truenas: 'TrueNAS' };
+  const ICON  = { glances: 'glances.svg', dashdot: 'dashdot.png', unraid: 'unraid.svg', openmediavault: 'openmediavault.svg', truenas: 'truenas.svg' };
 
   class SystemHealthWidget {
     constructor(container, config) {
@@ -335,7 +336,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('syshealth-widget', `sh-${this.cfg.service}`);
-      this.el.innerHTML = `<div class="sh-header"><div class="sh-title"></div><div class="sh-tools"><div class="sh-error" style="display:none"></div><span class="sh-ver"></span></div></div><div class="sh-body"></div>`;
+      this.el.innerHTML = `<div class="sh-header"><img class="wg-icon" src="../icons/integrations/${ICON[this.cfg.service] || ''}" alt=""><div class="sh-title"></div><div class="sh-tools"><div class="sh-error" style="display:none"></div><span class="sh-ver"></span></div></div><div class="sh-body"></div>`;
       this.titleEl = this.el.querySelector('.sh-title'); this.errorEl = this.el.querySelector('.sh-error'); this.verEl = this.el.querySelector('.sh-ver'); this.body = this.el.querySelector('.sh-body');
       this.titleEl.textContent = TITLE[this.cfg.service] || 'System';
     }

@@ -121,7 +121,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('peanut-widget');
-      this.el.innerHTML = `<div class="pn-header"><div class="pn-title">UPS</div><div class="pn-error" style="display:none"></div></div><div class="pn-body"></div>`;
+      this.el.innerHTML = `<div class="pn-header"><img class="wg-icon" src="../icons/integrations/peanut.svg" alt=""><div class="pn-title">UPS</div><div class="pn-error" style="display:none"></div></div><div class="pn-body"></div>`;
       this.errorEl = this.el.querySelector('.pn-error'); this.body = this.el.querySelector('.pn-body');
     }
     _render(devices) {

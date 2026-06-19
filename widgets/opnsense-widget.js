@@ -135,7 +135,7 @@
     }
     _buildSkeleton() {
       this.el.classList.add('opnsense-widget');
-      this.el.innerHTML = `<div class="op-header"><div class="op-title">OPNsense</div><div class="op-tools"><div class="op-error" style="display:none"></div><span class="op-ver"></span></div></div><div class="op-body"></div>`;
+      this.el.innerHTML = `<div class="op-header"><img class="wg-icon" src="../icons/integrations/opnsense.svg" alt=""><div class="op-title">OPNsense</div><div class="op-tools"><div class="op-error" style="display:none"></div><span class="op-ver"></span></div></div><div class="op-body"></div>`;
       this.errorEl = this.el.querySelector('.op-error'); this.verEl = this.el.querySelector('.op-ver'); this.body = this.el.querySelector('.op-body');
     }
     _render(d) {
