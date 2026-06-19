@@ -12,7 +12,9 @@ async function init() {
   document.getElementById('btn-create').addEventListener('click', () => openConfig('dashboards'));
   document.getElementById('btn-settings').addEventListener('click', () => openConfig('settings'));
   document.getElementById('btn-newtab').addEventListener('click', () => {
-    chrome.tabs.create({ url: 'chrome://newtab' });
+    // Open the dashboard via dashboard.html (NOT the new-tab override page),
+    // so the browser's new-tab takeover bar never appears.
+    chrome.tabs.create({ url: chrome.runtime.getURL('newtab/dashboard.html') });
     window.close();
   });
 

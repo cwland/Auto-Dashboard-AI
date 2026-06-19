@@ -16,7 +16,8 @@ chrome.runtime.onStartup.addListener(async () => {
     await chrome.storage.local.get(['settings', 'defaultDashboardId', 'dashboards']);
   if (!settings || settings.openOnStartup !== true) return;
   const id = defaultDashboardId || (dashboards && dashboards[0] && dashboards[0].id);
-  const url = chrome.runtime.getURL('newtab/newtab.html' + (id ? `?dash=${id}` : ''));
+  // dashboard.html (not the new-tab override) → no browser takeover bar.
+  const url = chrome.runtime.getURL('newtab/dashboard.html' + (id ? `?dash=${id}` : ''));
   chrome.tabs.create({ url });
 });
 

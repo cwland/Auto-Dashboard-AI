@@ -41,13 +41,42 @@ const SAMPLES = {
       state: 'playing', stateIcon: '▶', mediaIcon: '🖥', footTitle: 'Severance - Cold Harbor', footSub: 'S2 · E4',
       platformIcon: chrome, avatarInitial: 'C', avatarColor: '#e07a7a', avatarImg: '',
     }, over);
+    const cardsA = [
+      card({ key: 'a' }),
+      card({ key: 'b', footTitle: 'Dune: Part Two', footSub: '2024', mediaIcon: '🎬', product: 'Plex for Apple TV', player: 'Living Room', bandwidth: '12.4 Mbps', avatarInitial: 'J', avatarColor: '#6f8fe0', username: 'jordan', state: 'paused', stateIcon: '❚❚', progressPct: 61, poster: poster('DUNE', '#7a5a3a', '#3a2a1a') }),
+    ];
+
+    // Widget 1 — the activity carousel.
     const host = tile('Tautulli — Activity');
     const w = new TautulliWidget(host, { baseUrl: '', apiKey: '', maxVisible: 3 });
     w.stop();
     w.headerSummary.textContent = 'Sessions: 2 streams (1 transcode) | Bandwidth: 5.0 Mbps';
-    w.headerTitle.textContent = 'Activity';
+    w.headerTitle.textContent = 'Tautulli';
     w.noStreams.style.display = 'none';
-    w._reconcile([card({ key: 'a' }), card({ key: 'b', footTitle: 'Dune: Part Two', footSub: '2024', avatarInitial: 'J', avatarColor: '#6f8fe0', username: 'jordan', state: 'paused', stateIcon: '❚❚', progressPct: 61, poster: poster('DUNE', '#7a5a3a', '#3a2a1a') })]);
+    w._reconcile(cardsA);
+
+    // Widget 2 — the Plex-style streams list (same sample data).
+    if (typeof TautulliListWidget !== 'undefined') {
+      const lw = new TautulliListWidget(tile('Tautulli — Streams'), { baseUrl: '', apiKey: '' });
+      lw.stop();
+      lw._renderSessions(cardsA, { count: 2, total: '17.4 Mbps' });
+    }
+  },
+
+  'tautulli-list'(h) {
+    const card = (over) => Object.assign({
+      username: 'cory', product: 'Plex Web', player: 'Chrome', bandwidth: '5.0 Mbps',
+      location: 'LAN: 192.168.50.16', eta: '19:14', progressText: '1:22 / 42:50', progressPct: 32,
+      state: 'playing', stateIcon: '▶', mediaIcon: '🖥', footTitle: 'Severance - Cold Harbor', footSub: 'S2 · E4',
+      avatarInitial: 'C', avatarColor: '#e07a7a', avatarImg: '',
+    }, over);
+    const w = new TautulliListWidget(tile('Tautulli — Streams'), { baseUrl: '', apiKey: '' });
+    w.stop();
+    w._renderSessions([
+      card({}),
+      card({ footTitle: 'Dune: Part Two', footSub: '🎬 2024', mediaIcon: '🎬', product: 'Plex for Apple TV', player: 'Living Room', bandwidth: '12.4 Mbps', location: 'WAN: 73.42.10.5', eta: '20:38', progressText: '48:10 / 2:46:00', progressPct: 29, state: 'paused', stateIcon: '❚❚', username: 'jordan', avatarInitial: 'J', avatarColor: '#6f8fe0' }),
+      card({ footTitle: 'Daft Punk - Digital Love', footSub: '🎵 Discovery', mediaIcon: '🎵', product: 'Plexamp', player: 'iPhone', bandwidth: '0.3 Mbps', location: 'WAN: 98.11.4.20', eta: '18:52', progressText: '1:48 / 4:58', progressPct: 36, username: 'sam', avatarInitial: 'S', avatarColor: '#7ec07e' }),
+    ], { count: 3, total: '17.7 Mbps' });
   },
 
   // ── Media management / requests ─────────────────────────────────────────
@@ -290,6 +319,24 @@ function arr(service) {
   const Cls = service === 'sonarr' ? SonarrWidget : RadarrWidget;
   new Cls(tile(service === 'sonarr' ? 'Sonarr — Upcoming' : 'Radarr — Upcoming'), { view: 'upcoming', upcomingCount: 8, dataProvider: provider }).start();
 }
+
+// ── Weather (all three widgets on one demo page) ─────────────────────────
+function demoWeatherData() {
+  const H = (t, e, temp, wind) => ({ time: t, condition: '', emoji: e, temp, wind });
+  const D = (d, e, hi, lo) => ({ day: d, emoji: e, condition: '', high: hi, low: lo, sunrise: '6:42 AM', sunset: '7:58 PM' });
+  return {
+    current: { condition: 'Partly Cloudy', emoji: '⛅', temp: 72, feels: 70, high: 78, low: 61, wind: 8, humidity: 44, sunrise: '6:42 AM', sunset: '7:58 PM', place: 'San Francisco' },
+    hourly: [H('1 PM', '☀️', 73, 7), H('2 PM', '🌤️', 74, 8), H('3 PM', '⛅', 73, 9), H('4 PM', '⛅', 71, 10), H('5 PM', '🌥️', 68, 11), H('6 PM', '🌧️', 64, 12), H('7 PM', '🌧️', 62, 12), H('8 PM', '🌙', 60, 9), H('9 PM', '🌙', 58, 8), H('10 PM', '☁️', 57, 7), H('11 PM', '☁️', 56, 6), H('12 AM', '🌙', 55, 6)],
+    daily: [D('Mon', '☀️', 78, 61), D('Tue', '⛅', 75, 60), D('Wed', '🌧️', 69, 58), D('Thu', '🌤️', 73, 59), D('Fri', '⛈️', 66, 55), D('Sat', '☀️', 72, 57), D('Sun', '🌤️', 74, 58)],
+    units: 'imperial', sym: { temp: '°F', speed: 'mph' },
+  };
+}
+SAMPLES.weather = function () {
+  const dp = () => Promise.resolve(demoWeatherData());
+  new WeatherCurrentWidget(tile('Current Weather'), { dataProvider: dp }).start();
+  new WeatherHourlyWidget(tile('Hourly Forecast'), { dataProvider: dp, hours: 5 }).start();
+  new WeatherForecastWidget(tile('5-Day Forecast'), { dataProvider: dp }).start();
+};
 
 // ── Boot ────────────────────────────────────────────────────────────────
 const id = new URLSearchParams(location.search).get('w');

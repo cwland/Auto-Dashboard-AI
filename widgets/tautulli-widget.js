@@ -355,11 +355,11 @@
       const lan = fmt.mbps(data.lan_bandwidth);
 
       if (count <= 0) {
-        this.headerTitle.textContent = 'Activity';
+        this.headerTitle.textContent = 'Tautulli';
         this.headerSummary.textContent = '';
         this.noStreams.style.display = 'flex';
       } else {
-        this.headerTitle.textContent = 'Activity';
+        this.headerTitle.textContent = 'Tautulli';
         const sLabel = `${count} stream${count === 1 ? '' : 's'}`;
         const tLabel = `${transcodes} transcode${transcodes === 1 ? '' : 's'}`;
         this.headerSummary.textContent =
@@ -415,6 +415,7 @@
           <img class="wg-icon" src="../icons/integrations/tautulli.svg" alt="">
           <div class="tw-header-title"></div>
           <div class="tw-header-summary"></div>
+          <div class="tw-tools"></div>
           <div class="tw-error" style="display:none"></div>
         </div>
         <div class="tw-body">
@@ -430,6 +431,33 @@
       this.track.addEventListener('transitionend', (e) => {
         if (e.target === this.track && e.propertyName === 'transform') this._onStepDone();
       });
+      this._buildTools();
+    }
+
+    // Rearrange-mode config controls: # streams (maxVisible) and transition
+    // speed (dwell seconds between rotations). Hidden in normal view via CSS.
+    _buildTools() {
+      const tools = this.el.querySelector('.tw-tools');
+      if (!tools) return;
+      const stepper = (label, get, set, min, max, fmtVal) => {
+        const grp = document.createElement('div'); grp.className = 'tw-toolgrp';
+        const lab = document.createElement('span'); lab.className = 'tw-tlabel'; lab.textContent = label;
+        const dec = document.createElement('button'); dec.className = 'tw-step'; dec.type = 'button'; dec.textContent = '−';
+        const cnt = document.createElement('span'); cnt.className = 'tw-tcount';
+        const inc = document.createElement('button'); inc.className = 'tw-step'; inc.type = 'button'; inc.textContent = '+';
+        const draw = () => { cnt.textContent = fmtVal(get()); };
+        dec.addEventListener('click', () => { set(Math.max(min, get() - 1)); draw(); });
+        inc.addEventListener('click', () => { set(Math.min(max, get() + 1)); draw(); });
+        grp.append(lab, dec, cnt, inc); tools.appendChild(grp); draw();
+      };
+      stepper('Streams',
+        () => this.cfg.maxVisible,
+        (v) => { this.setConfig({ maxVisible: v }); if (this.onConfigChange) this.onConfigChange({ maxVisible: v }); },
+        1, 6, (v) => String(v));
+      stepper('Speed',
+        () => Math.round(this.cfg.dwellMs / 1000),
+        (v) => { const ms = v * 1000; this.setConfig({ dwellMs: ms }); if (this.onConfigChange) this.onConfigChange({ dwellMs: ms }); },
+        2, 12, (v) => v + 's');
     }
 
     _createCard(s) {
@@ -695,8 +723,133 @@
     }
   }
 
+  // ─── List widget (Plex-style: one row per active stream) ──────────────────
+  // Compact tabular view — title, episode, product, player, bandwidth,
+  // location, ETA, current/total time and user, one line per stream.
+  function escHtml(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+  function escAttr(v) { return escHtml(v).replace(/"/g, '&quot;'); }
+
+  class TautulliListWidget {
+    constructor(container, config) {
+      this.el = container;
+      this.cfg = Object.assign(
+        { baseUrl: '', apiKey: '', pollMs: 5000, dataProvider: null },
+        config || {}
+      );
+      this.pollTimer = null;
+      this.abort = null;
+      this.destroyed = false;
+      this._buildSkeleton();
+    }
+
+    start() {
+      this.stop();
+      this.poll();
+      this.pollTimer = setInterval(() => this.poll(), Math.max(2000, this.cfg.pollMs));
+    }
+    stop() {
+      if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+      if (this.abort) { this.abort.abort(); this.abort = null; }
+    }
+    setConfig(patch) { Object.assign(this.cfg, patch || {}); }
+    destroy() { this.destroyed = true; this.stop(); this.el.innerHTML = ''; }
+
+    async poll() {
+      if (this.destroyed) return;
+      if (this.abort) this.abort.abort();
+      this.abort = ('AbortController' in global) ? new AbortController() : null;
+      try {
+        const data = this.cfg.dataProvider
+          ? await this.cfg.dataProvider()
+          : await TautulliApi.getActivity(this.cfg.baseUrl, this.cfg.apiKey, this.abort && this.abort.signal);
+        this._clearError();
+        this._apply(data);
+      } catch (err) {
+        if (err && err.name === 'AbortError') return;
+        this._showError(err && err.message);
+      }
+    }
+
+    _apply(data) {
+      const count = Number(data.stream_count) || 0;
+      const total = fmt.mbps(data.total_bandwidth);
+      const sessions = (data.sessions || []).map((s) =>
+        describeSession(s, this.cfg.baseUrl, this.cfg.apiKey));
+      this._renderSessions(sessions, { count: count || sessions.length, total });
+    }
+
+    _buildSkeleton() {
+      this.el.classList.add('tautulli-list-widget');
+      this.el.innerHTML = `
+        <div class="tlw-header">
+          <img class="wg-icon" src="../icons/integrations/tautulli.svg" alt="">
+          <div class="tlw-title">Tautulli</div>
+          <div class="tlw-summary"></div>
+          <div class="tlw-error" style="display:none"></div>
+        </div>
+        <div class="tlw-body"><div class="tlw-empty">No active streams</div></div>`;
+      this.summaryEl = this.el.querySelector('.tlw-summary');
+      this.errorEl = this.el.querySelector('.tlw-error');
+      this.body = this.el.querySelector('.tlw-body');
+    }
+
+    // `cards` are described-session objects (same shape as describeSession()).
+    _renderSessions(cards, summary) {
+      if (this.summaryEl) {
+        const n = summary && summary.count;
+        this.summaryEl.textContent = n
+          ? `${n} stream${n === 1 ? '' : 's'} · ${(summary && summary.total) || ''}`.replace(/ · $/, '')
+          : '';
+      }
+      if (!cards.length) {
+        this.body.innerHTML = '<div class="tlw-empty">No active streams</div>';
+        return;
+      }
+      const cell = (k, v) =>
+        `<div class="tlw-cell"><span class="tlw-k">${escHtml(k)}</span>` +
+        `<span class="tlw-v" title="${escAttr(v)}">${escHtml(v || '—')}</span></div>`;
+      this.body.innerHTML = cards.map((s) => {
+        const sub = [s.mediaIcon, s.footSub].filter(Boolean).map(escHtml).join(' ');
+        const avatar = s.avatarImg
+          ? `<span class="tlw-avatar" style="background:${escAttr(s.avatarColor || '#555')}"><img alt="" src="${escAttr(s.avatarImg)}"></span>`
+          : `<span class="tlw-avatar" style="background:${escAttr(s.avatarColor || '#555')}">${escHtml(s.avatarInitial || '?')}</span>`;
+        const meta = [
+          cell('Player', s.player), cell('Bandwidth', s.bandwidth),
+          cell('ETA', s.eta), cell('Time', s.progressText),
+        ].join('');
+        const pct = Math.max(0, Math.min(100, Number(s.progressPct) || 0));
+        return `<div class="tlw-row">
+          <div class="tlw-user">${avatar}<span class="tlw-uname" title="${escAttr(s.username)}">${escHtml(s.username)}</span></div>
+          <div class="tlw-main">
+            <div class="tlw-rtitle" title="${escAttr(s.footTitle)}"><span class="tlw-state" title="${escAttr(s.state || '')}">${escHtml(s.stateIcon || '▶')}</span>${escHtml(s.footTitle)}</div>
+            <div class="tlw-rsub">${sub}</div>
+          </div>
+          <div class="tlw-meta">${meta}</div>
+          <div class="tlw-prog" style="width:${pct}%"></div>
+        </div>`;
+      }).join('');
+    }
+
+    _showError(msg) {
+      if (!this.errorEl) return;
+      this.errorEl.style.display = 'block';
+      this.errorEl.textContent = msg && /apikey/i.test(msg) ? 'Unable to retrieve activity' : 'Tautulli unavailable';
+      this.el.classList.add('tlw-has-error');
+    }
+    _clearError() {
+      if (this.errorEl && this.errorEl.style.display !== 'none') {
+        this.errorEl.style.display = 'none';
+        this.el.classList.remove('tlw-has-error');
+      }
+    }
+  }
+
   global.TautulliApi = TautulliApi;
   global.TautulliWidget = TautulliWidget;
+  global.TautulliListWidget = TautulliListWidget;
   // Exposed for unit testing — internal helpers, not part of the public API.
   TautulliWidget._describeSession = describeSession;
   TautulliWidget._fmt = fmt;

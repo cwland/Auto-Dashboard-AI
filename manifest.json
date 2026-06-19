@@ -9,9 +9,6 @@
     "http://*/*",
     "https://*/*"
   ],
-  "chrome_url_overrides": {
-    "newtab": "newtab/newtab.html"
-  },
   "action": {
     "default_popup": "popup/popup.html",
     "default_title": "Auto Dashboard AI",

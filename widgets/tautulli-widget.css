@@ -19,10 +19,8 @@
 /* ── Header ─────────────────────────────────────────────────────────────── */
 .tautulli-widget .tw-header {
   position: relative;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: var(--tw-radius);
-  padding: 14px 18px;
+  padding: 2px 2px 8px;
+  border-bottom: 1px solid var(--border);
 }
 .tautulli-widget .tw-header-title {
   font-size: 13px;
@@ -41,6 +39,31 @@
   font-size: 13.5px;
   font-weight: 500;
   color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Rearrange-mode config controls (# streams + transition speed) */
+.tautulli-widget .tw-tools {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.tautulli-widget .tw-toolgrp { display: flex; align-items: center; gap: 4px; }
+.tautulli-widget .tw-tlabel {
+  font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-muted); margin-right: 2px;
+}
+.tautulli-widget .tw-step {
+  width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--bg-secondary); color: var(--text-secondary);
+  cursor: pointer; font: 700 12px/1 var(--font, sans-serif); padding: 0;
+}
+.tautulli-widget .tw-step:hover { color: var(--accent, #6366f1); border-color: var(--accent, #6366f1); }
+.tautulli-widget .tw-tcount {
+  font-size: 10px; color: var(--text-muted); min-width: 24px; text-align: center;
   font-variant-numeric: tabular-nums;
 }
 .tautulli-widget .tw-error {
@@ -91,14 +114,14 @@
   box-sizing: border-box;
   border-radius: 14px;
   overflow: hidden;
-  background: #1b1f26;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
-  color: #e9edf2;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.18);
+  color: var(--text-primary);
 }
 .tautulli-widget .tw-card.tw-paused { opacity: 0.92; }
 
-/* Blurred, darkened backdrop art behind the content */
+/* Blurred backdrop art behind the content */
 .tautulli-widget .tw-bg {
   position: absolute;
   inset: 0;
@@ -106,13 +129,18 @@
   background-position: center;
   filter: blur(18px) saturate(1.1);
   transform: scale(1.18);
-  opacity: 0.5;
+  opacity: 0.35;
 }
+/* Theme-aware scrim over the art so the text (uses --text-primary) stays
+   legible in both light and dark themes. */
 .tautulli-widget .tw-card::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(12, 14, 18, 0.55) 0%, rgba(12, 14, 18, 0.82) 45%, rgba(12, 14, 18, 0.92) 100%);
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--bg-secondary) 68%, transparent) 0%,
+    color-mix(in srgb, var(--bg-secondary) 88%, transparent) 45%,
+    color-mix(in srgb, var(--bg-secondary) 95%, transparent) 100%);
   pointer-events: none;
 }
 .tautulli-widget .tw-main,
@@ -133,7 +161,7 @@
   aspect-ratio: 2 / 3;
   border-radius: 8px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-primary);
 }
 .tautulli-widget .tw-poster img {
   width: 100%; height: 100%;
@@ -181,13 +209,13 @@
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: rgba(233, 237, 242, 0.5);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .tautulli-widget .tw-v {
   font-size: 12px;
   font-weight: 500;
-  color: #f3f6f9;
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -206,8 +234,8 @@
   flex: 0 0 auto;
   width: 13px; height: 13px;
   border-radius: 50%;
-  border: 1px solid rgba(233, 237, 242, 0.5);
-  color: rgba(233, 237, 242, 0.65);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
   font-size: 9px;
   font-style: italic;
   font-weight: 700;
@@ -221,13 +249,13 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.tautulli-widget .tw-eta { font-size: 10.5px; color: rgba(233, 237, 242, 0.6); }
-.tautulli-widget .tw-ptext { font-size: 11px; color: rgba(233, 237, 242, 0.85); margin-top: 1px; }
+.tautulli-widget .tw-eta { font-size: 10.5px; color: var(--text-muted); }
+.tautulli-widget .tw-ptext { font-size: 11px; color: var(--text-secondary); margin-top: 1px; }
 
 /* Orange progress bar (Plex/Tautulli amber) */
 .tautulli-widget .tw-progress {
   height: 4px;
-  background: rgba(255, 255, 255, 0.10);
+  background: var(--border);
 }
 .tautulli-widget .tw-progress-bar {
   height: 100%;
@@ -242,22 +270,22 @@
   align-items: center;
   gap: 9px;
   padding: 8px 11px;
-  background: rgba(8, 10, 13, 0.55);
+  background: color-mix(in srgb, var(--bg-primary) 60%, transparent);
 }
 .tautulli-widget .tw-state {
   flex: 0 0 auto;
   font-size: 12px;
-  color: rgba(233, 237, 242, 0.85);
+  color: var(--text-secondary);
   width: 16px; text-align: center;
 }
 .tautulli-widget .tw-foot-titles { min-width: 0; }
 .tautulli-widget .tw-foot-title {
-  font-size: 13px; font-weight: 700; color: #ffffff;
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tautulli-widget .tw-foot-sub {
   display: flex; align-items: center; gap: 5px;
-  font-size: 11px; font-weight: 600; color: rgba(233, 237, 242, 0.55);
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
   margin-top: 1px;
 }
 .tautulli-widget .tw-foot-mediaicon { font-size: 10px; }
@@ -273,7 +301,7 @@
   max-width: 84px;
 }
 .tautulli-widget .tw-foot-user {
-  font-size: 10px; font-weight: 600; color: rgba(233, 237, 242, 0.7);
+  font-size: 10px; font-weight: 600; color: var(--text-secondary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   max-width: 100%; text-align: center;
 }
@@ -299,3 +327,73 @@
 /* Compact host (narrow dashboard tiles): hide some chrome, shrink type */
 .tautulli-widget.tw-compact .tw-k { font-size: 9px; }
 .tautulli-widget.tw-compact .tw-v { font-size: 11px; }
+
+/* ── List variant (Plex-style: one row per stream) ──────────────────────── */
+.tautulli-list-widget {
+  display: flex; flex-direction: column; height: 100%; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.tautulli-list-widget .tlw-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 2px 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
+}
+.tautulli-list-widget .tlw-header .wg-icon { width: 18px; height: 18px; }
+.tautulli-list-widget .tlw-title {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.tautulli-list-widget .tlw-summary {
+  margin-left: auto; font-size: 11.5px; font-weight: 500;
+  color: var(--text-secondary); font-variant-numeric: tabular-nums;
+}
+.tautulli-list-widget .tlw-error { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--danger, #ef4444); }
+.tautulli-list-widget .tlw-body { flex: 1; min-height: 0; overflow: auto; }
+.tautulli-list-widget .tlw-empty {
+  color: var(--text-muted); font-size: 13px; font-weight: 600; text-align: center; padding: 22px 4px;
+}
+
+.tautulli-list-widget .tlw-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1.2fr) minmax(0, 1.8fr);
+  align-items: center; gap: 12px;
+  padding: 9px 6px 11px;
+  border-bottom: 1px solid var(--border);
+}
+.tautulli-list-widget .tlw-row:last-child { border-bottom: none; }
+.tautulli-list-widget .tlw-state {
+  font-size: 11px; color: var(--text-secondary);
+  margin-right: 6px; flex: 0 0 auto;
+}
+.tautulli-list-widget .tlw-main { min-width: 0; }
+.tautulli-list-widget .tlw-rtitle {
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tautulli-list-widget .tlw-rsub {
+  display: flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--text-muted); margin-top: 1px;
+}
+.tautulli-list-widget .tlw-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; min-width: 0; }
+.tautulli-list-widget .tlw-cell { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.tautulli-list-widget .tlw-k {
+  font-size: 8.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);
+}
+.tautulli-list-widget .tlw-v {
+  font-size: 11.5px; font-weight: 500; color: var(--text-secondary);
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.tautulli-list-widget .tlw-user { display: flex; align-items: center; justify-content: flex-start; gap: 7px; min-width: 0; }
+.tautulli-list-widget .tlw-avatar {
+  flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 10px; font-weight: 700; overflow: hidden;
+}
+.tautulli-list-widget .tlw-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tautulli-list-widget .tlw-uname {
+  font-size: 11px; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.tautulli-list-widget .tlw-prog {
+  position: absolute; left: 0; bottom: 0; height: 2px; background: #e5a00d; border-radius: 0 2px 2px 0;
+}

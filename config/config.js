@@ -729,6 +729,9 @@ function applySettingsToUI() {
     refreshEl.value = String(closest);
   }
 
+  // Weather preview button reflects whether we have a validated key + location
+  updateWeatherPreviewButton();
+
   // Tautulli toggle
   const tautulliToggle = document.getElementById('tautulli-toggle');
   if (tautulliToggle) {
@@ -1176,11 +1179,23 @@ function setupSettingsListeners() {
       state.weatherApiKeyValidated = false;
       document.getElementById('weather-validation-result').style.display = 'none';
       updateSaveBar();
+      updateWeatherPreviewButton();
     });
   }
 
   // Weather validate button
   document.getElementById('weather-validate-btn')?.addEventListener('click', validateWeatherKey);
+
+  // Weather live preview (all three widgets)
+  document.getElementById('weather-preview-btn')?.addEventListener('click', openWeatherPreview);
+  document.getElementById('weather-preview-close')?.addEventListener('click', closeWeatherPreview);
+  document.getElementById('weather-preview-done')?.addEventListener('click', closeWeatherPreview);
+  const weatherPreviewModal = document.getElementById('weather-preview-modal');
+  if (weatherPreviewModal) {
+    weatherPreviewModal.addEventListener('click', (e) => {
+      if (e.target === weatherPreviewModal) closeWeatherPreview();
+    });
+  }
 
   // Weather location
   const weatherLocEl = document.getElementById('weather-location');
@@ -1188,6 +1203,7 @@ function setupSettingsListeners() {
     weatherLocEl.addEventListener('input', () => {
       state.currentSettings.weatherLocation = weatherLocEl.value.trim();
       updateSaveBar();
+      updateWeatherPreviewButton();
     });
   }
 
@@ -2404,6 +2420,7 @@ async function validateWeatherKey() {
     btn.disabled = false;
     btn.innerHTML = 'Validate';
     updateSaveBar();
+    updateWeatherPreviewButton();
   }
 }
 
@@ -2413,6 +2430,71 @@ function showWeatherValidationResult(type, msg) {
   el.style.display = 'block';
   el.className = `banner banner-${type === 'success' ? 'success' : 'danger'}`;
   el.textContent = msg;
+}
+
+function updateWeatherPreviewButton() {
+  const btn = document.getElementById('weather-preview-btn');
+  const hint = document.getElementById('weather-preview-hint');
+  if (!btn) return;
+  const ready = state.weatherApiKeyValidated
+    && !!state.currentSettings.weatherApiKey
+    && !!state.currentSettings.weatherLocation;
+  btn.disabled = !ready;
+  if (hint) {
+    hint.textContent = ready
+      ? 'Opens a live preview of all three weather widgets using your data.'
+      : 'Validate your API key and set a location to enable a live preview.';
+  }
+}
+
+function openWeatherPreview() {
+  if (!state.weatherApiKeyValidated) return;
+  const modal = document.getElementById('weather-preview-modal');
+  const host  = document.getElementById('weather-preview-host');
+  if (!modal || !host || typeof WeatherCurrentWidget === 'undefined') return;
+
+  closeWeatherPreviewWidgets();
+  host.innerHTML = '';
+
+  const cfg = {
+    apiKey: state.currentSettings.weatherApiKey,
+    location: state.currentSettings.weatherLocation,
+    units: state.currentSettings.weatherUnits || 'imperial',
+  };
+  state.weatherPreviewWidgets = [];
+
+  const mk = (label, factory) => {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '18px';
+    const cap = document.createElement('div');
+    cap.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:8px;';
+    cap.textContent = label;
+    const hostEl = document.createElement('div');
+    wrap.append(cap, hostEl);
+    host.appendChild(wrap);
+    const w = factory(hostEl);
+    w.start();
+    state.weatherPreviewWidgets.push(w);
+  };
+
+  mk('Current Weather', (el) => new WeatherCurrentWidget(el, cfg));
+  mk('Hourly Forecast', (el) => new WeatherHourlyWidget(el, Object.assign({ hours: 5 }, cfg)));
+  mk('5-Day Forecast',  (el) => new WeatherForecastWidget(el, Object.assign({ days: 5 }, cfg)));
+
+  modal.classList.add('visible');
+}
+
+function closeWeatherPreviewWidgets() {
+  if (state.weatherPreviewWidgets) {
+    state.weatherPreviewWidgets.forEach((w) => { try { w.destroy(); } catch (_) {} });
+    state.weatherPreviewWidgets = null;
+  }
+}
+
+function closeWeatherPreview() {
+  const modal = document.getElementById('weather-preview-modal');
+  if (modal) modal.classList.remove('visible');
+  closeWeatherPreviewWidgets();
 }
 
 // ─── Tautulli ─────────────────────────────────────────────────────────────────
@@ -2493,31 +2575,58 @@ function openTautulliPreview() {
   const host  = document.getElementById('tautulli-preview-host');
   if (!modal || !host || typeof TautulliWidget === 'undefined') return;
 
-  // Tear down any prior instance, then mount a fresh one.
-  if (state.tautulliPreviewWidget) {
-    state.tautulliPreviewWidget.destroy();
-    state.tautulliPreviewWidget = null;
-  }
+  // Tear down any prior instances, then mount fresh ones — both Tautulli
+  // widgets (the activity carousel and the Plex-style streams list).
+  closeTautulliPreviewWidgets();
   host.innerHTML = '';
 
-  state.tautulliPreviewWidget = new TautulliWidget(host, {
-    baseUrl: state.currentSettings.tautulliUrl,
-    apiKey: state.currentSettings.tautulliApiKey,
+  const base = state.currentSettings.tautulliUrl;
+  const apiKey = state.currentSettings.tautulliApiKey;
+  const pollMs = pollMsFor('tautulli');
+  state.tautulliPreviewWidgets = [];
+
+  const mk = (label, factory) => {
+    const wrap = document.createElement('div');
+    wrap.style.marginBottom = '18px';
+    const cap = document.createElement('div');
+    cap.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:8px;';
+    cap.textContent = label;
+    const hostEl = document.createElement('div');
+    wrap.append(cap, hostEl);
+    host.appendChild(wrap);
+    const w = factory(hostEl);
+    w.start();
+    state.tautulliPreviewWidgets.push(w);
+  };
+
+  mk('Activity (carousel)', (el) => new TautulliWidget(el, {
+    baseUrl: base, apiKey,
     maxVisible: parseInt(state.currentSettings.tautulliMaxSessions, 10) || 3,
     dwellMs: parseInt(state.currentSettings.tautulliCarouselDwellMs, 10) || 4000,
-    pollMs: pollMsFor('tautulli'),
-  });
-  state.tautulliPreviewWidget.start();
+    pollMs,
+  }));
+  if (typeof TautulliListWidget !== 'undefined') {
+    mk('Streams (list)', (el) => new TautulliListWidget(el, { baseUrl: base, apiKey, pollMs }));
+  }
+
   modal.classList.add('visible');
+}
+
+function closeTautulliPreviewWidgets() {
+  if (state.tautulliPreviewWidgets) {
+    state.tautulliPreviewWidgets.forEach((w) => { try { w.destroy(); } catch (_) {} });
+    state.tautulliPreviewWidgets = null;
+  }
+  if (state.tautulliPreviewWidget) { // legacy single-instance cleanup
+    try { state.tautulliPreviewWidget.destroy(); } catch (_) {}
+    state.tautulliPreviewWidget = null;
+  }
 }
 
 function closeTautulliPreview() {
   const modal = document.getElementById('tautulli-preview-modal');
   if (modal) modal.classList.remove('visible');
-  if (state.tautulliPreviewWidget) {
-    state.tautulliPreviewWidget.destroy();
-    state.tautulliPreviewWidget = null;
-  }
+  closeTautulliPreviewWidgets();
 }
 
 // ─── Uptime Kuma ────────────────────────────────────────────────────────────
@@ -5345,7 +5454,7 @@ const INTEGRATIONS = [
   { id:'seerr',          name:'Seerr',                 cat:'Media Requests',   icon:'seerr.svg',                 w:1 },
   { id:'sonarr',         name:'Sonarr',                cat:'Media Management', icon:'sonarr.svg',                w:1 },
   { id:'speedtest',      name:'Speedtest Tracker',     cat:'Network',          icon:'speedtest-tracker.png',     w:1 },
-  { id:'tautulli',       name:'Tautulli',              cat:'Media Server',     icon:'tautulli.svg',              w:1, validatedKey:'tautulliApiKeyValidated' },
+  { id:'tautulli',       name:'Tautulli',              cat:'Media Server',     icon:'tautulli.svg',              w:2, validatedKey:'tautulliApiKeyValidated' },
   { id:'tracearr',       name:'Tracearr',              cat:'Media Monitoring', icon:'tracearr.svg',              w:1 },
   { id:'transmission',   name:'Transmission',          cat:'Downloads',        icon:'transmission.svg',          w:1 },
   { id:'truenas',        name:'TrueNAS',               cat:'System Health',    icon:'truenas.svg',               w:1 },
@@ -5353,7 +5462,7 @@ const INTEGRATIONS = [
   { id:'unifi',          name:'UniFi Controller',      cat:'Network',          icon:'unifi.png',                 w:1 },
   { id:'unraid',         name:'Unraid',                cat:'System Health',    icon:'unraid.svg',                w:1 },
   { id:'uptimekuma',     name:'Uptime Kuma',           cat:'Monitoring',       icon:'uptime-kuma.svg',           w:1, enabledKey:'uptimeKumaEnabled', validatedKey:'uptimeKumaValidated' },
-  { id:'weather',        name:'Weather',               cat:'Utilities',        icon:INT_SUN_ICON,                w:1, validatedKey:'weatherApiKeyValidated' },
+  { id:'weather',        name:'Weather',               cat:'Utilities',        icon:INT_SUN_ICON,                w:3, validatedKey:'weatherApiKeyValidated' },
 ].map((e) => ({
   ...e,
   configId:     `${e.id}-config`,
@@ -5362,10 +5471,10 @@ const INTEGRATIONS = [
   validatedKey: e.validatedKey || `${e.id}Validated`,
 }));
 
-// Integrations that have an offline single-widget sample. Each is rendered by
-// widgets/sample.html?w=<id>, which mounts just that integration's widget with
-// fake data. Weather has no widget, so it's excluded.
-const SAMPLE_IDS = new Set(INTEGRATIONS.map((e) => e.id).filter((id) => id !== 'weather'));
+// Integrations that have an offline sample. Each is rendered by
+// widgets/sample.html?w=<id>, which mounts that integration's widget(s) with
+// fake data. Weather's sample shows all three weather widgets at once.
+const SAMPLE_IDS = new Set(INTEGRATIONS.map((e) => e.id));
 
 const intCatalog = { cat: 'All', query: '', openId: null };
 

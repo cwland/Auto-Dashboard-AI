@@ -93,34 +93,28 @@ const dashEditBtn      = document.getElementById('dash-edit-btn');
 async function init() {
   await loadData();    // loads settings first so clock renders correctly
 
-  // New-tab override is off by default: a bare new tab (no explicit ?dash=)
-  // shows a simple launcher instead of taking over the page. Explicit opens
-  // (?dash=…, e.g. from the popup or browser-start) always show the dashboard.
+  // The launcher placeholder only applies to the new-tab OVERRIDE page
+  // (newtab.html). dashboard.html is an explicit open and always shows the
+  // dashboard. On the override page, a bare new tab (no ?dash=) shows the
+  // launcher unless "Show dashboard on new tab" is enabled.
+  const isOverridePage = /\/newtab\.html$/.test(window.location.pathname);
   const hasDashParam = !!new URLSearchParams(window.location.search).get('dash');
-  if (!hasDashParam && settings.newTabOverride !== true) { showNewTabDisabled(); return; }
+  if (isOverridePage && !hasDashParam && settings.newTabOverride !== true) {
+    showNewTabDisabled(); return;
+  }
 
   startClock();
 
-  // Search bar can be turned off in settings (default on).
-  const searchWrap = document.querySelector('.search-wrapper');
-  if (searchWrap) searchWrap.style.display = settings.searchEnabled === false ? 'none' : '';
-
   if (state.dashboards.length === 0) { showEmptyState(); return; }
 
-  populateSwitcher();
+  populateSwitcher();   // builds the tab/search bar (incl. search visibility)
   renderDashboard(state.activeDashboardId);
   setupSearch();
   setupRearrangeControls();
   setupEditModal();
   setupDashEditModal();
-  loadWeather();       // async, non-blocking — initial fetch / cache hit
-
-  // Periodic refresh: re-check at the end of each interval.
-  // The lock in loadWeather ensures only one tab actually fetches.
-  if (settings.weatherEnabled && settings.weatherApiKey && settings.weatherLocation) {
-    const refreshMs = Math.max(10, settings.weatherRefreshMins || 60) * 60 * 1000;
-    setInterval(loadWeather, refreshMs);
-  }
+  // Weather is now provided by the three add-to-board weather widgets (no top
+  // panel), so there's no global weather fetch here anymore.
 }
 
 async function loadData() {
@@ -137,10 +131,16 @@ async function loadData() {
   if (paramDash) {
     state.activeDashboardId = paramDashId;
   } else {
-    // Otherwise pick the default (if visible) or the first visible dashboard.
+    // Otherwise pick the default (if visible) or the first visible dashboard…
     const visible = state.dashboards.filter((d) => d.active !== false);
     const def = visible.find((d) => d.id === state.defaultDashboardId);
-    state.activeDashboardId = (def && def.id) || visible[0]?.id || state.dashboards[0]?.id || null;
+    let chosen = (def && def.id) || visible[0]?.id || state.dashboards[0]?.id || null;
+    // …but keep the dashboard the user last selected across a page refresh.
+    try {
+      const last = sessionStorage.getItem('adai_active');
+      if (last && visible.some((d) => d.id === last)) chosen = last;
+    } catch (_) { /* sessionStorage unavailable */ }
+    state.activeDashboardId = chosen;
   }
 }
 
@@ -224,6 +224,7 @@ function switchDashboard(id) {
   if (state.rearrangeMode) return;
   if (id === state.activeDashboardId) return;
   state.activeDashboardId = id;
+  try { sessionStorage.setItem('adai_active', id); } catch (_) { /* ignore */ }
   renderDashboard(id);
   renderSwitcher();
 }
@@ -233,25 +234,36 @@ function switchDashboard(id) {
 function renderSwitcher() {
   const style = (settings.dashboardSwitcher) || 'dropdown';
   const list = visibleDashboards();
+  const searchOn = settings.searchEnabled !== false;
+  const showTabs = style === 'tabs' && list.length > 1;
+  const showDropdown = style === 'dropdown' && list.length > 1;
 
   // Hide all switcher UIs first.
   if (switcherWrapper) switcherWrapper.style.display = 'none';
-  if (dashTabs) dashTabs.style.display = 'none';
   if (dashSidebar) dashSidebar.style.display = 'none';
 
-  if (list.length <= 1) return;   // nothing to switch between
+  // The top tab/search bar shows when search is on OR there are tabs to show.
+  // Search sits centered in it; tabs are left-justified and grow right.
+  const listEl = document.getElementById('dash-tabs-list');
+  if (listEl) {
+    listEl.innerHTML = '';
+    if (showTabs) {
+      list.forEach((d) => {
+        const t = document.createElement('button');
+        t.className = 'dash-tab' + (d.id === state.activeDashboardId ? ' active' : '');
+        t.textContent = d.name;
+        t.addEventListener('click', () => switchDashboard(d.id));
+        listEl.appendChild(t);
+      });
+    }
+  }
+  const sw = document.getElementById('search-wrapper');
+  if (sw) sw.style.display = searchOn ? '' : 'none';
+  if (dashTabs) dashTabs.style.display = (searchOn || showTabs || showDropdown) ? 'flex' : 'none';
 
-  if (style === 'tabs' && dashTabs) {
-    dashTabs.style.display = 'flex';
-    dashTabs.innerHTML = '';
-    list.forEach((d) => {
-      const t = document.createElement('button');
-      t.className = 'dash-tab' + (d.id === state.activeDashboardId ? ' active' : '');
-      t.textContent = d.name;
-      t.addEventListener('click', () => switchDashboard(d.id));
-      dashTabs.appendChild(t);
-    });
-  } else if (style === 'sidebar' && dashSidebar) {
+  if (list.length <= 1) return;   // dropdown/sidebar only matter with >1
+
+  if (style === 'sidebar' && dashSidebar) {
     dashSidebar.style.display = 'flex';
     dashSidebar.innerHTML = '';
     list.forEach((d) => {
@@ -338,6 +350,9 @@ function renderDashboard(dashId) {
 // locked here (staticGrid); drag, resize and collision land in later steps.
 
 let gridInstance = null;
+let mountedWidgets = [];   // live integration widget instances on the board
+let widgetObserver = null; // resizes widget groupings to fit their content
+let gridInteracting = false; // true while the user is dragging/resizing an item
 const GRID_COLS = 24;   // denser grid → finer snapping + sections can go small
 const GRID_CELL = 32;   // px per grid row
 const GRID_MIN_W = 2;   // minimum section width (cols)
@@ -361,9 +376,9 @@ function injectGridColumnCss(cols) {
 // fits more/fewer columns as the section is resized (icons no longer scale).
 //   cellPx = min column width for one icon, rowPx = height of one icon row.
 const ICON_SIZES = {
-  small:  { cellPx: 56,  rowPx: 56 },
-  medium: { cellPx: 100, rowPx: 96 },
-  large:  { cellPx: 140, rowPx: 124 },
+  small:  { cellPx: 56,  rowPx: 56,  colMin: 48,  gap: 8 },
+  medium: { cellPx: 100, rowPx: 96,  colMin: 92,  gap: 12 },
+  large:  { cellPx: 140, rowPx: 124, colMin: 124, gap: 14 },
 };
 const HEADER_PX = 46;
 const DEFAULT_ICON_SIZE = 'medium';
@@ -381,7 +396,7 @@ function applyIconSize(el, size) {
 }
 
 function applyAllIconSizes() {
-  document.querySelectorAll('.grid-stack > .grid-stack-item').forEach((el) => {
+  document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach((el) => {
     applyIconSize(el, storedIconSize(el.dataset.folder));
   });
 }
@@ -435,7 +450,53 @@ function fitSectionToContent(el) {
 }
 
 function fitAllSectionsToContent() {
-  document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(fitSectionToContent);
+  document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach(fitSectionToContent);
+}
+
+// Grow/shrink a widget grouping so the whole widget is visible (widgets render
+// async, so this runs after mount + whenever the widget's content resizes).
+function fitWidgetToContent(el) {
+  if (!gridInstance || !el) return;
+  if (gridInteracting) return;        // don't fight an in-progress drag/resize
+  if (el.dataset.manualSize) return;  // respect a size the user set by hand
+  const node = el.gridstackNode;
+  const body = el.querySelector('.widget-body');
+  if (!node || !body) return;
+  // Natural widget height = its rendered root content (not the body box).
+  let contentH = 0;
+  for (const child of body.children) contentH = Math.max(contentH, child.scrollHeight, child.offsetHeight);
+  if (!contentH) contentH = body.scrollHeight;
+  if (!contentH) return;
+  const HEADER = 16, PAD = 16;   // no section title — just content padding + grip room
+  const needH = Math.max(GRID_MIN_H, Math.ceil((HEADER + contentH + PAD) / GRID_CELL));
+  if (needH === node.h) return;
+  const wasStatic = !state.rearrangeMode;
+  if (wasStatic) gridInstance.setStatic(false);
+  gridInstance.update(el, { h: needH });
+  if (wasStatic) gridInstance.setStatic(true);
+  syncGridAttrs();
+}
+
+// After the grid is built, auto-size every widget grouping to its content and
+// keep watching for late/async content changes.
+function setupWidgetAutoFit() {
+  if (widgetObserver) { widgetObserver.disconnect(); widgetObserver = null; }
+  const items = document.querySelectorAll('.grid-stack > .grid-stack-item[data-widget]');
+  if (!items.length) return;
+  widgetObserver = new ResizeObserver((entries) => {
+    entries.forEach((e) => {
+      const item = e.target.closest('.grid-stack-item');
+      if (item) fitWidgetToContent(item);
+    });
+  });
+  items.forEach((item) => {
+    const root = item.querySelector('.widget-body')?.firstElementChild;
+    if (root) widgetObserver.observe(root);
+    // Catch the async data render with a few delayed passes.
+    requestAnimationFrame(() => fitWidgetToContent(item));
+    setTimeout(() => fitWidgetToContent(item), 500);
+    setTimeout(() => fitWidgetToContent(item), 1400);
+  });
 }
 
 // Minimum cells so a section can show ALL its icons at the chosen size, given
@@ -464,6 +525,91 @@ function sectionMinCells(el) {
   }
   const minH = Math.max(GRID_MIN_H, Math.ceil((HEADER_PX + contentH) / GRID_CELL));
   return { minW, minH };
+}
+
+// ─── Rearrange-mode auto-layout tools ─────────────────────────────────────────
+
+let layoutUndo = null;   // snapshot of live geometry before the last auto action
+
+function captureLiveLayout() {
+  const map = {};
+  if (gridInstance && gridInstance.engine) {
+    gridInstance.engine.nodes.forEach((n) => {
+      const name = n.el && n.el.dataset.folder;
+      if (name) map[name] = { x: n.x, y: n.y, w: n.w, h: n.h };
+    });
+  }
+  return map;
+}
+
+function pushLayoutUndo() {
+  layoutUndo = captureLiveLayout();
+  const btn = document.getElementById('rt-undo');
+  if (btn) btn.disabled = false;
+}
+
+function undoAutoLayout() {
+  if (!layoutUndo || !gridInstance) return;
+  gridInstance.batchUpdate();
+  Object.entries(layoutUndo).forEach(([name, p]) => {
+    const el = document.querySelector(`.grid-stack > .grid-stack-item[data-folder="${CSS.escape(name)}"]`);
+    if (el) gridInstance.update(el, { x: p.x, y: p.y, w: p.w, h: p.h });
+  });
+  gridInstance.commit();
+  syncGridAttrs();
+  layoutUndo = null;
+  const btn = document.getElementById('rt-undo');
+  if (btn) btn.disabled = true;
+  markRearrangeChanged();
+}
+
+// Option 1: shrink each group tightly around its icons (remove internal
+// whitespace) without reflowing items — keeps the same icons-per-row.
+function tightenSection(el) {
+  if (!gridInstance) return;
+  const node = el.gridstackNode;
+  const grid = el.querySelector('.bookmark-grid');
+  const gridStackEl = el.closest('.grid-stack');
+  const cards = grid ? [...grid.querySelectorAll('.bookmark-card')] : [];
+  if (!node || !grid || !gridStackEl || !cards.length) return;
+  const cellW = gridStackEl.clientWidth / GRID_COLS || 1;
+  const size = storedIconSize(el.dataset.folder);
+  const spec = ICON_SIZES[size] || ICON_SIZES.medium;
+
+  // Icons currently per row = cards sharing the first card's top edge.
+  const firstTop = cards[0].getBoundingClientRect().top;
+  const perRow = Math.max(1, cards.filter((c) => Math.abs(c.getBoundingClientRect().top - firstTop) < 4).length);
+  const rows = Math.ceil(cards.length / perRow);
+
+  // Tight pixel size for that exact grid of icons.
+  const contentW = perRow * spec.colMin + (perRow - 1) * spec.gap;
+  const contentH = rows * spec.rowPx;
+  const needW = Math.max(sectionMinW(el.dataset.folder, size, cellW),
+                         Math.ceil((contentW + 26 + 12) / cellW)); // content pad + grid pad
+  const needH = Math.max(GRID_MIN_H, Math.ceil((HEADER_PX + contentH + 8) / GRID_CELL));
+
+  gridInstance.update(el, { w: Math.min(GRID_COLS, needW), h: needH });
+}
+
+function autoResizeGroupings() {
+  if (!gridInstance) return;
+  pushLayoutUndo();
+  gridInstance.batchUpdate();
+  document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(tightenSection);
+  gridInstance.commit();
+  syncGridAttrs();
+  markRearrangeChanged();
+  showToast('Groups auto-resized ✓');
+}
+
+// Option 2: pack the groups together, removing big gaps (no overlaps, order kept).
+function snapGroupingsTogether() {
+  if (!gridInstance) return;
+  pushLayoutUndo();
+  try { gridInstance.compact('compact', true); } catch (_) { try { gridInstance.compact(); } catch (_) {} }
+  syncGridAttrs();
+  markRearrangeChanged();
+  showToast('Groups snapped together ✓');
 }
 
 // Push the live min-width/height onto a node so Gridstack resists shrinking a
@@ -497,7 +643,7 @@ function enforceSectionMin(el) {
 }
 
 function enforceAllSectionMins() {
-  document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(enforceSectionMin);
+  document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach(enforceSectionMin);
 }
 
 // Edit-mode handler: change a section's icon size, re-fit, and flag unsaved.
@@ -596,8 +742,25 @@ function ensureDashLayout(dash, folderNames, groups) {
       cx += w; rowH = Math.max(rowH, h);
     }
   });
-  // Drop layout entries for sections that no longer exist.
-  Object.keys(layout).forEach((k) => { if (!folderNames.includes(k)) delete layout[k]; });
+
+  // Widget groupings get layout entries keyed "@w:<uid>" (auto-placed if new).
+  const widgetKeys = new Set();
+  (dash.widgets || []).forEach((wdef) => {
+    const key = '@w:' + wdef.uid;
+    widgetKeys.add(key);
+    if (!layout[key] || !Number.isFinite(layout[key].w)) {
+      const w = 8, h = 8;   // default widget size (auto-fit adjusts height after render)
+      if (cx + w > GRID_COLS) { cx = 0; cy += rowH; rowH = 0; }
+      layout[key] = { x: cx, y: cy, w, h };
+      cx += w; rowH = Math.max(rowH, h);
+    }
+  });
+
+  // Drop layout entries for sections/widgets that no longer exist.
+  Object.keys(layout).forEach((k) => {
+    if (k.startsWith('@w:')) { if (!widgetKeys.has(k)) delete layout[k]; }
+    else if (!folderNames.includes(k)) delete layout[k];
+  });
   dash.layout = layout;
   return layout;
 }
@@ -606,8 +769,12 @@ function renderDashboardGrid(dash, folderNames, groups) {
   injectGridColumnCss(GRID_COLS);
   const layout = ensureDashLayout(dash, folderNames, groups);
 
-  // Tear down any previous grid instance before rebuilding.
+  // Tear down any previous grid instance + live widgets before rebuilding
+  // (stops their polling/timers).
   if (gridInstance) { try { gridInstance.destroy(false); } catch (_) {} gridInstance = null; }
+  mountedWidgets.forEach((w) => { try { (w.destroy || w.stop || function () {}).call(w); } catch (_) {} });
+  mountedWidgets = [];
+  if (widgetObserver) { widgetObserver.disconnect(); widgetObserver = null; }
 
   const gridEl = document.createElement('div');
   gridEl.className = 'grid-stack';
@@ -637,11 +804,34 @@ function renderDashboardGrid(dash, folderNames, groups) {
 
     const content = document.createElement('div');
     content.className = 'grid-stack-item-content';
+    content.appendChild(buildIconSizeSelector(name, iconSize)); // S/M/L pill straddling the box top
     const section = buildFolderSection(name, groups[name]);
     section.dataset.iconsize = iconSize;
     content.appendChild(section);
     item.appendChild(content);
-    item.appendChild(buildIconSizeSelector(name, iconSize)); // floating S/M/L toolbar above the section
+    gridEl.appendChild(item);
+  });
+
+  // Widget groupings (no S/M/L pill; integration widget or a disabled notice).
+  (dash.widgets || []).forEach((wdef) => {
+    const pos = layout['@w:' + wdef.uid] || {};
+    const item = document.createElement('div');
+    item.className = 'grid-stack-item';
+    item.dataset.widget = wdef.uid;
+    // Restore the "hand-sized" flag so auto-fit leaves the saved size alone.
+    if (pos.manual) item.dataset.manualSize = '1';
+    if (Number.isFinite(pos.x)) item.setAttribute('gs-x', pos.x);
+    if (Number.isFinite(pos.y)) item.setAttribute('gs-y', pos.y);
+    item.setAttribute('gs-w', Math.min(GRID_COLS, Number.isFinite(pos.w) ? pos.w : 8));
+    if (Number.isFinite(pos.h)) item.setAttribute('gs-h', pos.h);
+    item.setAttribute('gs-min-w', 3);
+    item.setAttribute('gs-min-h', 3);
+    item.setAttribute('gs-max-w', GRID_COLS);
+
+    const content = document.createElement('div');
+    content.className = 'grid-stack-item-content';
+    content.appendChild(buildWidgetSection(wdef));
+    item.appendChild(content);
     gridEl.appendChild(item);
   });
 
@@ -652,8 +842,8 @@ function renderDashboardGrid(dash, folderNames, groups) {
     float: true,
     staticGrid: true,   // locked until Edit Mode unlocks it
     animate: true,
-    handle: '.folder-header',         // sections are dragged by their header
-    draggable: { handle: '.folder-header' },
+    handle: '.folder-header, .widget-drag',         // sections by header, widgets by grip
+    draggable: { handle: '.folder-header, .widget-drag' },
     resizable: { handles: 'e, se, s' }, // right, corner, and bottom (height-only) handles
     alwaysShowResizeHandle: true,     // visible whenever resize is enabled (Edit Mode)
     // Keep the fixed multi-column grid at all window sizes. Without this,
@@ -671,12 +861,17 @@ function renderDashboardGrid(dash, folderNames, groups) {
   // Keep the live min-size in sync so icons can never be squeezed out: as the
   // section narrows, its required height rises and Gridstack won't let it shrink
   // past the point where every icon fits.
-  gridInstance.on('resizestart', (e, el) => setSectionLiveMin(el));
+  gridInstance.on('resizestart', (e, el) => { gridInteracting = true; setSectionLiveMin(el); });
   gridInstance.on('resize', (e, el) => setSectionLiveMin(el));
   gridInstance.on('resizestop', (e, el) => {
+    gridInteracting = false;
+    // A manually-resized widget keeps its size (auto-fit no longer touches it).
+    if (el.dataset.widget) { el.dataset.manualSize = '1'; syncGridAttrs(); return; }
     enforceSectionMin(el);
     requestAnimationFrame(() => { fitSectionToContent(el); syncGridAttrs(); });
   });
+  gridInstance.on('dragstart', () => { gridInteracting = true; });
+  gridInstance.on('dragstop', () => { gridInteracting = false; });
 
   applyAllIconSizes();       // reflect each section's stored icon size
   enforceAllSectionMins();   // estimate-based floor (fits icons + name)
@@ -690,6 +885,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
     syncGridAttrs();
     if (wasStatic) gridInstance.setStatic(true);
   });
+  setupWidgetAutoFit();   // size widget groupings to show the whole widget
 
   // If we re-render while in Edit Mode (rare), keep the grid unlocked.
   if (state.rearrangeMode) {
@@ -748,6 +944,10 @@ function buildBookmarkCard(bm) {
   card.addEventListener('click', (e) => {
     if (state.rearrangeMode) e.preventDefault();
   });
+
+  // Bottom-left hover info: short description + URL (skip during rearrange).
+  card.addEventListener('mouseenter', () => { if (!state.rearrangeMode) showHoverInfo(bm); });
+  card.addEventListener('mouseleave', hideHoverInfo);
 
   // ── Drag handle pip (shown only in rearrange mode via CSS) ──
   const dragHandle = document.createElement('span');
@@ -883,6 +1083,263 @@ function setupRearrangeControls() {
   });
   rearrangeSaveBtn.addEventListener('click', saveRearrangement);
   rearrangeCancel.addEventListener('click', () => exitRearrangeMode(true));
+
+  // Floating auto-layout tools (shown only in rearrange mode via CSS).
+  document.getElementById('rt-add-widget')?.addEventListener('click', openWidgetModal);
+  document.getElementById('rt-autoresize')?.addEventListener('click', autoResizeGroupings);
+  document.getElementById('rt-snap')?.addEventListener('click', snapGroupingsTogether);
+  document.getElementById('rt-undo')?.addEventListener('click', undoAutoLayout);
+  setupRearrangeToolsMenu();
+  setupWidgetModal();
+}
+
+// ─── Add-widgets picker ───────────────────────────────────────────────────────
+// Every integration that has a widget. enabledKey matches its Settings toggle.
+const WIDGET_CATALOG = [
+  ['adguard', 'AdGuard Home', 'adguard-home.svg'],
+  ['audiobookshelf', 'Audiobookshelf', 'audiobookshelf.svg'],
+  ['beszel', 'Beszel', 'beszel.svg'],
+  ['dashdot', 'Dash.', 'dashdot.png'],
+  ['glances', 'Glances', 'glances.svg'],
+  ['homeassistant', 'Home Assistant', 'home-assistant.svg'],
+  ['ical', 'iCal', 'ical.svg'],
+  ['jellyfin', 'Jellyfin', 'jellyfin.svg'],
+  ['emby', 'Emby', 'emby.svg'],
+  ['navidrome', 'Navidrome', 'navidrome.svg'],
+  ['nextcloud', 'Nextcloud', 'nextcloud.svg'],
+  ['ntfy', 'ntfy', 'ntfy.svg'],
+  ['openmediavault', 'OpenMediaVault', 'openmediavault.svg'],
+  ['opnsense', 'OPNsense', 'opnsense.svg'],
+  ['pihole', 'Pi-hole', 'pi-hole.svg'],
+  ['plex', 'Plex', 'plex.svg'],
+  ['proxmox', 'Proxmox VE', 'proxmox.svg'],
+  ['pbs', 'Proxmox Backup Server', 'proxmox-backup-server.svg'],
+  ['prowlarr', 'Prowlarr', 'prowlarr.svg'],
+  ['peanut', 'PeaNUT', 'peanut.svg'],
+  ['qbittorrent', 'qBittorrent', 'qbittorrent.svg'],
+  ['radarr', 'Radarr', 'radarr.svg'],
+  ['sabnzbd', 'SABnzbd', 'sabnzbd.svg'],
+  ['seerr', 'Seerr', 'seerr.svg'],
+  ['sonarr', 'Sonarr', 'sonarr.svg'],
+  ['speedtest', 'Speedtest Tracker', 'speedtest-tracker.png'],
+  ['tautulli', 'Tautulli', 'tautulli.svg'],
+  ['tracearr', 'Tracearr', 'tracearr.svg'],
+  ['transmission', 'Transmission', 'transmission.svg'],
+  ['truenas', 'TrueNAS', 'truenas.svg'],
+  ['umami', 'Umami', 'umami.svg'],
+  ['unifi', 'UniFi Controller', 'unifi.png'],
+  ['unraid', 'Unraid', 'unraid.svg'],
+  ['uptimekuma', 'Uptime Kuma', 'uptime-kuma.svg', 'uptimeKumaEnabled'],
+].map(([intId, name, icon, enabledKey]) => ({
+  wid: intId, intId, name, icon, enabledKey: enabledKey || (intId + 'Enabled'),
+}));
+WIDGET_CATALOG.push(
+  { wid: 'tautulli-list', intId: 'tautulli-list', name: 'Tautulli Streams', icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+  { wid: 'weather-current',  intId: 'weather-current',  name: 'Current Weather', icon: '', enabledKey: 'weatherEnabled', emoji: '🌤️' },
+  { wid: 'weather-hourly',   intId: 'weather-hourly',   name: 'Hourly Forecast', icon: '', enabledKey: 'weatherEnabled', emoji: '🕐' },
+  { wid: 'weather-forecast', intId: 'weather-forecast', name: '5-Day Forecast',  icon: '', enabledKey: 'weatherEnabled', emoji: '📅' },
+);
+
+function widgetDef(wid) { return WIDGET_CATALOG.find((w) => w.wid === wid); }
+function widgetEnabled(wid) { const w = widgetDef(wid); return !!(w && settings[w.enabledKey] === true); }
+
+let widgetSel = new Set();
+
+function updateWidgetAddState() {
+  const n = widgetSel.size;
+  const cnt = document.getElementById('widget-sel-count');
+  const add = document.getElementById('widget-add');
+  if (cnt) cnt.textContent = n ? `${n} widget${n > 1 ? 's' : ''} selected` : 'No widgets selected';
+  if (add) add.disabled = n === 0;
+}
+
+function renderWidgetModalBody() {
+  const body = document.getElementById('widget-modal-body');
+  if (!body) return;
+  widgetSel = new Set();
+  body.innerHTML = '';
+  const enabled = WIDGET_CATALOG.filter((w) => settings[w.enabledKey] === true);
+  if (!enabled.length) {
+    body.innerHTML =
+      '<div class="widget-empty">No integrations are enabled yet.<br>Enable them in ' +
+      '<a href="../config/config.html?tab=integrations">Setup → Integrations</a>, then come back.</div>';
+    updateWidgetAddState();
+    return;
+  }
+  const grid = document.createElement('div');
+  grid.className = 'widget-grid';
+  enabled.forEach((w) => {
+    const card = document.createElement('div');
+    card.className = 'widget-pick';
+    card.dataset.wid = w.wid;
+    const check = document.createElement('span'); check.className = 'wp-check'; check.textContent = '✓';
+    let iconEl;
+    if (w.emoji) { iconEl = document.createElement('div'); iconEl.style.fontSize = '34px'; iconEl.style.lineHeight = '40px'; iconEl.textContent = w.emoji; }
+    else { iconEl = document.createElement('img'); iconEl.alt = ''; iconEl.src = `../icons/integrations/${w.icon}`; iconEl.onerror = () => { iconEl.style.visibility = 'hidden'; }; }
+    const nm = document.createElement('span'); nm.className = 'wp-name'; nm.textContent = w.name;
+    card.append(check, iconEl, nm);
+    card.addEventListener('click', () => {
+      if (widgetSel.has(w.wid)) { widgetSel.delete(w.wid); card.classList.remove('selected'); }
+      else { widgetSel.add(w.wid); card.classList.add('selected'); }
+      updateWidgetAddState();
+    });
+    grid.appendChild(card);
+  });
+  body.appendChild(grid);
+  updateWidgetAddState();
+}
+
+function openWidgetModal() {
+  renderWidgetModalBody();
+  document.getElementById('widget-modal')?.classList.add('visible');
+}
+function closeWidgetModal() {
+  document.getElementById('widget-modal')?.classList.remove('visible');
+}
+
+async function addSelectedWidgets() {
+  const dash = getActiveDash();
+  if (!dash || !widgetSel.size) return;
+  if (!Array.isArray(dash.widgets)) dash.widgets = [];
+  widgetSel.forEach((wid) => {
+    const w = widgetDef(wid);
+    if (!w) return;
+    const uid = 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    dash.widgets.push({ uid, wid: w.wid, intId: w.intId, name: w.name });
+  });
+  await chromeSet({ dashboards: state.dashboards });
+  closeWidgetModal();
+  renderDashboard(state.activeDashboardId);   // re-render with the new widget groupings
+  showToast('Widget' + (widgetSel.size > 1 ? 's' : '') + ' added ✓');
+}
+
+function setupWidgetModal() {
+  const modal = document.getElementById('widget-modal');
+  if (!modal) return;
+  document.getElementById('widget-modal-close')?.addEventListener('click', closeWidgetModal);
+  document.getElementById('widget-cancel')?.addEventListener('click', closeWidgetModal);
+  document.getElementById('widget-add')?.addEventListener('click', addSelectedWidgets);
+  modal.addEventListener('click', (e) => { if (e.target === modal) closeWidgetModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && modal.classList.contains('visible')) closeWidgetModal();
+  });
+}
+
+// Build a widget grouping for the board (no S/M/L pill; shows a disabled notice
+// when the service is turned off).
+function buildWidgetSection(wdef) {
+  const sec = document.createElement('div');
+  sec.className = 'widget-section';
+  // No section title — the widget renders its own icon + name. A slim drag grip
+  // (the Gridstack handle for widgets) appears only in rearrange mode.
+  const drag = document.createElement('div');
+  drag.className = 'widget-drag';
+  drag.title = 'Drag to move';
+  drag.innerHTML = '<span class="wg-grip">⠿</span>';
+  sec.appendChild(drag);
+
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'widget-body';
+  const w = widgetDef(wdef.wid);
+  if (!widgetEnabled(wdef.wid)) {
+    bodyEl.innerHTML =
+      '<div class="widget-disabled"><div style="font-size:24px;">⚠️</div>' +
+      '<div style="font-weight:600;color:var(--text-secondary);">Service disabled</div>' +
+      '<div>Enable it in <a href="../config/config.html?tab=integrations">Setup → Integrations</a></div></div>';
+  } else {
+    // Try to mount the real, live widget; fall back to a placeholder if there's
+    // no live mount for this integration yet.
+    let inst = null;
+    if (typeof mountDashboardWidget === 'function') {
+      // Per-widget options (e.g. the hourly-forecast count, persisted on the
+      // widget entry).
+      const opts = {};
+      if (wdef.intId === 'weather-hourly') {
+        opts.hours = (wdef.config && wdef.config.hours) || 5;
+        opts.onHoursChange = (n) => {
+          wdef.config = Object.assign({}, wdef.config, { hours: n });
+          chromeSet({ dashboards: state.dashboards });
+        };
+      } else if (wdef.intId === 'weather-forecast') {
+        opts.days = (wdef.config && wdef.config.days) || 5;
+        opts.onDaysChange = (n) => {
+          wdef.config = Object.assign({}, wdef.config, { days: n });
+          chromeSet({ dashboards: state.dashboards });
+        };
+      } else if (wdef.intId === 'tautulli') {
+        if (wdef.config && wdef.config.maxVisible) opts.maxVisible = wdef.config.maxVisible;
+        if (wdef.config && wdef.config.dwellMs) opts.dwellMs = wdef.config.dwellMs;
+        opts.onConfigChange = (patch) => {
+          wdef.config = Object.assign({}, wdef.config, patch);
+          chromeSet({ dashboards: state.dashboards });
+        };
+      }
+      inst = mountDashboardWidget(wdef.intId, bodyEl, settings, opts);
+    }
+    if (inst) {
+      mountedWidgets.push(inst);
+    } else {
+      bodyEl.innerHTML = '';
+      const ph = document.createElement('div'); ph.className = 'widget-placeholder';
+      if (w && w.emoji) { const em = document.createElement('div'); em.style.fontSize = '34px'; em.textContent = w.emoji; ph.appendChild(em); }
+      else if (w) { const img = document.createElement('img'); img.alt = ''; img.src = `../icons/integrations/${w.icon}`; img.onerror = () => { img.style.display = 'none'; }; ph.appendChild(img); }
+      const t = document.createElement('div'); t.textContent = `${wdef.name} widget`;
+      ph.appendChild(t);
+      bodyEl.appendChild(ph);
+    }
+  }
+  sec.appendChild(bodyEl);
+  return sec;
+}
+
+// Make the floating tools menu draggable (via its grip) and show a description
+// tooltip on hover over each option.
+function setupRearrangeToolsMenu() {
+  const menu = document.getElementById('rearrange-tools');
+  if (!menu) return;
+  const grip = menu.querySelector('.rt-grip');
+  const tip = document.getElementById('rt-tip');
+
+  // Restore a previously dragged position.
+  try {
+    const p = JSON.parse(sessionStorage.getItem('adai_tools_pos') || 'null');
+    if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) {
+      menu.style.left = p.left + 'px'; menu.style.top = p.top + 'px'; menu.style.right = 'auto';
+    }
+  } catch (_) { /* ignore */ }
+
+  // Drag by the grip.
+  if (grip) {
+    grip.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const rect = menu.getBoundingClientRect();
+      const ox = e.clientX - rect.left, oy = e.clientY - rect.top;
+      menu.style.right = 'auto';
+      const move = (ev) => {
+        const left = Math.max(4, Math.min(window.innerWidth - rect.width - 4, ev.clientX - ox));
+        const top = Math.max(4, Math.min(window.innerHeight - rect.height - 4, ev.clientY - oy));
+        menu.style.left = left + 'px'; menu.style.top = top + 'px';
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        const r = menu.getBoundingClientRect();
+        try { sessionStorage.setItem('adai_tools_pos', JSON.stringify({ left: r.left, top: r.top })); } catch (_) {}
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+
+  // Hover description tooltips.
+  menu.querySelectorAll('.rt-btn').forEach((b) => {
+    b.addEventListener('mouseenter', () => {
+      if (!tip || !b.dataset.tip) return;
+      tip.textContent = b.dataset.tip;
+      tip.classList.add('show');
+    });
+    b.addEventListener('mouseleave', () => { if (tip) tip.classList.remove('show'); });
+  });
 }
 
 // Snapshot of dash.layout taken when entering edit mode, used to revert on Cancel.
@@ -898,6 +1355,11 @@ function enterRearrangeMode() {
   rearrangeCancel.style.display = '';
   rearrangeSaveBtn.classList.remove('has-changes');
   searchInput.blur();
+
+  // Fresh undo state for the floating auto-layout tools.
+  layoutUndo = null;
+  const undoBtn = document.getElementById('rt-undo');
+  if (undoBtn) undoBtn.disabled = true;
 
   // Grid mode: unlock the grid so sections can be dragged (resize stays off
   // until Step 3). The grid overlay is shown via body.rearrange-mode CSS.
@@ -949,13 +1411,21 @@ function captureGridLayout(dash) {
   if (!gridInstance) return;
   const layout = dash.layout || (dash.layout = {});
   gridInstance.engine.nodes.forEach((n) => {
-    const name = n.el && n.el.dataset.folder;
-    if (!name) return;
-    // Merge so we keep the chosen iconSize (and any other props), and capture
-    // the live icon size from the section's data attribute.
-    const sec = n.el.querySelector('.folder-section');
-    const iconSize = (sec && sec.dataset.iconsize) || (layout[name] && layout[name].iconSize) || DEFAULT_ICON_SIZE;
-    layout[name] = Object.assign({}, layout[name], { x: n.x, y: n.y, w: n.w, h: n.h, iconSize });
+    if (!n.el) return;
+    const name = n.el.dataset.folder;
+    const widgetUid = n.el.dataset.widget;
+    if (name) {
+      // Merge so we keep the chosen iconSize, captured from the live data attr.
+      const sec = n.el.querySelector('.folder-section');
+      const iconSize = (sec && sec.dataset.iconsize) || (layout[name] && layout[name].iconSize) || DEFAULT_ICON_SIZE;
+      layout[name] = Object.assign({}, layout[name], { x: n.x, y: n.y, w: n.w, h: n.h, iconSize });
+    } else if (widgetUid) {
+      const k = '@w:' + widgetUid;
+      // Remember whether the user hand-sized this widget, so auto-fit doesn't
+      // revert it back to content height on the next load.
+      const manual = n.el.dataset.manualSize === '1' || !!(layout[k] && layout[k].manual);
+      layout[k] = Object.assign({}, layout[k], { x: n.x, y: n.y, w: n.w, h: n.h, manual });
+    }
   });
   // Section order follows top-to-bottom, left-to-right grid position.
   dash.sectionOrder = gridInstance.engine.nodes
@@ -1485,7 +1955,7 @@ function setupSearch() {
   searchInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       const first = document.querySelector('#search-results .search-result');
-      if (first) { window.open(first.href, '_self'); }
+      if (first) { window.open(first.href, '_blank', 'noopener'); }
     }
   });
   // Click outside closes the dropdown.
@@ -1546,7 +2016,7 @@ function renderSearchResults(query) {
     matches.forEach((b, i) => {
       const a = document.createElement('a');
       a.className = 'search-result' + (i === 0 ? ' active' : '');
-      a.href = b.url; a.target = '_self'; a.rel = 'noopener noreferrer';
+      a.href = b.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
       const img = document.createElement('img');
       img.alt = '';
       img.src = b.resolved_icon || searchFaviconFor(b.url);
@@ -1568,7 +2038,7 @@ function renderSearchResults(query) {
 // new tab clean but one click away from the dashboard.
 function showNewTabDisabled() {
   const def = state.defaultDashboardId || state.dashboards[0]?.id || '';
-  const openHref = def ? `newtab.html?dash=${def}` : '../config/config.html?tab=dashboards';
+  const openHref = def ? `dashboard.html?dash=${def}` : '../config/config.html?tab=dashboards';
   document.body.innerHTML = `
     <div style="height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;text-align:center;color:var(--text-muted);padding:40px;background:var(--bg-primary);">
       <div style="font-size:44px;">🗂️</div>
@@ -1639,6 +2109,41 @@ function showToast(msg) {
   t.style.opacity = '1';
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => { t.style.opacity = '0'; }, 2400);
+}
+
+// ─── Bottom-left hover info (description + URL) ───────────────────────────────
+function hoverInfoEl() {
+  let el = document.getElementById('hover-info');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'hover-info';
+    el.style.cssText =
+      'position:fixed;left:16px;bottom:14px;z-index:2000;max-width:min(540px,62vw);' +
+      'padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);' +
+      'border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,0.30);' +
+      'font-size:12px;color:var(--text-primary);pointer-events:none;' +
+      'opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s;';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function showHoverInfo(bm) {
+  const el = hoverInfoEl();
+  const desc = bm.description
+    ? '<div style="font-weight:500;display:-webkit-box;-webkit-line-clamp:2;' +
+      '-webkit-box-orient:vertical;overflow:hidden;">' + escapeHtml(bm.description) + '</div>'
+    : '';
+  el.innerHTML = desc +
+    '<div style="color:var(--text-muted);font-size:11px;margin-top:' + (desc ? '3px' : '0') +
+    ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(bm.url) + '</div>';
+  el.style.opacity = '1';
+  el.style.transform = 'translateY(0)';
+}
+
+function hideHoverInfo() {
+  const el = document.getElementById('hover-info');
+  if (el) { el.style.opacity = '0'; el.style.transform = 'translateY(4px)'; }
 }
 
 // ─── Description tooltip ──────────────────────────────────────────────────────
