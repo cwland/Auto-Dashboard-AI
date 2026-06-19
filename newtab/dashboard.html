@@ -26,6 +26,8 @@
   <link rel="stylesheet" href="../widgets/tracearr-widget.css">
   <link rel="stylesheet" href="../widgets/system-health-widget.css">
   <link rel="stylesheet" href="../widgets/proxmox-widget.css">
+  <link rel="stylesheet" href="../widgets/portainer-widget.css">
+  <link rel="stylesheet" href="../widgets/stocks-widget.css">
   <link rel="stylesheet" href="../widgets/pbs-widget.css">
   <link rel="stylesheet" href="../widgets/beszel-widget.css">
   <link rel="stylesheet" href="../widgets/ical-widget.css">
@@ -178,6 +180,35 @@
       display: flex; align-items: center; justify-content: space-between;
       gap: 12px; padding: 14px 20px; border-top: 1px solid var(--border); flex-shrink: 0;
     }
+    .widget-tabs { display: flex; align-items: center; gap: 14px; padding: 12px 20px 0; flex-wrap: wrap; }
+    .widget-tabbar { display: inline-flex; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+    .widget-tab { appearance: none; border: 0; background: transparent; color: var(--text-secondary); font: 600 12.5px/1 inherit; padding: 6px 16px; border-radius: 7px; cursor: pointer; }
+    .widget-tab:hover { color: var(--text-primary); }
+    .widget-tab.active { background: var(--accent); color: #fff; }
+    .widget-tabs-hint { font-size: 11.5px; color: var(--text-muted); flex: 1; min-width: 160px; }
+    /* Sample widgets read as unconfigured/greyed previews. */
+    .widget-group.is-sample .widget-group-head .wg-h-service,
+    .widget-group.is-sample .wg-i-desc { color: var(--text-muted); opacity: 0.85; }
+    .widget-group.is-sample .widget-group-head .wg-h-ico,
+    .widget-group.is-sample .widget-group-head .wg-h-emoji { filter: grayscale(1); opacity: 0.6; }
+    .widget-pick.is-sample { opacity: 0.62; border-style: dashed; }
+    .widget-pick.is-sample:hover { opacity: 0.85; }
+    .widget-pick.is-sample.selected { opacity: 1; border-style: solid; }
+    .widget-pick.is-sample img { filter: grayscale(1); }
+    .widget-pick .wp-sample-tag { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .widget-groups { display: flex; flex-direction: column; gap: 18px; }
+    .widget-group { display: flex; flex-direction: column; gap: 8px; }
+    .widget-group-head { display: flex; align-items: center; gap: 9px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .widget-group-head .wg-h-ico { width: 22px; height: 22px; object-fit: contain; border-radius: 5px; }
+    .widget-group-head .wg-h-emoji { font-size: 20px; line-height: 1; }
+    .widget-group-head .wg-h-service { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .widget-instance { display: flex; flex-direction: column; gap: 8px; }
+    .wg-i-desc {
+      display: inline-flex; align-items: center; align-self: flex-start; gap: 6px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.03em; color: var(--text-secondary);
+      padding: 2px 9px; border-radius: 999px; background: var(--bg-secondary); border: 1px solid var(--border);
+    }
+    .wg-i-desc::before { content: "▸"; color: var(--text-muted); font-size: 10px; }
     .widget-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
     .widget-pick {
       display: flex; flex-direction: column; gap: 8px; align-items: center; text-align: center;
@@ -199,7 +230,30 @@
     .widget-cat-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 6px 0 8px; }
 
     /* Widget grouping on the board (no S/M/L pill). */
-    .grid-stack .widget-section { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+    .grid-stack .widget-section { position: relative; height: 100%; display: flex; flex-direction: column; min-height: 0; }
+    .widget-sample-badge {
+      /* top: -8px lifts the badge by the frame's padding-top so it straddles the
+         widget's top border — half inside the frame, half above it. */
+      position: absolute; left: 50%; top: -8px; transform: translate(-50%, -50%);
+      z-index: 20; pointer-events: none;
+      font: 800 10px/1 var(--font, system-ui, sans-serif); letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-secondary); background: var(--bg-primary);
+      border: 1px solid var(--border); border-radius: 999px; padding: 5px 13px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.28);
+    }
+    /* Delete control — edit/rearrange mode only, upper-right corner. */
+    .widget-del { display: none; }
+    body.rearrange-mode .grid-stack .widget-del {
+      position: absolute; top: 4px; right: 4px; z-index: 6;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 20px; height: 20px; padding: 0; border-radius: 50%;
+      border: 1px solid var(--border); background: var(--bg-secondary);
+      color: var(--text-secondary); cursor: pointer;
+      font: 700 11px/1 system-ui, sans-serif;
+    }
+    body.rearrange-mode .grid-stack .widget-del:hover {
+      color: #fff; background: var(--danger, #ef4444); border-color: var(--danger, #ef4444);
+    }
     .grid-stack .widget-body { flex: 1; min-height: 0; overflow: auto; display: block; }
     /* Widget drag grip — the move handle, only shown while rearranging. */
     .widget-drag { display: none; }
@@ -214,6 +268,11 @@
     body.rearrange-mode .grid-stack .weather-widget .ww-tools { display: flex; }
     .grid-stack .tautulli-widget .tw-tools { display: none; }
     body.rearrange-mode .grid-stack .tautulli-widget .tw-tools { display: flex; }
+    .grid-stack .portainer-widget .pc-tools { display: none; }
+    body.rearrange-mode .grid-stack .portainer-widget .pc-tools { display: flex; }
+    /* Shared list-carousel controls (Scroll on/off, Show, Speed) — edit mode only. */
+    .grid-stack .lc-tools { display: none; }
+    body.rearrange-mode .grid-stack .lc-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
     .widget-disabled {
       flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 8px; text-align: center; color: var(--text-muted); font-size: 12.5px; padding: 16px;
@@ -815,6 +874,13 @@
       <h3>Add Widgets</h3>
       <button class="modal-close-btn" id="widget-modal-close" title="Close">✕</button>
     </div>
+    <div class="widget-tabs">
+      <div class="widget-tabbar" role="tablist">
+        <button class="widget-tab active" id="widget-tab-live" type="button" role="tab">Live</button>
+        <button class="widget-tab" id="widget-tab-sample" type="button" role="tab">Sample</button>
+      </div>
+      <span class="widget-tabs-hint" id="widget-tabs-hint">Show Sample Widgets — preview a widget with demo data before configuring the real integration.</span>
+    </div>
     <div class="modal-body" id="widget-modal-body" style="padding:18px 20px;max-height:60vh;overflow-y:auto;"></div>
     <div class="modal-footer" id="widget-modal-foot">
       <span id="widget-sel-count" style="font-size:12px;color:var(--text-muted);">No widgets selected</span>
@@ -998,6 +1064,9 @@
 <script src="../widgets/tracearr-widget.js"></script>
 <script src="../widgets/system-health-widget.js"></script>
 <script src="../widgets/proxmox-widget.js"></script>
+<script src="../widgets/list-carousel.js"></script>
+<script src="../widgets/portainer-widget.js"></script>
+<script src="../widgets/stocks-widget.js"></script>
 <script src="../widgets/pbs-widget.js"></script>
 <script src="../widgets/beszel-widget.js"></script>
 <script src="../widgets/ical-widget.js"></script>
@@ -1006,6 +1075,7 @@
 <script src="../widgets/opnsense-widget.js"></script>
 <script src="../widgets/weather-widget.js"></script>
 <script src="../widgets/dashboard-mounts.js"></script>
+<script src="../widgets/sample-mounts.js"></script>
 <script src="newtab.js"></script>
 </body>
 </html>

@@ -29,6 +29,7 @@
     if (id >= 803) return '☁️';
     return '🌡️';
   }
+  const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const cap = (s) => String(s || '').replace(/\b\w/g, (c) => c.toUpperCase());
   const hhmm = (unixSec) => new Date(unixSec * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const hourLabel = (unixSec) => new Date(unixSec * 1000).toLocaleTimeString([], { hour: 'numeric' });
@@ -104,6 +105,47 @@
         };
       });
       return { current, hourly, daily, units, sym: this.units(units) };
+    },
+
+    // True-hourly variant for the combined widget. Uses One Call API 3.0 (real
+    // 1-hour steps + per-day forecast) when the key is subscribed to it, and
+    // transparently falls back to the free 3-hour /forecast otherwise.
+    async fetchHourly(apiKey, location, units) {
+      const key = 'H|' + location + '|' + units;
+      const c = this._cache[key];
+      if (c && Date.now() - c.ts < 5 * 60 * 1000) return c.data;
+      const root = 'https://api.openweathermap.org/data/';
+      const q = `?q=${encodeURIComponent(location)}&appid=${apiKey}&units=${units}`;
+      const curRes = await fetch(root + '2.5/weather' + q);
+      if (!curRes.ok) throw new Error(curRes.status === 401 ? 'Invalid API key' : `HTTP ${curRes.status}`);
+      const cur = await curRes.json();
+      let data = null;
+      const lat = cur.coord && cur.coord.lat, lon = cur.coord && cur.coord.lon;
+      if (lat != null && lon != null) {
+        try {
+          const ocRes = await fetch(`${root}3.0/onecall?lat=${lat}&lon=${lon}&units=${units}&exclude=minutely,alerts&appid=${apiKey}`);
+          if (ocRes.ok) data = this.normalizeOneCall(cur, await ocRes.json(), units);
+        } catch (_) { /* fall through to 3-hour forecast */ }
+      }
+      if (!data) {
+        const fcRes = await fetch(root + '2.5/forecast' + q);
+        data = this.normalize(cur, fcRes.ok ? await fcRes.json() : { list: [], city: {} }, units);
+      }
+      this._cache[key] = { ts: Date.now(), data };
+      return data;
+    },
+
+    normalizeOneCall(cur, oc, units) {
+      const base = this.normalize(cur, { list: [], city: {} }, units);
+      const hourly = (oc.hourly || []).map((it) => {
+        const ww = (it.weather && it.weather[0]) || {};
+        return { time: hourLabel(it.dt), condition: cap(ww.description || ''), emoji: weatherEmoji(ww.id, ww.icon), temp: Math.round(it.temp ?? 0), wind: this.speed(it.wind_speed, units) };
+      });
+      const daily = (oc.daily || []).map((it) => {
+        const ww = (it.weather && it.weather[0]) || {};
+        return { day: weekday(it.dt), emoji: weatherEmoji(ww.id, ww.icon), condition: cap(ww.description || ''), high: Math.round((it.temp && it.temp.max) ?? 0), low: Math.round((it.temp && it.temp.min) ?? 0), sunrise: it.sunrise ? hhmm(it.sunrise) : base.current.sunrise, sunset: it.sunset ? hhmm(it.sunset) : base.current.sunset };
+      });
+      return { current: base.current, hourly, daily, units, sym: this.units(units) };
     },
   };
 
@@ -238,8 +280,134 @@
     }
   }
 
+  // ─── Widget 4: combined (current + hourly carousel + multi-day) ─────────────
+  class WeatherCombinedWidget extends WeatherBase {
+    constructor(c, cfg) {
+      super(c, cfg, 'Weather', '🌦️');
+      this.el.classList.add('weather-combined');
+      this.hours = clampN(parseInt(this.cfg.hours, 10) || 12, 6, 24);   // carousel depth
+      this.days = clampN(parseInt(this.cfg.days, 10) || 5, 5, 7);
+      this.speedMs = clampN(parseInt(this.cfg.speedMs, 10) || 2000, 500, 4000);
+      this.dwellMs = 5000;        // 5-second pause before each carousel move
+      this._carTimer = null;
+      this._onCarEnd = (e) => {
+        if (!this._track || e.target !== this._track || e.propertyName !== 'transform') return;
+        this._track.appendChild(this._track.firstElementChild);   // ring rotate
+        this._track.style.transition = 'none';
+        this._track.style.transform = 'translateX(0)';
+        void this._track.offsetWidth;                             // force reflow
+        this._scheduleCar();
+      };
+      // Re-fit the hourly row whenever the widget is resized (dynamic count).
+      this._ro = ('ResizeObserver' in global) ? new ResizeObserver(() => {
+        if (this._roRaf) cancelAnimationFrame(this._roRaf);
+        this._roRaf = requestAnimationFrame(() => this._layoutHourly());
+      }) : null;
+      if (this._ro) this._ro.observe(this.el);
+    }
+    destroy() { this._stopCarousel(); if (this._ro) this._ro.disconnect(); super.destroy(); }
+
+    // Use the true-hourly fetch (One Call API, with 3-hour fallback).
+    async poll() {
+      if (this.destroyed) return;
+      try {
+        this.data = this.cfg.dataProvider ? await this.cfg.dataProvider()
+          : await WeatherApi.fetchHourly(this.cfg.apiKey, this.cfg.location, this.cfg.units || 'imperial');
+        this._clearError(); this._render();
+      } catch (err) { this._showError(err && err.message); }
+    }
+
+    _buildTools() {
+      const grp = (key, label) =>
+        `<span class="ww-tgrp"><span class="ww-tlbl">${label}</span>` +
+        `<button class="ww-step" data-k="${key}" data-d="-1" type="button">−</button>` +
+        `<span class="ww-count" data-c="${key}"></span>` +
+        `<button class="ww-step" data-k="${key}" data-d="1" type="button">+</button></span>`;
+      // Hours = how many hours of forecast the carousel cycles through. How many
+      // of those are visible at once is decided by the widget width.
+      this.toolsEl.innerHTML = grp('hours', 'Hrs') + grp('days', 'Days') + grp('speed', 'Speed');
+      this.toolsEl.querySelectorAll('.ww-step').forEach((b) => b.addEventListener('click', () => {
+        const k = b.dataset.k, d = Number(b.dataset.d);
+        if (k === 'hours') { this.hours = clampN(this.hours + d * 2, 6, 24); if (this.cfg.onHoursChange) this.cfg.onHoursChange(this.hours); }
+        else if (k === 'days') { this.days = clampN(this.days + d, 5, 7); if (this.cfg.onDaysChange) this.cfg.onDaysChange(this.days); }
+        else if (k === 'speed') { this.speedMs = clampN(this.speedMs + d * 500, 500, 4000); if (this.cfg.onSpeedChange) this.cfg.onSpeedChange(this.speedMs); }
+        this._render();
+      }));
+    }
+    _drawCounts() {
+      const set = (c, v) => { const el = this.toolsEl && this.toolsEl.querySelector(`.ww-count[data-c="${c}"]`); if (el) el.textContent = v; };
+      set('hours', this.hours + 'h'); set('days', this.days + 'd'); set('speed', (this.speedMs / 1000).toFixed(1) + 's');
+    }
+
+    _render() {
+      this._stopCarousel();
+      this._drawCounts();
+      if (!this.data) { this.body.innerHTML = '<div class="ww-empty">Loading…</div>'; return; }
+      const c = this.data.current, u = this.data.sym;
+      const cur =
+        `<div class="wwc-current">
+           <div class="wwc-cur-emoji">${c.emoji}</div>
+           <div class="wwc-cur-temp">${c.temp}${u.temp}</div>
+           <div class="wwc-cur-main">
+             <div class="wwc-cur-place">${c.place || ''}</div>
+             <div class="wwc-cur-cond">${c.condition}</div>
+           </div>
+           <div class="wwc-cur-hl"><span><b>${c.high}${u.temp}</b> H</span><span>${c.low}${u.temp} L</span></div>
+         </div>`;
+      // Pool = `hours` cards; the width decides how many are visible at once and
+      // the rest scroll in via the carousel.
+      const hcards = this.data.hourly.slice(0, this.hours).map((h) =>
+        `<div class="wwc-hour"><span class="wwc-h-time">${h.time}</span><span class="wwc-h-emoji">${h.emoji}</span><span class="wwc-h-temp">${h.temp}${u.temp}</span></div>`).join('');
+      const hourly = `<div class="wwc-hourly"><div class="wwc-hclip"><div class="wwc-htrack">${hcards || ''}</div></div></div>`;
+      const dhead = `<div class="wwc-dhead"><span></span><span></span><span>High</span><span>Low</span></div>`;
+      const drows = this.data.daily.slice(0, this.days).map((d) =>
+        `<div class="wwc-day"><span class="wwc-d-name">${d.day}</span><span class="wwc-d-mid"><span class="wwc-d-emoji">${d.emoji}</span><span class="wwc-d-cond">${d.condition || ''}</span></span><span class="wwc-d-hi">${d.high}${u.temp}</span><span class="wwc-d-lo">${d.low}${u.temp}</span></div>`).join('');
+      const daily = `<div class="wwc-daily">${dhead}${drows}</div>`;
+      this.body.innerHTML = cur + hourly + daily;
+      this._clip = this.body.querySelector('.wwc-hclip');
+      this._track = this.body.querySelector('.wwc-htrack');
+      if (this._track) this._track.addEventListener('transitionend', this._onCarEnd);
+      // Fit now, and again after the grid settles the widget's final width.
+      requestAnimationFrame(() => this._layoutHourly());
+      setTimeout(() => this._layoutHourly(), 250);
+    }
+
+    // Size the hourly window to a whole number of cards: only fully-visible
+    // mini-cards are shown; any that wouldn't fit completely roll into the
+    // carousel. Recomputed on every render and on widget resize.
+    _layoutHourly() {
+      this._stopCarousel();
+      const clip = this._clip, track = this._track;
+      if (!clip || !track || !track.children.length) return;
+      const cardW = track.children[0].getBoundingClientRect().width;
+      if (cardW < 8) { requestAnimationFrame(() => this._layoutHourly()); return; }  // not laid out yet
+      track.style.transition = 'none';
+      track.style.transform = 'translateX(0)';
+      const gap = parseFloat(getComputedStyle(track).columnGap || getComputedStyle(track).gap || '0') || 6;
+      const total = track.children.length;
+      // Available content width = the hourly section's own box. Its width is the
+      // full widget width and is independent of the (narrower) clip child.
+      const avail = (clip.parentElement && clip.parentElement.clientWidth) || this.body.clientWidth || 0;
+      let visible = Math.max(1, Math.floor((avail + gap) / (cardW + gap)));
+      visible = Math.min(visible, total);
+      clip.style.width = (visible * cardW + (visible - 1) * gap) + 'px';
+      this._step = cardW + gap;
+      if (total > visible) this._scheduleCar();   // carousel only when needed
+    }
+    _scheduleCar() {
+      if (this._carTimer) clearTimeout(this._carTimer);
+      this._carTimer = setTimeout(() => {
+        if (this.destroyed || !this._track) return;
+        this._track.style.transition = `transform ${this.speedMs}ms cubic-bezier(0.37, 0, 0.63, 1)`;
+        this._track.style.transform = `translateX(-${this._step}px)`;
+      }, this.dwellMs);
+    }
+    _stopCarousel() { if (this._carTimer) { clearTimeout(this._carTimer); this._carTimer = null; } this._track = null; }
+  }
+
   global.WeatherApi = WeatherApi;
   global.WeatherCurrentWidget = WeatherCurrentWidget;
   global.WeatherHourlyWidget = WeatherHourlyWidget;
   global.WeatherForecastWidget = WeatherForecastWidget;
+  global.WeatherCombinedWidget = WeatherCombinedWidget;
 })(typeof window !== 'undefined' ? window : this);

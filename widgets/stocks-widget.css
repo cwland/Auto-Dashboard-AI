@@ -1,0 +1,56 @@
+/* Auto Dashboard AI — Stocks widget. Themed via the shared design tokens
+   (styles/common.css), so it adapts to light/dark and the named themes.
+   Scoped under .stocks-widget. */
+
+.stocks-widget {
+  display: flex; flex-direction: column; height: 100%; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+
+/* Header */
+.stocks-widget .st-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 2px 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
+}
+.stocks-widget .st-header .wg-icon { width: 18px; height: 18px; }
+.stocks-widget .st-title {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.stocks-widget .st-tools { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.stocks-widget .st-error { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--danger, #ef4444); }
+
+/* Body / rows */
+.stocks-widget .st-body { flex: 1; min-height: 0; overflow: auto; }
+.stocks-widget .st-viewport { overflow: hidden; }
+.stocks-widget .st-track { display: flex; flex-direction: column; will-change: transform; }
+.stocks-widget .st-empty {
+  color: var(--text-muted); font-size: 13px; font-weight: 600; text-align: center; padding: 22px 4px;
+}
+
+.stocks-widget .st-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) 88px auto;
+  align-items: center; gap: 12px;
+  padding: 8px 4px; border-bottom: 1px solid var(--border);
+}
+.stocks-widget .st-row:last-child { border-bottom: none; }
+.stocks-widget .st-row-err { grid-template-columns: 1fr; opacity: 0.7; }
+
+.stocks-widget .st-main { min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.stocks-widget .st-sym { font-size: 13.5px; font-weight: 800; letter-spacing: 0.02em; }
+.stocks-widget .st-name {
+  font-size: 11px; color: var(--text-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.stocks-widget .st-spark { width: 88px; height: 30px; display: block; }
+
+.stocks-widget .st-quote { display: flex; flex-direction: column; align-items: flex-end; line-height: 1.2; }
+.stocks-widget .st-price { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stocks-widget .st-chg {
+  font-size: 11px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.stocks-widget .st-chg.st-up { color: #16a34a; }
+.stocks-widget .st-chg.st-down { color: #ef4444; }
+.stocks-widget .st-chg.st-flat { color: var(--text-muted); }

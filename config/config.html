@@ -31,6 +31,8 @@
   <link rel="stylesheet" href="../widgets/nextcloud-widget.css">
   <link rel="stylesheet" href="../widgets/opnsense-widget.css">
   <link rel="stylesheet" href="../widgets/weather-widget.css">
+  <link rel="stylesheet" href="../widgets/portainer-widget.css">
+  <link rel="stylesheet" href="../widgets/stocks-widget.css">
   <style>
     html, body { height: 100%; overflow: hidden; }
 
@@ -309,12 +311,19 @@
     }
 
     /* ── Integrations catalog (redesigned Widgets tab) ──────────────────── */
-    .int-toolbar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:0 0 14px; }
-    .int-search { flex:1; min-width:200px; position:relative; }
-    .int-search input { width:100%; padding:9px 12px 9px 32px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); color:var(--text-primary); font-size:13px; }
+    .int-toolbar { display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap; margin:0 0 14px; }
+    .int-search { position:relative; width:100%; max-width:480px; margin:0 auto 12px; }
+    .int-search input { width:100%; padding:9px 36px 9px 32px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); color:var(--text-primary); font-size:13px; }
     .int-search input:focus { outline:none; border-color:var(--border-focus); }
-    .int-search::before { content:"🔍"; position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:12px; opacity:.7; }
-    .int-filter { display:flex; gap:6px; flex-wrap:wrap; }
+    .int-search::before { content:"🔍"; position:absolute; left:10px; top:50%; transform:translateY(-50%); font-size:12px; opacity:.7; pointer-events:none; }
+    /* Clear button — right-aligned, shown only when the field has text. */
+    .int-search-clear { display:none; position:absolute; right:7px; top:50%; transform:translateY(-50%);
+      width:20px; height:20px; padding:0; align-items:center; justify-content:center;
+      border:none; border-radius:50%; background:transparent; color:var(--text-muted);
+      font-size:12px; line-height:1; cursor:pointer; }
+    .int-search-clear:hover { background:var(--bg-hover); color:var(--text-primary); }
+    .int-search input:not(:placeholder-shown) ~ .int-search-clear { display:flex; }
+    .int-filter { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
     .int-chip { padding:7px 12px; border-radius:999px; border:1px solid var(--border); background:var(--bg-card); color:var(--text-secondary); font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; }
     .int-chip.active { background:var(--accent-light); border-color:var(--accent); color:var(--text-primary); }
     .int-count { color:var(--text-muted); font-size:12px; margin:0 0 14px; }
@@ -361,6 +370,10 @@
     .int-m-t p { margin:2px 0 0; font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
     .int-m-x { background:none; border:none; color:var(--text-muted); font-size:24px; line-height:1; cursor:pointer; padding:2px 8px; border-radius:8px; }
     .int-m-x:hover { background:var(--bg-hover); color:var(--text-primary); }
+    .int-m-desc-row { display:flex; align-items:center; gap:12px; padding:13px 20px; border-bottom:1px solid var(--border); }
+    .int-m-desc-label { font-size:13px; font-weight:600; color:var(--text-secondary); flex:0 0 auto; }
+    .int-m-desc-row .input { flex:1; }
+    .int-m-desc-count { font-size:11px; color:var(--text-muted); flex:0 0 auto; font-variant-numeric:tabular-nums; min-width:36px; text-align:right; }
     .int-m-body { padding:20px; max-height:60vh; overflow-y:auto; }
     /* the relocated #<svc>-config form, shown and de-bordered inside the modal */
     .int-m-body > [id$="-config"] { display:block !important; }
@@ -372,7 +385,8 @@
 
     .api-key-row { display: flex; gap: 8px; }
     .api-key-row .input { flex: 1; }
-    .eyeball-btn { font-size: 15px; padding: 0 10px; line-height: 1; flex-shrink: 0; }
+    .eyeball-btn { font-size: 15px; padding: 0 10px; line-height: 1; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .eyeball-btn svg { display: block; }
 
     .save-bar {
       display: none;
@@ -794,6 +808,32 @@
     /* wizard step 4 — preview & edit */
     #wiz-step-4 { flex:1; min-height:0; flex-direction:column; }
     #wiz-preview { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:14px; padding:2px; }
+    .wiz-widget-panel { flex:0 0 auto; border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; background:var(--bg-card); }
+    .wiz-wp-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .wiz-wp-title { font-weight:700; font-size:14px; }
+    .wiz-wp-title .muted { font-weight:500; font-size:12px; color:var(--text-muted); }
+    .wiz-wp-tabs { display:inline-flex; background:var(--bg-secondary); border:1px solid var(--border); border-radius:8px; padding:2px; gap:2px; margin-left:auto; }
+    .wiz-wp-tab { border:0; background:transparent; color:var(--text-secondary); font:600 12px/1 inherit; padding:5px 13px; border-radius:6px; cursor:pointer; }
+    .wiz-wp-tab:hover { color:var(--text-primary); }
+    .wiz-wp-tab.active { background:var(--accent); color:#fff; }
+    .wiz-wp-head .wiz-hint { margin-left:10px; }
+    .wiz-wp-group { margin-top:14px; }
+    .wiz-wp-ghead { display:flex; align-items:center; gap:8px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+    .wiz-wp-ghead img { width:20px; height:20px; object-fit:contain; }
+    .wiz-wp-gname { font-size:13px; font-weight:700; }
+    .wiz-wp-desc { display:inline-flex; align-items:center; gap:5px; align-self:flex-start; font-size:11px; font-weight:600; color:var(--text-secondary); padding:2px 9px; border-radius:999px; background:var(--bg-secondary); border:1px solid var(--border); margin:8px 0 0; }
+    .wiz-wp-desc::before { content:"▸"; color:var(--text-muted); font-size:10px; }
+    .wiz-wp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; margin-top:8px; }
+    .wiz-wp-card { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; cursor:pointer; }
+    .wiz-wp-card:hover { border-color:var(--accent); }
+    .wiz-wp-card.selected { border-color:var(--accent); background:var(--accent-light); }
+    .wiz-wp-card img { width:22px; height:22px; object-fit:contain; flex:0 0 auto; }
+    .wiz-wp-card .nm { font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .wiz-wp-card.is-sample { opacity:.62; border-style:dashed; }
+    .wiz-wp-card.is-sample:hover { opacity:.85; }
+    .wiz-wp-card.is-sample.selected { opacity:1; border-style:solid; }
+    .wiz-wp-card.is-sample img { filter:grayscale(1); }
+    .wiz-wp-empty { font-size:12.5px; color:var(--text-muted); margin-top:10px; }
     .wiz-sec { border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
     .wiz-sec.dragging, .wiz-bm.dragging { opacity:.45; }
     .wiz-sec.drag-over { box-shadow:0 -2px 0 var(--accent); }
@@ -1102,7 +1142,7 @@
           <label class="label" for="api-key">API Key</label>
           <div class="api-key-row">
             <input class="input input-mono" type="text" id="api-key" placeholder="Paste your API key…" autocomplete="off">
-            <button class="btn btn-ghost eyeball-btn" id="api-key-toggle" title="Hide key">🙈</button>
+            <button class="btn btn-ghost eyeball-btn" id="api-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
             <button class="btn btn-secondary" id="validate-btn">Validate</button>
           </div>
           <div id="validation-result" style="display:none;"></div>
@@ -1278,8 +1318,11 @@
   <!-- ══════════════════════════════════════════════════════════════════════ -->
   <div class="tab-panel" id="tab-integrations">
 
+    <div class="int-search">
+      <input type="text" id="int-search" placeholder="Search integrations…" autocomplete="off">
+      <button type="button" class="int-search-clear" id="int-search-clear" title="Clear search" aria-label="Clear search">✕</button>
+    </div>
     <div class="int-toolbar">
-      <div class="int-search"><input type="text" id="int-search" placeholder="Search integrations…" autocomplete="off"></div>
       <div class="int-filter" id="int-filters"></div>
     </div>
     <p class="int-count" id="int-count"></p>
@@ -1313,7 +1356,7 @@
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="weather-api-key"
                   placeholder="Paste your OWM API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="weather-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="weather-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="weather-validate-btn">Validate</button>
               </div>
               <div id="weather-validation-result" style="display:none;margin-top:8px;"></div>
@@ -1418,7 +1461,7 @@
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="tautulli-api-key"
                   placeholder="Paste your Tautulli API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="tautulli-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="tautulli-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="tautulli-validate-btn">Validate API Key</button>
               </div>
               <div id="tautulli-validation-result" style="display:none;margin-top:8px;"></div>
@@ -1609,7 +1652,7 @@
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="sonarr-api-key"
                   placeholder="Paste your Sonarr API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="sonarr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="sonarr-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="sonarr-validate-btn">Test Connection</button>
               </div>
               <div id="sonarr-validation-result" style="display:none;margin-top:8px;"></div>
@@ -1696,7 +1739,7 @@
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="radarr-api-key"
                   placeholder="Paste your Radarr API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="radarr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="radarr-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="radarr-validate-btn">Test Connection</button>
               </div>
               <div id="radarr-validation-result" style="display:none;margin-top:8px;"></div>
@@ -1803,7 +1846,7 @@
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="seerr-api-key"
                   placeholder="Paste your API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="seerr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="seerr-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="seerr-validate-btn">Test Connection</button>
               </div>
               <div id="seerr-validation-result" style="display:none;margin-top:8px;"></div>
@@ -1891,7 +1934,7 @@
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="pihole-api-key"
                   placeholder="Pi-hole v6 app password, or v5 API token…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="pihole-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="pihole-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="pihole-validate-btn">Test Connection</button>
               </div>
               <div id="pihole-validation-result" style="display:none;margin-top:8px;"></div>
@@ -1956,7 +1999,7 @@
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="adguard-password"
                   placeholder="AdGuard Home admin password…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="adguard-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="adguard-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="adguard-validate-btn">Test Connection</button>
               </div>
               <div id="adguard-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2013,7 +2056,7 @@
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="plex-token"
                   placeholder="Paste your X-Plex-Token…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="plex-key-toggle" title="Hide token">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="plex-key-toggle" title="Hide token"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="plex-validate-btn">Test Connection</button>
               </div>
               <div id="plex-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2060,7 +2103,7 @@
               <label class="label">API Key</label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="jellyfin-api-key" placeholder="Paste your Jellyfin API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="jellyfin-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="jellyfin-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="jellyfin-validate-btn">Test Connection</button>
               </div>
               <div id="jellyfin-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2100,7 +2143,7 @@
               <label class="label">API Key</label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="emby-api-key" placeholder="Paste your Emby API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="emby-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="emby-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="emby-validate-btn">Test Connection</button>
               </div>
               <div id="emby-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2161,7 +2204,7 @@
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="unifi-password"
                   placeholder="UniFi admin password…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="unifi-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="unifi-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="unifi-validate-btn">Test Connection</button>
               </div>
               <div id="unifi-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2214,7 +2257,7 @@
               <label class="label">API Key</label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="sabnzbd-api-key" placeholder="Paste your SABnzbd API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="sabnzbd-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="sabnzbd-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="sabnzbd-validate-btn">Test Connection</button>
               </div>
               <div id="sabnzbd-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2270,7 +2313,7 @@
               <label class="label">Password</label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="qbittorrent-password" placeholder="WebUI password…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="qbittorrent-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="qbittorrent-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="qbittorrent-validate-btn">Test Connection</button>
               </div>
               <div id="qbittorrent-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2323,7 +2366,7 @@
               <label class="label">Password <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="transmission-password" placeholder="RPC password (if enabled)…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="transmission-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="transmission-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="transmission-validate-btn">Test Connection</button>
               </div>
               <div id="transmission-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2365,7 +2408,7 @@
             <div class="form-group"><label class="label">Password <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="peanut-password" placeholder="PeaNUT password…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="peanut-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="peanut-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="peanut-validate-btn">Test Connection</button>
               </div>
               <div id="peanut-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2399,7 +2442,7 @@
             <div class="form-group"><label class="label">API Key <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(or use username/password below)</span></label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="umami-api-key" placeholder="x-umami-api-key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="umami-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="umami-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
               </div></div>
             <div class="form-group"><label class="label" for="umami-username">Username <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(self-hosted)</span></label>
               <input class="input" type="text" id="umami-username" placeholder="Umami username" autocomplete="off"></div>
@@ -2445,7 +2488,7 @@
             <div class="form-group"><label class="label">API Token</label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="speedtest-token" placeholder="Bearer API token…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="speedtest-key-toggle" title="Hide token">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="speedtest-key-toggle" title="Hide token"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="speedtest-validate-btn">Test Connection</button>
               </div>
               <div id="speedtest-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2484,7 +2527,7 @@
             <div class="form-group"><label class="label">Access Token <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="ntfy-token" placeholder="tk_… (for protected topics)" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="ntfy-key-toggle" title="Hide token">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="ntfy-key-toggle" title="Hide token"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
               </div></div>
             <div class="form-group"><label class="label" for="ntfy-limit">Notifications Shown</label>
               <select class="select" id="ntfy-limit" style="width:160px;">
@@ -2517,7 +2560,7 @@
             <div class="form-group"><label class="label">API Token</label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="audiobookshelf-token" placeholder="Bearer API token…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="audiobookshelf-key-toggle" title="Hide token">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="audiobookshelf-key-toggle" title="Hide token"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="audiobookshelf-validate-btn">Test Connection</button>
               </div>
               <div id="audiobookshelf-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2551,7 +2594,7 @@
             <div class="form-group"><label class="label">Password</label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="navidrome-password" placeholder="Navidrome password…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="navidrome-key-toggle" title="Hide password">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="navidrome-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="navidrome-validate-btn">Test Connection</button>
               </div>
               <div id="navidrome-validation-result" style="display:none;margin-top:8px;"></div></div>
@@ -2582,7 +2625,7 @@
             <div class="form-group"><label class="label">API Key</label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="prowlarr-api-key" placeholder="Prowlarr API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="prowlarr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="prowlarr-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="prowlarr-validate-btn">Test Connection</button>
               </div>
               <div id="prowlarr-validation-result" style="display:none;margin-top:8px;"></div>
@@ -2614,7 +2657,7 @@
             <div class="form-group"><label class="label">API Key</label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="tracearr-api-key" placeholder="Tracearr API key…" autocomplete="off">
-                <button class="btn btn-ghost eyeball-btn" id="tracearr-key-toggle" title="Hide key">🙈</button>
+                <button class="btn btn-ghost eyeball-btn" id="tracearr-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
                 <button class="btn btn-secondary" id="tracearr-validate-btn">Test Connection</button>
               </div>
               <div id="tracearr-validation-result" style="display:none;margin-top:8px;"></div></div>
@@ -2636,7 +2679,7 @@
           <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://nicolargo.github.io/glances/" target="_blank" rel="noopener" style="color:var(--accent);">Glances</a> v4 web server. Username/password only if you enabled web auth.</p>
           <div class="form-group"><label class="label" for="glances-url">Glances URL</label><input class="input" type="text" id="glances-url" placeholder="e.g. http://192.168.1.10:61208" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="glances-username">Username <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label><input class="input" type="text" id="glances-username" placeholder="web auth username (if set)" autocomplete="off"></div>
-          <div class="form-group"><label class="label">Password <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label><div class="api-key-row"><input class="input input-mono" type="text" id="glances-password" placeholder="web auth password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="glances-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="glances-validate-btn">Test Connection</button></div><div id="glances-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group"><label class="label">Password <span style="text-transform:none;font-weight:400;color:var(--text-muted);">(optional)</span></label><div class="api-key-row"><input class="input input-mono" type="text" id="glances-password" placeholder="web auth password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="glances-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="glances-validate-btn">Test Connection</button></div><div id="glances-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="glances-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="glances-preview-hint">Test the connection to enable a live preview.</p></div>
         </div></div>
       </div>
@@ -2663,7 +2706,7 @@
         <div id="unraid-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
           <p class="banner banner-info" style="margin-bottom:18px;">Requires the <a href="https://docs.unraid.net/API/" target="_blank" rel="noopener" style="color:var(--accent);">Unraid API</a> (GraphQL) enabled with an API key.</p>
           <div class="form-group"><label class="label" for="unraid-url">Unraid URL</label><input class="input" type="text" id="unraid-url" placeholder="e.g. http://192.168.1.10" autocomplete="off"></div>
-          <div class="form-group"><label class="label">API Key</label><div class="api-key-row"><input class="input input-mono" type="text" id="unraid-api-key" placeholder="Unraid API key…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="unraid-key-toggle" title="Hide key">🙈</button><button class="btn btn-secondary" id="unraid-validate-btn">Test Connection</button></div><div id="unraid-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group"><label class="label">API Key</label><div class="api-key-row"><input class="input input-mono" type="text" id="unraid-api-key" placeholder="Unraid API key…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="unraid-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="unraid-validate-btn">Test Connection</button></div><div id="unraid-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="unraid-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="unraid-preview-hint">Test the connection to enable a live preview.</p></div>
         </div></div>
       </div>
@@ -2678,7 +2721,7 @@
           <p class="banner banner-warning" style="margin-bottom:18px;"><a href="https://www.openmediavault.org/" target="_blank" rel="noopener" style="color:var(--accent);">OpenMediaVault</a> uses a cookie-session RPC API which may reject cross-origin browser requests.</p>
           <div class="form-group"><label class="label" for="openmediavault-url">OMV URL</label><input class="input" type="text" id="openmediavault-url" placeholder="e.g. http://192.168.1.10" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="openmediavault-username">Username</label><input class="input" type="text" id="openmediavault-username" placeholder="OMV admin username" autocomplete="off"></div>
-          <div class="form-group"><label class="label">Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="openmediavault-password" placeholder="OMV admin password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="openmediavault-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="openmediavault-validate-btn">Test Connection</button></div><div id="openmediavault-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group"><label class="label">Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="openmediavault-password" placeholder="OMV admin password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="openmediavault-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="openmediavault-validate-btn">Test Connection</button></div><div id="openmediavault-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="openmediavault-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="openmediavault-preview-hint">Test the connection to enable a live preview.</p></div>
         </div></div>
       </div>
@@ -2692,7 +2735,7 @@
         <div id="truenas-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
           <p class="banner banner-warning" style="margin-bottom:18px;"><a href="https://www.truenas.com/" target="_blank" rel="noopener" style="color:var(--accent);">TrueNAS</a> SCALE uses a WebSocket JSON-RPC API; browser access requires the host reachable over ws/wss and a self-signed cert accepted first.</p>
           <div class="form-group"><label class="label" for="truenas-url">TrueNAS URL</label><input class="input" type="text" id="truenas-url" placeholder="e.g. http://192.168.1.10" autocomplete="off"></div>
-          <div class="form-group"><label class="label">API Key</label><div class="api-key-row"><input class="input input-mono" type="text" id="truenas-api-key" placeholder="TrueNAS API key…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="truenas-key-toggle" title="Hide key">🙈</button><button class="btn btn-secondary" id="truenas-validate-btn">Test Connection</button></div><div id="truenas-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Create one in TrueNAS under <strong>Credentials → API Keys</strong>.</p></div>
+          <div class="form-group"><label class="label">API Key</label><div class="api-key-row"><input class="input input-mono" type="text" id="truenas-api-key" placeholder="TrueNAS API key…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="truenas-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="truenas-validate-btn">Test Connection</button></div><div id="truenas-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Create one in TrueNAS under <strong>Credentials → API Keys</strong>.</p></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="truenas-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="truenas-preview-hint">Test the connection to enable a live preview.</p></div>
         </div></div>
       </div>
@@ -2711,8 +2754,41 @@
             <div><label class="label" for="proxmox-realm">Realm</label><input class="input" type="text" id="proxmox-realm" placeholder="pam" autocomplete="off"></div>
             <div><label class="label" for="proxmox-token-id">Token ID</label><input class="input" type="text" id="proxmox-token-id" placeholder="homarr" autocomplete="off"></div>
           </div>
-          <div class="form-group"><label class="label">Token Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="proxmox-api-key" placeholder="API token secret (UUID)…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="proxmox-key-toggle" title="Hide secret">🙈</button><button class="btn btn-secondary" id="proxmox-validate-btn">Test Connection</button></div><div id="proxmox-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Token: <code>user@realm!tokenid=secret</code>. Give it at least <code>PVEAuditor</code> on <code>/</code>.</p></div>
+          <div class="form-group"><label class="label">Token Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="proxmox-api-key" placeholder="API token secret (UUID)…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="proxmox-key-toggle" title="Hide secret"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="proxmox-validate-btn">Test Connection</button></div><div id="proxmox-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Token: <code>user@realm!tokenid=secret</code>. Give it at least <code>PVEAuditor</code> on <code>/</code>.</p></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="proxmox-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="proxmox-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- Portainer Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/portainer.svg" alt="">Portainer Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Docker containers across every environment — health, usage &amp; lifecycle actions</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="portainer-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="portainer-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://docs.portainer.io/api/access" target="_blank" rel="noopener" style="color:var(--accent);">Portainer</a> via an API access token (<strong>My account → Access tokens</strong>).</p>
+          <div class="form-group"><label class="label" for="portainer-url">Portainer URL</label><input class="input" type="text" id="portainer-url" placeholder="e.g. https://192.168.1.10:9443" autocomplete="off"></div>
+          <div class="form-group"><label class="label">API Access Token</label><div class="api-key-row"><input class="input input-mono" type="text" id="portainer-api-key" placeholder="ptr_…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="portainer-key-toggle" title="Hide token"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="portainer-validate-btn">Test Connection</button></div><div id="portainer-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Sent as the <code>X-API-Key</code> header. A read-only token covers monitoring; Start/Stop/Restart needs write access. The refresh interval is set after enabling, in the integration's settings.</p></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="portainer-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="portainer-preview-hint">Test the connection to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
+      <!-- Stocks Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/stocks.svg" alt="">Stocks Integration</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Live ticker quotes &amp; sparklines — no API key, just symbols</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="stocks-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="stocks-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <p class="banner banner-info" style="margin-bottom:18px;">Quotes come from a free public market-data source — no account or API key required. Add one or more ticker symbols.</p>
+          <div class="form-group">
+            <label class="label" for="stocks-symbols">Ticker Symbols</label>
+            <input class="input" type="text" id="stocks-symbols" placeholder="e.g. AAPL, MSFT, NVDA, BTC-USD" autocomplete="off">
+            <div style="margin-top:8px;"><button class="btn btn-secondary" id="stocks-validate-btn">Check Symbols</button></div>
+            <div id="stocks-validation-result" style="display:none;margin-top:8px;"></div>
+            <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Comma-separated Yahoo Finance symbols — stocks like <code>AAPL</code> / <code>BRK-B</code>, indices like <code>^GSPC</code>, or crypto like <code>BTC-USD</code>.</p>
+          </div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="stocks-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="stocks-preview-hint">Check your symbols to enable a live preview.</p></div>
         </div></div>
       </div>
 
@@ -2730,7 +2806,7 @@
             <div><label class="label" for="pbs-realm">Realm</label><input class="input" type="text" id="pbs-realm" placeholder="pbs" autocomplete="off"></div>
             <div><label class="label" for="pbs-token-id">Token ID</label><input class="input" type="text" id="pbs-token-id" placeholder="dashboard" autocomplete="off"></div>
           </div>
-          <div class="form-group"><label class="label">Token Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="pbs-api-key" placeholder="API token secret…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="pbs-key-toggle" title="Hide secret">🙈</button><button class="btn btn-secondary" id="pbs-validate-btn">Test Connection</button></div><div id="pbs-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Token: <code>user@realm!tokenid:secret</code>. Needs <code>Datastore.Audit</code>.</p></div>
+          <div class="form-group"><label class="label">Token Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="pbs-api-key" placeholder="API token secret…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="pbs-key-toggle" title="Hide secret"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="pbs-validate-btn">Test Connection</button></div><div id="pbs-validation-result" style="display:none;margin-top:8px;"></div><p style="font-size:12px;color:var(--text-muted);margin-top:6px;">Token: <code>user@realm!tokenid:secret</code>. Needs <code>Datastore.Audit</code>.</p></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="pbs-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="pbs-preview-hint">Test the connection to enable a live preview.</p></div>
         </div></div>
       </div>
@@ -2745,7 +2821,7 @@
           <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://beszel.dev/" target="_blank" rel="noopener" style="color:var(--accent);">Beszel</a> hub (PocketBase) login.</p>
           <div class="form-group"><label class="label" for="beszel-url">Beszel Hub URL</label><input class="input" type="text" id="beszel-url" placeholder="e.g. http://192.168.1.10:8090" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="beszel-username">Email / Username</label><input class="input" type="text" id="beszel-username" placeholder="Beszel account email" autocomplete="off"></div>
-          <div class="form-group"><label class="label">Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="beszel-password" placeholder="Beszel password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="beszel-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="beszel-validate-btn">Test Connection</button></div><div id="beszel-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group"><label class="label">Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="beszel-password" placeholder="Beszel password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="beszel-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="beszel-validate-btn">Test Connection</button></div><div id="beszel-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="beszel-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="beszel-preview-hint">Test the connection to enable a live preview.</p></div>
         </div></div>
       </div>
@@ -2774,7 +2850,7 @@
         <div id="homeassistant-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
           <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://www.home-assistant.io/" target="_blank" rel="noopener" style="color:var(--accent);">Home Assistant</a> via a long-lived access token (Profile → Security → Long-lived access tokens).<br><span style="color:var(--text-muted);">Tip: to show a Home Assistant calendar, use the iCal widget with HA's calendar export URL.</span></p>
           <div class="form-group"><label class="label" for="homeassistant-url">Home Assistant URL</label><input class="input" type="text" id="homeassistant-url" placeholder="e.g. http://192.168.1.10:8123" autocomplete="off"></div>
-          <div class="form-group"><label class="label">Long-Lived Access Token</label><div class="api-key-row"><input class="input input-mono" type="text" id="homeassistant-token" placeholder="Paste your access token…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="homeassistant-key-toggle" title="Hide token">🙈</button><button class="btn btn-secondary" id="homeassistant-validate-btn">Test Connection</button></div><div id="homeassistant-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group"><label class="label">Long-Lived Access Token</label><div class="api-key-row"><input class="input input-mono" type="text" id="homeassistant-token" placeholder="Paste your access token…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="homeassistant-key-toggle" title="Hide token"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="homeassistant-validate-btn">Test Connection</button></div><div id="homeassistant-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group"><label class="label" for="homeassistant-entities">Entities</label><textarea class="input" id="homeassistant-entities" rows="4" placeholder="One entity ID per line, e.g.&#10;light.kitchen&#10;switch.office&#10;sensor.living_room_temperature" style="resize:vertical;font-family:var(--font-mono);font-size:12px;"></textarea><p style="font-size:12px;color:var(--text-muted);margin-top:4px;">Find IDs in HA under <strong>Developer Tools → States</strong>.</p></div>
           <div class="form-group"><label class="checkbox-wrapper"><input type="checkbox" id="homeassistant-allow-toggle" checked> Allow toggling entities from the widget</label></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="homeassistant-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="homeassistant-preview-hint">Test the connection to enable a live preview.</p></div>
@@ -2791,7 +2867,7 @@
           <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://opnsense.org/" target="_blank" rel="noopener" style="color:var(--accent);">OPNsense</a> via an API key + secret (<strong>System → Access → Users → (your user) → API keys</strong>, "+" to create).</p>
           <div class="form-group"><label class="label" for="opnsense-url">OPNsense URL</label><input class="input" type="text" id="opnsense-url" placeholder="e.g. https://192.168.1.1" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="opnsense-key">API Key</label><input class="input input-mono" type="text" id="opnsense-key" placeholder="API key…" autocomplete="off"></div>
-          <div class="form-group"><label class="label">API Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="opnsense-secret" placeholder="API secret…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="opnsense-key-toggle" title="Hide secret">🙈</button><button class="btn btn-secondary" id="opnsense-validate-btn">Test Connection</button></div><div id="opnsense-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group"><label class="label">API Secret</label><div class="api-key-row"><input class="input input-mono" type="text" id="opnsense-secret" placeholder="API secret…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="opnsense-key-toggle" title="Hide secret"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="opnsense-validate-btn">Test Connection</button></div><div id="opnsense-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="opnsense-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="opnsense-preview-hint">Test the connection to enable a live preview.</p></div>
         </div></div>
       </div>
@@ -2806,7 +2882,7 @@
           <p class="banner banner-info" style="margin-bottom:18px;"><a href="https://nextcloud.com/" target="_blank" rel="noopener" style="color:var(--accent);">Nextcloud</a> notifications via the OCS API. Use an <strong>app password</strong> (Settings → Security → Devices &amp; sessions). For Nextcloud <em>calendars</em>, add the calendar's private iCal link to the iCal widget.</p>
           <div class="form-group"><label class="label" for="nextcloud-url">Nextcloud URL</label><input class="input" type="text" id="nextcloud-url" placeholder="e.g. https://cloud.example.com" autocomplete="off"></div>
           <div class="form-group"><label class="label" for="nextcloud-username">Username</label><input class="input" type="text" id="nextcloud-username" placeholder="Nextcloud username" autocomplete="off"></div>
-          <div class="form-group"><label class="label">App Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="nextcloud-password" placeholder="App password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="nextcloud-key-toggle" title="Hide password">🙈</button><button class="btn btn-secondary" id="nextcloud-validate-btn">Test Connection</button></div><div id="nextcloud-validation-result" style="display:none;margin-top:8px;"></div></div>
+          <div class="form-group"><label class="label">App Password</label><div class="api-key-row"><input class="input input-mono" type="text" id="nextcloud-password" placeholder="App password…" autocomplete="off"><button class="btn btn-ghost eyeball-btn" id="nextcloud-key-toggle" title="Hide password"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button><button class="btn btn-secondary" id="nextcloud-validate-btn">Test Connection</button></div><div id="nextcloud-validation-result" style="display:none;margin-top:8px;"></div></div>
           <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="nextcloud-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="nextcloud-preview-hint">Test the connection to enable a live preview.</p></div>
         </div></div>
       </div>
@@ -2837,6 +2913,11 @@
         <div class="int-m-t"><h3 id="int-m-name"></h3><p id="int-m-cat"></p></div>
         <button class="int-m-x" id="int-m-close" title="Close" type="button">&times;</button>
       </div>
+      <div class="int-m-desc-row">
+        <label class="int-m-desc-label" for="int-m-desc">Description</label>
+        <input class="input" type="text" id="int-m-desc" maxlength="20" placeholder="Label this configuration (max 20)" autocomplete="off">
+        <span class="int-m-desc-count" id="int-m-desc-count">0/20</span>
+      </div>
       <div class="int-m-body" id="int-m-body"></div>
       <div class="int-m-poll" id="int-m-poll" style="display:none;">
         <span class="int-m-poll-label">Refresh interval</span>
@@ -2859,6 +2940,8 @@
   <div class="modal-overlay" id="openmediavault-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🔵 OpenMediaVault Widget Preview</h3><button class="modal-close-btn" id="openmediavault-preview-close">✕</button></div><div class="modal-body"><div id="openmediavault-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="openmediavault-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="truenas-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🟦 TrueNAS Widget Preview</h3><button class="modal-close-btn" id="truenas-preview-close">✕</button></div><div class="modal-body"><div id="truenas-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="truenas-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="proxmox-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🖥 Proxmox Widget Preview</h3><button class="modal-close-btn" id="proxmox-preview-close">✕</button></div><div class="modal-body"><div id="proxmox-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="proxmox-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="portainer-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🐳 Portainer Widget Preview</h3><button class="modal-close-btn" id="portainer-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Live container data from your Portainer environments. Start / Stop / Restart actions are live in this preview.</p><div id="portainer-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="portainer-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="stocks-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>📈 Stocks Widget Preview</h3><button class="modal-close-btn" id="stocks-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Live quotes for your tickers from the public market-data source.</p><div id="stocks-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="stocks-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="pbs-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>💾 PBS Widget Preview</h3><button class="modal-close-btn" id="pbs-preview-close">✕</button></div><div class="modal-body"><div id="pbs-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="pbs-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="beszel-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🐿 Beszel Widget Preview</h3><button class="modal-close-btn" id="beszel-preview-close">✕</button></div><div class="modal-body"><div id="beszel-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="beszel-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="ical-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>📅 iCal Widget Preview</h3><button class="modal-close-btn" id="ical-preview-close">✕</button></div><div class="modal-body"><div id="ical-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="ical-preview-done">Close</button></div></div></div>
@@ -3385,6 +3468,10 @@
                 <span class="label" style="margin:0;">Select bookmarks &amp; folders</span>
                 <span class="wiz-hint" style="margin:0;"><b id="wiz-sel-count">0</b> selected</span>
               </div>
+              <div class="int-search" style="max-width:none;margin:0 0 8px;">
+                <input type="text" id="wiz-bm-search" placeholder="Search bookmarks…" autocomplete="off">
+                <button type="button" class="int-search-clear" id="wiz-bm-search-clear" title="Clear search" aria-label="Clear search">✕</button>
+              </div>
               <div id="wiz-tree-mount"></div>
               <div class="wiz-err" id="wiz-sel-err" style="display:none;margin-top:8px;flex:0 0 auto;">Select at least one bookmark.</div>
             </div>
@@ -3405,7 +3492,7 @@
           </div>
         </section>
 
-        <section class="wiz-step" id="wiz-step-4" style="display:none;"><div id="wiz-edit-hdr" class="wiz-edit-hdr" style="display:none;"></div><div id="wiz-preview" class="wiz-preview"></div></section>
+        <section class="wiz-step" id="wiz-step-4" style="display:none;"><div id="wiz-edit-hdr" class="wiz-edit-hdr" style="display:none;"></div><div id="wiz-widget-panel" class="wiz-widget-panel" style="display:none;"></div><div id="wiz-preview" class="wiz-preview"></div></section>
       </div>
       <div class="wiz-foot">
         <button class="btn btn-ghost" id="wiz-back" type="button" disabled>Back</button>
@@ -3459,6 +3546,9 @@
 <script src="../widgets/nextcloud-widget.js"></script>
 <script src="../widgets/opnsense-widget.js"></script>
 <script src="../widgets/weather-widget.js"></script>
+<script src="../widgets/list-carousel.js"></script>
+<script src="../widgets/portainer-widget.js"></script>
+<script src="../widgets/stocks-widget.js"></script>
 <script src="config.js"></script>
 </body>
 </html>

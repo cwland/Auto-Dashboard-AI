@@ -64,8 +64,9 @@ const SAMPLES = {
   },
 
   'tautulli-list'(h) {
+    const pf = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18" fill="#e8483c"/><circle cx="20" cy="20" r="7" fill="#fff"/><circle cx="20" cy="20" r="4" fill="#4285f4"/></svg>');
     const card = (over) => Object.assign({
-      username: 'cory', product: 'Plex Web', player: 'Chrome', bandwidth: '5.0 Mbps',
+      username: 'cory', product: 'Plex Web', player: 'Chrome', bandwidth: '5.0 Mbps', platformIcon: pf,
       location: 'LAN: 192.168.50.16', eta: '19:14', progressText: '1:22 / 42:50', progressPct: 32,
       state: 'playing', stateIcon: '▶', mediaIcon: '🖥', footTitle: 'Severance - Cold Harbor', footSub: 'S2 · E4',
       avatarInitial: 'C', avatarColor: '#e07a7a', avatarImg: '',
@@ -323,19 +324,57 @@ function arr(service) {
 // ── Weather (all three widgets on one demo page) ─────────────────────────
 function demoWeatherData() {
   const H = (t, e, temp, wind) => ({ time: t, condition: '', emoji: e, temp, wind });
-  const D = (d, e, hi, lo) => ({ day: d, emoji: e, condition: '', high: hi, low: lo, sunrise: '6:42 AM', sunset: '7:58 PM' });
+  const D = (d, e, c, hi, lo) => ({ day: d, emoji: e, condition: c, high: hi, low: lo, sunrise: '6:42 AM', sunset: '7:58 PM' });
   return {
     current: { condition: 'Partly Cloudy', emoji: '⛅', temp: 72, feels: 70, high: 78, low: 61, wind: 8, humidity: 44, sunrise: '6:42 AM', sunset: '7:58 PM', place: 'San Francisco' },
     hourly: [H('1 PM', '☀️', 73, 7), H('2 PM', '🌤️', 74, 8), H('3 PM', '⛅', 73, 9), H('4 PM', '⛅', 71, 10), H('5 PM', '🌥️', 68, 11), H('6 PM', '🌧️', 64, 12), H('7 PM', '🌧️', 62, 12), H('8 PM', '🌙', 60, 9), H('9 PM', '🌙', 58, 8), H('10 PM', '☁️', 57, 7), H('11 PM', '☁️', 56, 6), H('12 AM', '🌙', 55, 6)],
-    daily: [D('Mon', '☀️', 78, 61), D('Tue', '⛅', 75, 60), D('Wed', '🌧️', 69, 58), D('Thu', '🌤️', 73, 59), D('Fri', '⛈️', 66, 55), D('Sat', '☀️', 72, 57), D('Sun', '🌤️', 74, 58)],
+    daily: [D('Mon', '☀️', 'Sunny', 78, 61), D('Tue', '⛅', 'Partly Cloudy', 75, 60), D('Wed', '🌧️', 'Rain', 69, 58), D('Thu', '🌤️', 'Mostly Sunny', 73, 59), D('Fri', '⛈️', 'Storms', 66, 55), D('Sat', '☀️', 'Sunny', 72, 57), D('Sun', '🌤️', 'Mostly Sunny', 74, 58)],
     units: 'imperial', sym: { temp: '°F', speed: 'mph' },
   };
 }
 SAMPLES.weather = function () {
   const dp = () => Promise.resolve(demoWeatherData());
+  if (typeof WeatherCombinedWidget !== 'undefined') new WeatherCombinedWidget(tile('Weather — Combined'), { dataProvider: dp, hours: 12, days: 5 }).start();
   new WeatherCurrentWidget(tile('Current Weather'), { dataProvider: dp }).start();
   new WeatherHourlyWidget(tile('Hourly Forecast'), { dataProvider: dp, hours: 5 }).start();
   new WeatherForecastWidget(tile('5-Day Forecast'), { dataProvider: dp }).start();
+};
+
+// ── Portainer (10-service homelab dataset across two nodes) ──────────────
+SAMPLES.portainer = function () {
+  const MB = 1048576;
+  const mk = (name, image, node, state, cpu, memMB, uptime) => ({
+    id: name.toLowerCase() + '-' + node, endpointId: node, node, name, image, state,
+    statusText: state === 'running' ? 'Up ' + uptime : 'Exited (0) 2 hours ago',
+    uptime: state === 'running' ? uptime : '—',
+    cpu: state === 'running' ? cpu : 0, mem: state === 'running' ? memMB * MB : 0, labels: {},
+  });
+  const data = [
+    mk('plex',          'lscr.io/linuxserver/plex',            'docker-01', 'running', 63, 780,  '5 days'),
+    mk('jellyfin',      'jellyfin/jellyfin',                   'docker-02', 'running', 28, 410,  '12 days'),
+    mk('sonarr',        'lscr.io/linuxserver/sonarr',          'docker-01', 'running',  6, 180,  '3 days'),
+    mk('radarr',        'lscr.io/linuxserver/radarr',          'docker-01', 'running',  9, 240,  '3 days'),
+    mk('prowlarr',      'lscr.io/linuxserver/prowlarr',        'docker-02', 'running',  2,  96,  '8 days'),
+    mk('homeassistant', 'ghcr.io/home-assistant/home-assistant', 'docker-02', 'running', 41, 520, '20 days'),
+    mk('grafana',       'grafana/grafana',                     'docker-01', 'running', 17, 150,  '6 days'),
+    mk('prometheus',    'prom/prometheus',                     'docker-01', 'running', 88, 1640, '6 days'),
+    mk('pihole',        'pihole/pihole',                       'docker-02', 'running',  3,  64,  '30 days'),
+    mk('immich',        'ghcr.io/immich-app/immich-server',    'docker-02', 'exited',   0,   0,  ''),
+  ];
+  new PortainerWidget(tile('Portainer — Containers'), { dataProvider: () => Promise.resolve(data) }).start();
+};
+
+// ── Stocks ──────────────────────────────────────────────────────────────
+SAMPLES.stocks = function () {
+  const walk = (start, n, vol, drift) => { const a = []; let p = start; for (let i = 0; i < n; i++) { p += (Math.random() - 0.5) * vol + drift; a.push(Math.round(p * 100) / 100); } return a; };
+  const mk = (symbol, name, hist, prev, currency) => { const price = hist[hist.length - 1]; return { symbol, name, price, prevClose: prev, change: Math.round((price - prev) * 100) / 100, changePct: ((price - prev) / prev) * 100, currency: currency || 'USD', history: hist }; };
+  const data = [
+    mk('AAPL', 'Apple Inc.', walk(225, 22, 3, 0.4), 229.31),
+    mk('MSFT', 'Microsoft Corp.', walk(415, 22, 5, 0.8), 410.22),
+    mk('NVDA', 'NVIDIA Corp.', walk(128, 22, 4, -0.5), 134.80),
+    mk('BTC-USD', 'Bitcoin USD', walk(63000, 22, 1400, 200), 61240.0),
+  ];
+  new StocksWidget(tile('Stocks'), { dataProvider: () => Promise.resolve(data) }).start();
 };
 
 // ── Boot ────────────────────────────────────────────────────────────────

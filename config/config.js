@@ -251,7 +251,8 @@ const POLL_DEFAULTS = {
   opnsense: { def: 10, min: 5 }, homeassistant: { def: 15, min: 5 }, tracearr: { def: 15, min: 10 },
   uptimekuma: { def: 30, min: 5 }, pihole: { def: 30, min: 10 }, adguard: { def: 30, min: 10 },
   unifi: { def: 30, min: 10 }, proxmox: { def: 30, min: 10 }, peanut: { def: 30, min: 10 },
-  ntfy: { def: 30, min: 10 }, beszel: { def: 30, min: 10 },
+  ntfy: { def: 30, min: 10 }, beszel: { def: 30, min: 10 }, portainer: { def: 15, min: 5 },
+  stocks: { def: 300, min: 60 },
   glances: { def: 30, min: 10 }, dashdot: { def: 30, min: 10 }, unraid: { def: 30, min: 10 },
   openmediavault: { def: 30, min: 10 }, truenas: { def: 30, min: 10 },
   seerr: { def: 60, min: 15 }, prowlarr: { def: 60, min: 15 }, speedtest: { def: 60, min: 15 },
@@ -297,6 +298,7 @@ const DEFAULT_SETTINGS = {
   searchEnabled: true,    // show the dashboard search bar (on by default)
   dashboardSwitcher: 'dropdown',  // 'dropdown' | 'tabs' | 'sidebar'
   pollSecs: {},      // { integrationId: refreshIntervalSeconds } — per-widget override
+  integrationDescriptions: {},  // { serviceKey: 'short label' } — identifies a configuration
   clockFormat: '12',
   dateVisible: true,
   dateFormat: 'long',
@@ -415,6 +417,8 @@ const DEFAULT_SETTINGS = {
   openmediavaultEnabled: false, openmediavaultUrl: '', openmediavaultUsername: '', openmediavaultPassword: '',
   truenasEnabled: false, truenasUrl: '', truenasApiKey: '',
   proxmoxEnabled: false, proxmoxUrl: '', proxmoxUsername: 'root', proxmoxRealm: 'pam', proxmoxTokenId: '', proxmoxApiKey: '',
+  portainerEnabled: false, portainerUrl: '', portainerApiKey: '',
+  stocksEnabled: false, stocksSymbols: 'AAPL, MSFT, NVDA',
   pbsEnabled: false, pbsUrl: '', pbsUsername: 'root', pbsRealm: 'pbs', pbsTokenId: '', pbsApiKey: '', pbsNode: 'localhost',
   beszelEnabled: false, beszelUrl: '', beszelUsername: '', beszelPassword: '',
   icalEnabled: false, icalName: 'Calendar', icalUrl: '', icalView: 'upcoming',
@@ -480,6 +484,8 @@ let state = {
   openmediavaultValidated: false, openmediavaultPreviewWidget: null,
   truenasValidated: false, truenasPreviewWidget: null,
   proxmoxValidated: false, proxmoxPreviewWidget: null,
+  portainerValidated: false, portainerPreviewWidget: null,
+  stocksValidated: false, stocksPreviewWidget: null,
   pbsValidated: false, pbsPreviewWidget: null,
   beszelValidated: false, beszelPreviewWidget: null,
   icalValidated: false, icalPreviewWidget: null,
@@ -569,12 +575,23 @@ async function loadSettings() {
     state.openmediavaultValidated  = !!(stored.settings.openmediavaultUrl && stored.settings.openmediavaultUsername);
     state.truenasValidated         = !!(stored.settings.truenasUrl && stored.settings.truenasApiKey);
     state.proxmoxValidated         = !!(stored.settings.proxmoxUrl && stored.settings.proxmoxApiKey);
+    state.portainerValidated       = !!(stored.settings.portainerUrl && stored.settings.portainerApiKey);
+    state.stocksValidated          = !!(stored.settings.stocksSymbols && String(stored.settings.stocksSymbols).trim());
     state.pbsValidated             = !!(stored.settings.pbsUrl && stored.settings.pbsApiKey);
     state.beszelValidated          = !!(stored.settings.beszelUrl && stored.settings.beszelUsername);
     state.icalValidated            = !!stored.settings.icalUrl;
     state.homeassistantValidated   = !!(stored.settings.homeassistantUrl && stored.settings.homeassistantToken);
     state.nextcloudValidated       = !!(stored.settings.nextcloudUrl && stored.settings.nextcloudUsername);
     state.opnsenseValidated        = !!(stored.settings.opnsenseUrl && stored.settings.opnsenseKey && stored.settings.opnsenseSecret);
+
+    // Backfill descriptions for integrations enabled before this feature shipped:
+    // default each to its integration name so every configuration is labelled.
+    const descs = state.currentSettings.integrationDescriptions =
+      Object.assign({}, state.currentSettings.integrationDescriptions);
+    INTEGRATIONS.forEach((e) => {
+      const k = e.enabledKey.replace(/Enabled$/, '');
+      if (state.currentSettings[e.enabledKey] && !descs[k]) descs[k] = e.name.slice(0, 20);
+    });
   }
   applySettingsToUI();
   updateSaveBar();
@@ -906,6 +923,10 @@ function applySettingsToUI() {
   // Proxmox / PBS / Beszel
   setToggle('proxmox'); setVal('proxmox-url', s.proxmoxUrl); setVal('proxmox-username', s.proxmoxUsername); setVal('proxmox-realm', s.proxmoxRealm); setVal('proxmox-token-id', s.proxmoxTokenId); setVal('proxmox-api-key', s.proxmoxApiKey);
   updateProxmoxPreviewButton();
+  setToggle('portainer'); setVal('portainer-url', s.portainerUrl); setVal('portainer-api-key', s.portainerApiKey);
+  updatePortainerPreviewButton();
+  setToggle('stocks'); setVal('stocks-symbols', s.stocksSymbols);
+  updateStocksPreviewButton();
   setToggle('pbs'); setVal('pbs-url', s.pbsUrl); setVal('pbs-username', s.pbsUsername); setVal('pbs-realm', s.pbsRealm); setVal('pbs-token-id', s.pbsTokenId); setVal('pbs-api-key', s.pbsApiKey);
   updatePbsPreviewButton();
   setToggle('beszel'); setVal('beszel-url', s.beszelUrl); setVal('beszel-username', s.beszelUsername); setVal('beszel-password', s.beszelPassword);
@@ -1028,21 +1049,33 @@ function applyArrSettingsToUI(svc) {
 }
 
 /** Toggle an API key input between visible (text) and masked (password). */
+// Eye icons (Feather-style, themed via currentColor). Open eye = "click to
+// show" (field currently hidden); slashed eye = "click to hide" (field shown).
+const EYE_OPEN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF  = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>';
+
+// Set a secret field + its toggle button to the given visibility.
+function applyEyeballState(input, btn, visible) {
+  if (!input || !btn) return;
+  if (visible) {
+    input.type     = 'text';
+    btn.innerHTML  = EYE_OFF;   // action: hide
+    btn.title      = 'Hide';
+  } else {
+    input.type     = 'password';
+    btn.innerHTML  = EYE_OPEN;  // action: show
+    btn.title      = 'Show';
+  }
+}
+
 function setupEyeballToggle(inputId, btnId) {
   const input = document.getElementById(inputId);
   const btn   = document.getElementById(btnId);
   if (!input || !btn) return;
-  // Start visible (input HTML already has type="text")
+  // Reflect the field's current state (HTML defaults to type="text" = visible).
+  applyEyeballState(input, btn, input.type !== 'password');
   btn.addEventListener('click', () => {
-    if (input.type === 'text') {
-      input.type       = 'password';
-      btn.textContent  = '👁';
-      btn.title        = 'Show key';
-    } else {
-      input.type       = 'text';
-      btn.textContent  = '🙈';
-      btn.title        = 'Hide key';
-    }
+    applyEyeballState(input, btn, input.type === 'password');  // flip
   });
 }
 
@@ -1581,6 +1614,15 @@ function setupSettingsListeners() {
     secret: ['proxmox-api-key', 'proxmox-key-toggle'], invalidates: true,
     validate: validateProxmox, update: updateProxmoxPreviewButton, open: openProxmoxPreview, close: closeProxmoxPreview,
   });
+  setupExtraListeners('portainer', {
+    fields: { 'portainer-url': 'portainerUrl', 'portainer-api-key': 'portainerApiKey' },
+    secret: ['portainer-api-key', 'portainer-key-toggle'], invalidates: true,
+    validate: validatePortainer, update: updatePortainerPreviewButton, open: openPortainerPreview, close: closePortainerPreview,
+  });
+  setupExtraListeners('stocks', {
+    fields: { 'stocks-symbols': 'stocksSymbols' }, invalidates: true,
+    validate: validateStocks, update: updateStocksPreviewButton, open: openStocksPreview, close: closeStocksPreview,
+  });
   setupExtraListeners('pbs', {
     fields: { 'pbs-url': 'pbsUrl', 'pbs-username': 'pbsUsername', 'pbs-realm': 'pbsRealm', 'pbs-token-id': 'pbsTokenId', 'pbs-api-key': 'pbsApiKey' },
     secret: ['pbs-api-key', 'pbs-key-toggle'], invalidates: true,
@@ -1969,6 +2011,8 @@ function hasUnsavedChanges() {
     c.openmediavaultEnabled !== s.openmediavaultEnabled || c.openmediavaultUrl !== s.openmediavaultUrl || c.openmediavaultUsername !== s.openmediavaultUsername || c.openmediavaultPassword !== s.openmediavaultPassword ||
     c.truenasEnabled !== s.truenasEnabled || c.truenasUrl !== s.truenasUrl || c.truenasApiKey !== s.truenasApiKey ||
     c.proxmoxEnabled !== s.proxmoxEnabled || c.proxmoxUrl !== s.proxmoxUrl || c.proxmoxUsername !== s.proxmoxUsername || c.proxmoxRealm !== s.proxmoxRealm || c.proxmoxTokenId !== s.proxmoxTokenId || c.proxmoxApiKey !== s.proxmoxApiKey ||
+    c.portainerEnabled !== s.portainerEnabled || c.portainerUrl !== s.portainerUrl || c.portainerApiKey !== s.portainerApiKey ||
+    c.stocksEnabled !== s.stocksEnabled || c.stocksSymbols !== s.stocksSymbols ||
     c.pbsEnabled !== s.pbsEnabled || c.pbsUrl !== s.pbsUrl || c.pbsUsername !== s.pbsUsername || c.pbsRealm !== s.pbsRealm || c.pbsTokenId !== s.pbsTokenId || c.pbsApiKey !== s.pbsApiKey || c.pbsNode !== s.pbsNode ||
     c.beszelEnabled !== s.beszelEnabled || c.beszelUrl !== s.beszelUrl || c.beszelUsername !== s.beszelUsername || c.beszelPassword !== s.beszelPassword ||
     c.icalEnabled !== s.icalEnabled || c.icalName !== s.icalName || c.icalUrl !== s.icalUrl || c.icalView !== s.icalView ||
@@ -1995,6 +2039,7 @@ function hasSettingsTabChanges() {
          (c.searchEnabled !== false) !== (s.searchEnabled !== false) ||
          (c.dashboardSwitcher || 'dropdown') !== (s.dashboardSwitcher || 'dropdown') ||
          j(c.pollSecs) !== j(s.pollSecs) ||
+         j(c.integrationDescriptions) !== j(s.integrationDescriptions) ||
          c.clockFormat !== s.clockFormat || c.dateVisible !== s.dateVisible ||
          c.dateFormat !== s.dateFormat;
 }
@@ -2032,6 +2077,7 @@ async function saveSettings() {
     searchEnabled:       state.currentSettings.searchEnabled,
     dashboardSwitcher:   state.currentSettings.dashboardSwitcher,
     pollSecs:            state.currentSettings.pollSecs,
+    integrationDescriptions: state.currentSettings.integrationDescriptions,
     clockFormat:         state.currentSettings.clockFormat,
     dateVisible:         state.currentSettings.dateVisible,
     dateFormat:          state.currentSettings.dateFormat,
@@ -2150,6 +2196,8 @@ async function saveSettings() {
     openmediavaultEnabled: state.currentSettings.openmediavaultEnabled, openmediavaultUrl: state.currentSettings.openmediavaultUrl, openmediavaultUsername: state.currentSettings.openmediavaultUsername, openmediavaultPassword: state.currentSettings.openmediavaultPassword,
     truenasEnabled: state.currentSettings.truenasEnabled, truenasUrl: state.currentSettings.truenasUrl, truenasApiKey: state.currentSettings.truenasApiKey,
     proxmoxEnabled: state.currentSettings.proxmoxEnabled, proxmoxUrl: state.currentSettings.proxmoxUrl, proxmoxUsername: state.currentSettings.proxmoxUsername, proxmoxRealm: state.currentSettings.proxmoxRealm, proxmoxTokenId: state.currentSettings.proxmoxTokenId, proxmoxApiKey: state.currentSettings.proxmoxApiKey,
+    portainerEnabled: state.currentSettings.portainerEnabled, portainerUrl: state.currentSettings.portainerUrl, portainerApiKey: state.currentSettings.portainerApiKey,
+    stocksEnabled: state.currentSettings.stocksEnabled, stocksSymbols: state.currentSettings.stocksSymbols,
     pbsEnabled: state.currentSettings.pbsEnabled, pbsUrl: state.currentSettings.pbsUrl, pbsUsername: state.currentSettings.pbsUsername, pbsRealm: state.currentSettings.pbsRealm, pbsTokenId: state.currentSettings.pbsTokenId, pbsApiKey: state.currentSettings.pbsApiKey, pbsNode: state.currentSettings.pbsNode,
     beszelEnabled: state.currentSettings.beszelEnabled, beszelUrl: state.currentSettings.beszelUrl, beszelUsername: state.currentSettings.beszelUsername, beszelPassword: state.currentSettings.beszelPassword,
     icalEnabled: state.currentSettings.icalEnabled, icalName: state.currentSettings.icalName, icalUrl: state.currentSettings.icalUrl, icalView: state.currentSettings.icalView,
@@ -2477,6 +2525,7 @@ function openWeatherPreview() {
     state.weatherPreviewWidgets.push(w);
   };
 
+  if (typeof WeatherCombinedWidget !== 'undefined') mk('Weather — Combined', (el) => new WeatherCombinedWidget(el, Object.assign({ hours: 12, days: 5 }, cfg)));
   mk('Current Weather', (el) => new WeatherCurrentWidget(el, cfg));
   mk('Hourly Forecast', (el) => new WeatherHourlyWidget(el, Object.assign({ hours: 5 }, cfg)));
   mk('5-Day Forecast',  (el) => new WeatherForecastWidget(el, Object.assign({ days: 5 }, cfg)));
@@ -3579,6 +3628,54 @@ function updateProxmoxPreviewButton() { const s = state.currentSettings; setExtr
 function openProxmoxPreview() { const s = state.currentSettings; openExtraPreview('proxmox', typeof ProxmoxWidget !== 'undefined' ? ProxmoxWidget : undefined, () => Object.assign({ baseUrl: s.proxmoxUrl }, proxmoxTokenOpts())); }
 function closeProxmoxPreview() { closeExtraPreview('proxmox'); }
 
+// ── Portainer ──
+async function validatePortainer() {
+  const s = state.currentSettings;
+  if (!/^https?:\/\//i.test(s.portainerUrl || '')) { showExtraValidation('portainer', 'error', 'Enter a URL starting with http:// or https://'); return; }
+  if (!s.portainerApiKey) { showExtraValidation('portainer', 'error', 'Enter your Portainer API access token.'); return; }
+  setValidateBusy('portainer', true);
+  try {
+    const r = await PortainerApi.testConnection(s.portainerUrl, s.portainerApiKey);
+    state.portainerValidated = true;
+    showExtraValidation('portainer', 'success', `✓ Connected — ${r.endpoints} environment${r.endpoints === 1 ? '' : 's'}.`);
+  } catch (err) {
+    state.portainerValidated = false;
+    showExtraValidation('portainer', 'error', /apikey|401|403/i.test(err.message) ? '✗ Invalid API key.' : `✗ Unable to connect: ${err.message}`);
+  } finally { setValidateBusy('portainer', false); updatePortainerPreviewButton(); updateSaveBar(); }
+}
+function updatePortainerPreviewButton() { const s = state.currentSettings; setExtraPreviewBtn('portainer', state.portainerValidated && !!s.portainerUrl && !!s.portainerApiKey, 'Opens a live preview of your containers.'); }
+function openPortainerPreview() { const s = state.currentSettings; openExtraPreview('portainer', typeof PortainerWidget !== 'undefined' ? PortainerWidget : undefined, () => ({ baseUrl: s.portainerUrl, apiKey: s.portainerApiKey })); }
+function closePortainerPreview() { closeExtraPreview('portainer'); }
+
+// ── Stocks ──
+async function validateStocks() {
+  const list = (typeof StocksApi !== 'undefined') ? StocksApi.parseSymbols(state.currentSettings.stocksSymbols) : [];
+  if (!list.length) { showExtraValidation('stocks', 'error', 'Enter at least one ticker symbol (e.g. AAPL, MSFT).'); return; }
+  setValidateBusy('stocks', true);
+  try {
+    const r = await StocksApi.validateMany(list);
+    if (r.valid.length && !r.invalid.length) {
+      state.stocksValidated = true;
+      showExtraValidation('stocks', 'success', `✓ ${r.valid.length} symbol${r.valid.length === 1 ? '' : 's'} verified: ${r.valid.join(', ')}`);
+    } else if (r.valid.length) {
+      state.stocksValidated = true;
+      showExtraValidation('stocks', 'success', `✓ Verified: ${r.valid.join(', ')}.  ✗ Not found: ${r.invalid.join(', ')}`);
+    } else {
+      state.stocksValidated = false;
+      showExtraValidation('stocks', 'error', `✗ No valid symbols found: ${r.invalid.join(', ')}`);
+    }
+  } catch (err) {
+    state.stocksValidated = false;
+    showExtraValidation('stocks', 'error', `✗ Unable to reach the quote service: ${err.message}`);
+  } finally { setValidateBusy('stocks', false); updateStocksPreviewButton(); updateSaveBar(); }
+}
+function updateStocksPreviewButton() {
+  const has = (typeof StocksApi !== 'undefined') && StocksApi.parseSymbols(state.currentSettings.stocksSymbols).length > 0;
+  setExtraPreviewBtn('stocks', state.stocksValidated && has, 'Opens a live preview of your tickers.');
+}
+function openStocksPreview() { openExtraPreview('stocks', typeof StocksWidget !== 'undefined' ? StocksWidget : undefined, () => ({ symbols: StocksApi.parseSymbols(state.currentSettings.stocksSymbols) })); }
+function closeStocksPreview() { closeExtraPreview('stocks'); }
+
 // ── PBS ──
 function pbsTokenOpts() { const s = state.currentSettings; return { username: s.pbsUsername, realm: s.pbsRealm, tokenId: s.pbsTokenId, apiKey: s.pbsApiKey, node: s.pbsNode || 'localhost' }; }
 async function validatePbs() {
@@ -3803,6 +3900,10 @@ function renderFolderNode(node, depth) {
     }
   });
 
+  // Collapsed by default — users expand the folders they want (or search).
+  folderRow.classList.add('collapsed');
+  children.classList.add('hidden');
+
   wrapper.appendChild(folderRow);
   wrapper.appendChild(children);
   return wrapper;
@@ -3846,6 +3947,43 @@ function renderBookmarkNode(node) {
   row.appendChild(img);
   row.appendChild(title);
   return row;
+}
+
+function wizTreeCollapseAll(collapse) {
+  bookmarkTree.querySelectorAll('.tree-folder').forEach((f) => f.classList.toggle('collapsed', collapse));
+  bookmarkTree.querySelectorAll('.tree-children').forEach((c) => c.classList.toggle('hidden', collapse));
+}
+
+// Filter the bookmark tree by a query: hide non-matching rows, auto-expand
+// folders that contain a match. Empty query restores the collapsed default.
+function wizFilterTree(query) {
+  if (!bookmarkTree) return;
+  const q = (query || '').trim().toLowerCase();
+  if (!q) {
+    bookmarkTree.querySelectorAll('.tree-node, .tree-bookmark').forEach((el) => { el.style.display = ''; });
+    wizTreeCollapseAll(true);
+    return;
+  }
+  const visit = (wrapper) => {
+    const folder = wrapper.querySelector(':scope > .tree-folder');
+    const children = wrapper.querySelector(':scope > .tree-children');
+    if (!folder || !children) return false;
+    const label = (folder.querySelector('.folder-label') || {}).textContent || '';
+    let any = false;
+    children.querySelectorAll(':scope > .tree-node').forEach((child) => { if (visit(child)) any = true; });
+    children.querySelectorAll(':scope > .tree-bookmark').forEach((bm) => {
+      const t = bm.querySelector('.bm-title');
+      const hay = ((t && t.textContent) || '').toLowerCase() + ' ' + ((t && t.title) || '').toLowerCase();
+      const m = hay.includes(q);
+      bm.style.display = m ? '' : 'none';
+      if (m) any = true;
+    });
+    const show = label.toLowerCase().includes(q) || any;
+    wrapper.style.display = show ? '' : 'none';
+    if (any) { folder.classList.remove('collapsed'); children.classList.remove('hidden'); }
+    return show;
+  };
+  bookmarkTree.querySelectorAll(':scope > .tree-node').forEach(visit);
 }
 
 function getFaviconUrl(url) {
@@ -4548,8 +4686,9 @@ function wizMountTree() {
 function openWizard() {
   wizard.editId = null;
   wizard.step = 1;
-  wizard.data = { title: '', description: '', theme: '' };
-  ['wiz-title', 'wiz-desc', 'wiz-theme'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
+  wizWidgetTab = 'live';
+  wizard.data = { title: '', description: '', theme: '', widgets: [] };
+  ['wiz-title', 'wiz-desc', 'wiz-theme', 'wiz-bm-search'].forEach((id) => { const el = document.getElementById(id); if (el) el.value = ''; });
   const err = document.getElementById('wiz-title-err'); if (err) err.style.display = 'none';
 
   // Step 2 defaults: fresh selection, folder mode, hidden max-sections.
@@ -4590,6 +4729,7 @@ function wizGoTo(n) {
   // Step 3 (processing) auto-advances, so hide the Back/Next footer there.
   const foot = document.querySelector('.wiz-foot');
   if (foot) foot.style.display = n === 3 ? 'none' : '';
+  if (n === 4) renderWizWidgetPanel();   // optional "Add Widgets" panel (create flow)
 }
 
 // Validate + capture the current step's input. Returns false to block advancing.
@@ -5144,6 +5284,7 @@ async function wizGenerate() {
     sectionOrder: secs.map((s) => s.name),
     defaultShape: getSelectedShape('wiz-shape-picker', 'rounded'),
     showText: document.getElementById('wiz-text-toggle')?.checked !== false,
+    widgets: Array.isArray(wizard.data.widgets) ? wizard.data.widgets : [],
   };
   applyIconSizesToLayout(dashboard, secs);
   state.dashboards.push(dashboard);
@@ -5158,6 +5299,13 @@ function setupWizard() {
   document.getElementById('wiz-close')?.addEventListener('click', closeWizard);
   document.getElementById('wiz-back')?.addEventListener('click', wizBack);
   document.getElementById('wiz-next')?.addEventListener('click', wizNext);
+  // Bookmark search (step 2) + clear.
+  const bmSearch = document.getElementById('wiz-bm-search');
+  if (bmSearch) bmSearch.addEventListener('input', () => wizFilterTree(bmSearch.value));
+  document.getElementById('wiz-bm-search-clear')?.addEventListener('click', () => {
+    if (bmSearch) { bmSearch.value = ''; bmSearch.focus(); }
+    wizFilterTree('');
+  });
   document.getElementById('wiz-proc-back')?.addEventListener('click', () => wizGoTo(2));
   setupShapePicker('wiz-shape-picker');
 
@@ -5444,6 +5592,8 @@ const INTEGRATIONS = [
   { id:'opnsense',       name:'OPNsense',              cat:'Firewall',         icon:'opnsense.svg',              w:1 },
   { id:'pihole',         name:'Pi-hole',               cat:'DNS Ad-Blocking',  icon:'pi-hole.svg',               w:1 },
   { id:'plex',           name:'Plex',                  cat:'Media Server',     icon:'plex.svg',                  w:1 },
+  { id:'portainer',      name:'Portainer',             cat:'Containers',       icon:'portainer.svg',             w:1, validatedKey:'portainerValidated' },
+  { id:'stocks',         name:'Stocks',                cat:'Finance',          icon:'stocks.svg',                w:1, validatedKey:'stocksValidated' },
   { id:'proxmox',        name:'Proxmox VE',            cat:'Virtualization',   icon:'proxmox.svg',               w:1 },
   { id:'pbs',            name:'Proxmox Backup Server', cat:'Backup',           icon:'proxmox-backup-server.svg', w:1 },
   { id:'prowlarr',       name:'Prowlarr',              cat:'Indexer Manager',  icon:'prowlarr.svg',              w:1 },
@@ -5462,7 +5612,7 @@ const INTEGRATIONS = [
   { id:'unifi',          name:'UniFi Controller',      cat:'Network',          icon:'unifi.png',                 w:1 },
   { id:'unraid',         name:'Unraid',                cat:'System Health',    icon:'unraid.svg',                w:1 },
   { id:'uptimekuma',     name:'Uptime Kuma',           cat:'Monitoring',       icon:'uptime-kuma.svg',           w:1, enabledKey:'uptimeKumaEnabled', validatedKey:'uptimeKumaValidated' },
-  { id:'weather',        name:'Weather',               cat:'Utilities',        icon:INT_SUN_ICON,                w:3, validatedKey:'weatherApiKeyValidated' },
+  { id:'weather',        name:'Weather',               cat:'Utilities',        icon:INT_SUN_ICON,                w:4, validatedKey:'weatherApiKeyValidated' },
 ].map((e) => ({
   ...e,
   configId:     `${e.id}-config`,
@@ -5470,6 +5620,122 @@ const INTEGRATIONS = [
   enabledKey:   e.enabledKey   || `${e.id}Enabled`,
   validatedKey: e.validatedKey || `${e.id}Validated`,
 }));
+
+// Per-widget catalog for the create-dashboard wizard (mirrors newtab's
+// WIDGET_CATALOG). One entry per addable widget, incl. multi-widget variants.
+const WIZ_WIDGETS = (() => {
+  const list = INTEGRATIONS
+    .filter((e) => e.id !== 'weather')   // weather only exposes the variant widgets below
+    .map((e) => ({ wid: e.id, intId: e.id, name: e.name, icon: e.icon, enabledKey: e.enabledKey }));
+  list.push(
+    { wid: 'tautulli-list',    intId: 'tautulli-list',    name: 'Tautulli Streams',  icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+    { wid: 'weather-combined', intId: 'weather-combined', name: 'Weather (Combined)', icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
+    { wid: 'weather-current',  intId: 'weather-current',  name: 'Current Weather',    icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
+    { wid: 'weather-hourly',   intId: 'weather-hourly',   name: 'Hourly Forecast',    icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
+    { wid: 'weather-forecast', intId: 'weather-forecast', name: '5-Day Forecast',     icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
+  );
+  return list;
+})();
+
+// Multi-widget services get an explicit label/icon; single-widget services
+// derive theirs from the widget itself.
+const WIZ_SERVICE_META = {
+  weather:  { name: 'Weather',  icon: INT_SUN_ICON },
+  tautulli: { name: 'Tautulli', icon: 'tautulli.svg' },
+};
+let wizWidgetTab = 'live';   // 'live' | 'sample'
+function wizServiceKey(w) { return (w.enabledKey || '').replace(/Enabled$/, ''); }
+function wizServiceMeta(key, widgets) {
+  const o = WIZ_SERVICE_META[key] || {};
+  const first = widgets[0] || {};
+  return { name: o.name || first.name || key, icon: o.icon || first.icon };
+}
+
+function wizWidgetCard(w, sample, updateCount) {
+  const selected = wizard.data.widgets.some((x) => x.wid === w.wid && !!x.sample === sample);
+  const card = document.createElement('div');
+  card.className = 'wiz-wp-card' + (sample ? ' is-sample' : '') + (selected ? ' selected' : '');
+  const img = document.createElement('img'); img.alt = ''; img.src = intIconSrc(w.icon); img.onerror = () => { img.style.visibility = 'hidden'; };
+  const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = w.name + (sample ? ' (Sample)' : '');
+  card.append(img, nm);
+  card.addEventListener('click', () => {
+    const i = wizard.data.widgets.findIndex((x) => x.wid === w.wid && !!x.sample === sample);
+    if (i >= 0) { wizard.data.widgets.splice(i, 1); card.classList.remove('selected'); }
+    else {
+      const entry = { uid: 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), wid: w.wid, intId: w.intId, name: w.name };
+      if (sample) entry.sample = true;
+      wizard.data.widgets.push(entry); card.classList.add('selected');
+    }
+    updateCount();
+  });
+  return card;
+}
+
+// Render the optional "Add Widgets" panel (Live / Sample tabs) in the wizard's
+// preview step. Live widgets are grouped by service and labelled with their
+// configuration description; Sample widgets are greyed previews with demo data.
+function renderWizWidgetPanel() {
+  const panel = document.getElementById('wiz-widget-panel');
+  if (!panel) return;
+  if (wizard.editId) { panel.style.display = 'none'; return; }   // create flow only
+  if (!Array.isArray(wizard.data.widgets)) wizard.data.widgets = [];
+  panel.style.display = '';
+  panel.innerHTML = '';
+
+  const head = document.createElement('div'); head.className = 'wiz-wp-head';
+  const title = document.createElement('div'); title.className = 'wiz-wp-title';
+  title.innerHTML = 'Add Widgets <span class="muted">(optional)</span>';
+  const tabs = document.createElement('div'); tabs.className = 'wiz-wp-tabs';
+  [['live', 'Live'], ['sample', 'Sample']].forEach(([t, lbl]) => {
+    const b = document.createElement('button'); b.type = 'button';
+    b.className = 'wiz-wp-tab' + (wizWidgetTab === t ? ' active' : ''); b.textContent = lbl;
+    b.addEventListener('click', () => { wizWidgetTab = t; renderWizWidgetPanel(); });
+    tabs.appendChild(b);
+  });
+  const count = document.createElement('span'); count.className = 'wiz-hint'; count.style.margin = '0';
+  head.append(title, tabs, count);
+  panel.appendChild(head);
+
+  const updateCount = () => { const n = wizard.data.widgets.length; count.textContent = n ? `${n} added` : 'None added'; };
+  const sample = wizWidgetTab === 'sample';
+  const source = sample ? WIZ_WIDGETS.slice() : WIZ_WIDGETS.filter((w) => state.currentSettings[w.enabledKey] === true);
+
+  if (!source.length) {
+    const e = document.createElement('div'); e.className = 'wiz-wp-empty';
+    e.innerHTML = sample
+      ? 'No sample widgets available.'
+      : 'No integrations are enabled yet — enable some in <a href="?tab=integrations">Setup → Integrations</a> to add live widgets, or use the <b>Sample</b> tab to add demo widgets.';
+    panel.appendChild(e); updateCount(); return;
+  }
+
+  // Group by active service → configuration (description) → widgets.
+  const descs = state.currentSettings.integrationDescriptions || {};
+  const groups = new Map();
+  source.forEach((w) => { const k = wizServiceKey(w); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(w); });
+
+  const body = document.createElement('div');
+  Array.from(groups.entries())
+    .map(([k, ws]) => [k, ws, wizServiceMeta(k, ws)])
+    .sort((a, b) => a[2].name.localeCompare(b[2].name))
+    .forEach(([key, widgets, meta]) => {
+      const g = document.createElement('div'); g.className = 'wiz-wp-group';
+      const gh = document.createElement('div'); gh.className = 'wiz-wp-ghead';
+      const img = document.createElement('img'); img.alt = ''; img.src = intIconSrc(meta.icon); img.onerror = () => { img.style.visibility = 'hidden'; };
+      const nm = document.createElement('span'); nm.className = 'wiz-wp-gname'; nm.textContent = meta.name;
+      gh.append(img, nm); g.appendChild(gh);
+      // Configuration description (always shown for live so the user knows which
+      // configuration they're adding; "Sample" for demo widgets).
+      const dl = document.createElement('div'); dl.className = 'wiz-wp-desc';
+      dl.textContent = sample ? 'Sample (demo data)' : (descs[key] || meta.name);
+      g.appendChild(dl);
+      const grid = document.createElement('div'); grid.className = 'wiz-wp-grid';
+      widgets.forEach((w) => grid.appendChild(wizWidgetCard(w, sample, updateCount)));
+      g.appendChild(grid);
+      body.appendChild(g);
+    });
+  panel.appendChild(body);
+  updateCount();
+}
 
 // Integrations that have an offline sample. Each is rendered by
 // widgets/sample.html?w=<id>, which mounts that integration's widget(s) with
@@ -5483,6 +5749,15 @@ const intIconSrc    = (icon) => icon.startsWith('data:') ? icon : `../icons/inte
 const intIsEnabled  = (e) => !!state.currentSettings[e.enabledKey];
 const intIsValidated = (e) => !!state[e.validatedKey];
 const intWasSaved   = (e) => !!state.savedSettings[e.enabledKey];
+// A configuration's description is keyed by its settings prefix (enabledKey
+// minus the trailing "Enabled"), e.g. uptimeKumaEnabled -> uptimeKuma.
+const intDescKey    = (e) => e.enabledKey.replace(/Enabled$/, '');
+const intGetDesc    = (e) => (state.currentSettings.integrationDescriptions || {})[intDescKey(e)] || '';
+function intSetDesc(e, v) {
+  const m = state.currentSettings.integrationDescriptions =
+    Object.assign({}, state.currentSettings.integrationDescriptions);
+  m[intDescKey(e)] = v;
+}
 
 function intSyncLegacyToggle(e, val) {
   const t = document.getElementById(e.toggleId);
@@ -5591,11 +5866,29 @@ function openIntegrationModal(id) {
   document.getElementById('int-m-name').textContent = e.name;
   document.getElementById('int-m-cat').textContent = `${e.cat} · ${e.w} widget${e.w === 1 ? '' : 's'}`;
 
+  // Required description (≤20 chars). Backfill the integration name as the
+  // default so configurations created before this feature are still labelled.
+  intCatalog.descKey = intDescKey(e);
+  let dv = intGetDesc(e);
+  if (!dv) { dv = e.name.slice(0, 20); intSetDesc(e, dv); }
+  const descEl = document.getElementById('int-m-desc');
+  const descCnt = document.getElementById('int-m-desc-count');
+  if (descEl) descEl.value = dv;
+  if (descCnt) descCnt.textContent = `${dv.length}/20`;
+
   // Relocate the existing config form into the modal body (preserves all
   // element IDs and event handlers).
   const cfg = document.getElementById(e.configId);
   const body = document.getElementById('int-m-body');
   if (cfg && body) { body.appendChild(cfg); cfg.style.display = 'block'; }
+
+  // Secret fields default to VISIBLE during first-time setup, and HIDDEN when
+  // re-opening an integration that's already been saved.
+  const showSecrets = !intWasSaved(e);
+  if (cfg) cfg.querySelectorAll('.eyeball-btn').forEach((btn) => {
+    const input = btn.closest('.api-key-row')?.querySelector('input');
+    if (input) applyEyeballState(input, btn, showSecrets);
+  });
 
   // Refresh-interval control (per-widget polling override). Hidden for entries
   // without a pollable widget (e.g. Weather, which has its own refresh setting).
@@ -5653,11 +5946,16 @@ function refreshIntegrationModalSave() {
   const note = document.getElementById('int-m-note');
   if (!save) return;
   const ok = intIsValidated(e);
-  save.disabled = !ok;
-  save.classList.toggle('is-ready', ok);
-  if (note) note.textContent = ok
-    ? 'Validated — click Save to activate this integration.'
-    : 'Validate the connection to enable Save.';
+  const desc = intGetDesc(e).trim();
+  const descOk = desc.length > 0 && desc.length <= 20;
+  const ready = ok && descOk;
+  save.disabled = !ready;
+  save.classList.toggle('is-ready', ready);
+  if (note) note.textContent = !descOk
+    ? 'Enter a description (1–20 characters) to identify this configuration.'
+    : !ok
+      ? 'Validate the connection to enable Save.'
+      : 'Validated — click Save to activate this integration.';
 }
 
 async function saveIntegrationFromModal() {
@@ -5697,9 +5995,28 @@ function setupIntegrationsCatalog() {
     intCatalog.query = ev.target.value.toLowerCase().trim();
     renderIntegrationGrid();
   });
+  // Clear button: wipe the field, reset the query, restore the default list.
+  document.getElementById('int-search-clear')?.addEventListener('click', () => {
+    if (search) { search.value = ''; search.focus(); }
+    intCatalog.query = '';
+    renderIntegrationGrid();
+  });
   document.getElementById('int-m-close')?.addEventListener('click', closeIntegrationModal);
   document.getElementById('int-m-cancel')?.addEventListener('click', closeIntegrationModal);
   document.getElementById('int-m-save')?.addEventListener('click', saveIntegrationFromModal);
+
+  // Required Description field (identifies this configuration; ≤20 chars).
+  const descEl = document.getElementById('int-m-desc');
+  if (descEl) descEl.addEventListener('input', () => {
+    const e = intEntry(intCatalog.openId);
+    if (!e) return;
+    const v = descEl.value.slice(0, 20);
+    intSetDesc(e, v);
+    const cnt = document.getElementById('int-m-desc-count');
+    if (cnt) cnt.textContent = `${v.length}/20`;
+    refreshIntegrationModalSave();
+    updateSaveBar();
+  });
 
   // Refresh-interval change → store per-integration override.
   document.getElementById('int-poll-select')?.addEventListener('change', (e) => {

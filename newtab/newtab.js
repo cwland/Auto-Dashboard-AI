@@ -274,7 +274,7 @@ function renderSwitcher() {
       it.addEventListener('click', () => switchDashboard(d.id));
       dashSidebar.appendChild(it);
     });
-  } else if (switcherWrapper) {   // dropdown (default)
+  } else if (style === 'dropdown' && switcherWrapper) {   // dropdown only
     switcherWrapper.style.display = 'flex';
     dashboardSelect.innerHTML = '';
     list.forEach((d) => {
@@ -1112,6 +1112,7 @@ const WIDGET_CATALOG = [
   ['opnsense', 'OPNsense', 'opnsense.svg'],
   ['pihole', 'Pi-hole', 'pi-hole.svg'],
   ['plex', 'Plex', 'plex.svg'],
+  ['portainer', 'Portainer', 'portainer.svg'],
   ['proxmox', 'Proxmox VE', 'proxmox.svg'],
   ['pbs', 'Proxmox Backup Server', 'proxmox-backup-server.svg'],
   ['prowlarr', 'Prowlarr', 'prowlarr.svg'],
@@ -1122,6 +1123,7 @@ const WIDGET_CATALOG = [
   ['seerr', 'Seerr', 'seerr.svg'],
   ['sonarr', 'Sonarr', 'sonarr.svg'],
   ['speedtest', 'Speedtest Tracker', 'speedtest-tracker.png'],
+  ['stocks', 'Stocks', 'stocks.svg'],
   ['tautulli', 'Tautulli', 'tautulli.svg'],
   ['tracearr', 'Tracearr', 'tracearr.svg'],
   ['transmission', 'Transmission', 'transmission.svg'],
@@ -1135,6 +1137,7 @@ const WIDGET_CATALOG = [
 }));
 WIDGET_CATALOG.push(
   { wid: 'tautulli-list', intId: 'tautulli-list', name: 'Tautulli Streams', icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+  { wid: 'weather-combined', intId: 'weather-combined', name: 'Weather (Combined)', icon: '', enabledKey: 'weatherEnabled', emoji: '🌦️' },
   { wid: 'weather-current',  intId: 'weather-current',  name: 'Current Weather', icon: '', enabledKey: 'weatherEnabled', emoji: '🌤️' },
   { wid: 'weather-hourly',   intId: 'weather-hourly',   name: 'Hourly Forecast', icon: '', enabledKey: 'weatherEnabled', emoji: '🕐' },
   { wid: 'weather-forecast', intId: 'weather-forecast', name: '5-Day Forecast',  icon: '', enabledKey: 'weatherEnabled', emoji: '📅' },
@@ -1143,7 +1146,11 @@ WIDGET_CATALOG.push(
 function widgetDef(wid) { return WIDGET_CATALOG.find((w) => w.wid === wid); }
 function widgetEnabled(wid) { const w = widgetDef(wid); return !!(w && settings[w.enabledKey] === true); }
 
+// Selection holds composite keys ("live:<wid>" / "sample:<wid>") so a widget can
+// be picked independently as Live or Sample.
 let widgetSel = new Set();
+let widgetTab = 'live';   // 'live' | 'sample'
+const selKey = (wid, sample) => `${sample ? 'sample' : 'live'}:${wid}`;
 
 function updateWidgetAddState() {
   const n = widgetSel.size;
@@ -1153,44 +1160,132 @@ function updateWidgetAddState() {
   if (add) add.disabled = n === 0;
 }
 
+// Service grouping for the picker. Most integrations are a single service whose
+// name = the widget name; multi-widget integrations get an explicit label/icon.
+const SERVICE_META = {
+  weather:  { name: 'Weather',  emoji: '🌤️' },
+  tautulli: { name: 'Tautulli', icon: 'tautulli.svg' },
+};
+function widgetServiceKey(w) { return (w.enabledKey || '').replace(/Enabled$/, ''); }
+function serviceMetaFor(key, widgets) {
+  const o = SERVICE_META[key] || {};
+  const first = widgets[0] || {};
+  return {
+    name: o.name || first.name || key,
+    icon: o.icon || (first.emoji ? null : first.icon),
+    emoji: o.emoji || first.emoji || null,
+  };
+}
+
+// One selectable widget card. `sample` renders it as a greyed preview whose
+// name carries a "(Sample)" tag.
+function buildWidgetPick(w, sample) {
+  const key = selKey(w.wid, sample);
+  const card = document.createElement('div');
+  card.className = 'widget-pick' + (sample ? ' is-sample' : '');
+  card.dataset.selkey = key;
+  if (widgetSel.has(key)) card.classList.add('selected');
+  const check = document.createElement('span'); check.className = 'wp-check'; check.textContent = '✓';
+  let iconEl;
+  if (w.emoji) { iconEl = document.createElement('div'); iconEl.style.fontSize = '34px'; iconEl.style.lineHeight = '40px'; iconEl.textContent = w.emoji; }
+  else { iconEl = document.createElement('img'); iconEl.alt = ''; iconEl.src = `../icons/integrations/${w.icon}`; iconEl.onerror = () => { iconEl.style.visibility = 'hidden'; }; }
+  const nm = document.createElement('span'); nm.className = 'wp-name'; nm.textContent = w.name;
+  card.append(check, iconEl, nm);
+  if (sample) { const tag = document.createElement('span'); tag.className = 'wp-sample-tag'; tag.textContent = '(Sample)'; card.appendChild(tag); }
+  card.addEventListener('click', () => {
+    if (widgetSel.has(key)) { widgetSel.delete(key); card.classList.remove('selected'); }
+    else { widgetSel.add(key); card.classList.add('selected'); }
+    updateWidgetAddState();
+  });
+  return card;
+}
+
 function renderWidgetModalBody() {
   const body = document.getElementById('widget-modal-body');
   if (!body) return;
-  widgetSel = new Set();
   body.innerHTML = '';
-  const enabled = WIDGET_CATALOG.filter((w) => settings[w.enabledKey] === true);
-  if (!enabled.length) {
-    body.innerHTML =
-      '<div class="widget-empty">No integrations are enabled yet.<br>Enable them in ' +
-      '<a href="../config/config.html?tab=integrations">Setup → Integrations</a>, then come back.</div>';
+  const sample = widgetTab === 'sample';
+
+  // Live = configured (enabled) integrations. Sample = every catalog widget
+  // that has a demo mount, shown regardless of whether it's configured.
+  const source = sample
+    ? WIDGET_CATALOG.filter((w) => typeof mountSampleWidget === 'function' && window.SAMPLE_MOUNTS && SAMPLE_MOUNTS[w.wid])
+    : WIDGET_CATALOG.filter((w) => settings[w.enabledKey] === true);
+
+  if (!source.length) {
+    body.innerHTML = sample
+      ? '<div class="widget-empty">No sample widgets are available.</div>'
+      : '<div class="widget-empty">No integrations are enabled yet.<br>Enable them in ' +
+        '<a href="../config/config.html?tab=integrations">Setup → Integrations</a>, then come back, ' +
+        'or use the <b>Sample</b> tab to preview widgets with demo data.</div>';
     updateWidgetAddState();
     return;
   }
-  const grid = document.createElement('div');
-  grid.className = 'widget-grid';
-  enabled.forEach((w) => {
-    const card = document.createElement('div');
-    card.className = 'widget-pick';
-    card.dataset.wid = w.wid;
-    const check = document.createElement('span'); check.className = 'wp-check'; check.textContent = '✓';
-    let iconEl;
-    if (w.emoji) { iconEl = document.createElement('div'); iconEl.style.fontSize = '34px'; iconEl.style.lineHeight = '40px'; iconEl.textContent = w.emoji; }
-    else { iconEl = document.createElement('img'); iconEl.alt = ''; iconEl.src = `../icons/integrations/${w.icon}`; iconEl.onerror = () => { iconEl.style.visibility = 'hidden'; }; }
-    const nm = document.createElement('span'); nm.className = 'wp-name'; nm.textContent = w.name;
-    card.append(check, iconEl, nm);
-    card.addEventListener('click', () => {
-      if (widgetSel.has(w.wid)) { widgetSel.delete(w.wid); card.classList.remove('selected'); }
-      else { widgetSel.add(w.wid); card.classList.add('selected'); }
-      updateWidgetAddState();
-    });
-    grid.appendChild(card);
+
+  // Group by active service → configuration (description) → widgets.
+  const descs = settings.integrationDescriptions || {};
+  const groups = new Map();
+  source.forEach((w) => {
+    const key = widgetServiceKey(w);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(w);
   });
-  body.appendChild(grid);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'widget-groups';
+  Array.from(groups.entries())
+    .map(([key, widgets]) => [key, widgets, serviceMetaFor(key, widgets)])
+    .sort((a, b) => a[2].name.localeCompare(b[2].name))
+    .forEach(([key, widgets, meta]) => {
+      const group = document.createElement('div');
+      group.className = 'widget-group' + (sample ? ' is-sample' : '');
+
+      // Service header (icon + name).
+      const head = document.createElement('div');
+      head.className = 'widget-group-head';
+      if (meta.emoji) { const em = document.createElement('span'); em.className = 'wg-h-emoji'; em.textContent = meta.emoji; head.appendChild(em); }
+      else if (meta.icon) { const img = document.createElement('img'); img.className = 'wg-h-ico'; img.alt = ''; img.src = `../icons/integrations/${meta.icon}`; img.onerror = () => { img.style.visibility = 'hidden'; }; head.appendChild(img); }
+      const svc = document.createElement('span'); svc.className = 'wg-h-service'; svc.textContent = meta.name;
+      head.appendChild(svc);
+      group.appendChild(head);
+
+      // Configuration instance. Show a description label only when it adds
+      // information — i.e. the sample tag, or a custom description that differs
+      // from the service name (avoids "Weather / Weather" style repetition).
+      const inst = document.createElement('div');
+      inst.className = 'widget-instance';
+      const descText = sample ? 'Sample (demo data)' : (descs[key] || '');
+      if (descText && (sample || descText !== meta.name)) {
+        const dlabel = document.createElement('div');
+        dlabel.className = 'wg-i-desc';
+        dlabel.textContent = descText;
+        inst.appendChild(dlabel);
+      }
+
+      const grid = document.createElement('div');
+      grid.className = 'widget-grid';
+      widgets.forEach((w) => grid.appendChild(buildWidgetPick(w, sample)));
+      inst.appendChild(grid);
+      group.appendChild(inst);
+      wrap.appendChild(group);
+    });
+
+  body.appendChild(wrap);
   updateWidgetAddState();
 }
 
-function openWidgetModal() {
+function setWidgetTab(tab) {
+  widgetTab = tab === 'sample' ? 'sample' : 'live';
+  const live = document.getElementById('widget-tab-live');
+  const samp = document.getElementById('widget-tab-sample');
+  if (live) live.classList.toggle('active', widgetTab === 'live');
+  if (samp) samp.classList.toggle('active', widgetTab === 'sample');
   renderWidgetModalBody();
+}
+
+function openWidgetModal() {
+  widgetSel = new Set();
+  setWidgetTab('live');   // always start on Live, fresh selection
   document.getElementById('widget-modal')?.classList.add('visible');
 }
 function closeWidgetModal() {
@@ -1201,16 +1296,42 @@ async function addSelectedWidgets() {
   const dash = getActiveDash();
   if (!dash || !widgetSel.size) return;
   if (!Array.isArray(dash.widgets)) dash.widgets = [];
-  widgetSel.forEach((wid) => {
+  const n = widgetSel.size;
+  widgetSel.forEach((key) => {
+    const sample = key.startsWith('sample:');
+    const wid = key.slice(key.indexOf(':') + 1);
     const w = widgetDef(wid);
     if (!w) return;
     const uid = 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    dash.widgets.push({ uid, wid: w.wid, intId: w.intId, name: w.name });
+    const entry = { uid, wid: w.wid, intId: w.intId, name: w.name };
+    if (sample) entry.sample = true;
+    dash.widgets.push(entry);
   });
   await chromeSet({ dashboards: state.dashboards });
   closeWidgetModal();
   renderDashboard(state.activeDashboardId);   // re-render with the new widget groupings
-  showToast('Widget' + (widgetSel.size > 1 ? 's' : '') + ' added ✓');
+  showToast('Widget' + (n > 1 ? 's' : '') + ' added ✓');
+}
+
+// Remove a widget's placement from the active dashboard (edit-mode delete).
+// Only the board placement + its saved layout entry are removed — the
+// integration's configuration in Settings is untouched.
+async function removeWidgetGrouping(uid) {
+  const dash = getActiveDash();
+  if (!dash || !Array.isArray(dash.widgets)) return;
+  const before = dash.widgets.length;
+  dash.widgets = dash.widgets.filter((x) => x.uid !== uid);
+  if (dash.widgets.length === before) return;     // nothing removed
+  if (dash.layout) delete dash.layout['@w:' + uid];
+  await chromeSet({ dashboards: state.dashboards });
+  // Preserve scroll — renderDashboard rebuilds the area (which would reset it).
+  const scrollY = dashboardArea ? dashboardArea.scrollTop : 0;
+  renderDashboard(state.activeDashboardId);        // rebuild (stays in edit mode)
+  if (dashboardArea) {
+    dashboardArea.scrollTop = scrollY;
+    requestAnimationFrame(() => { dashboardArea.scrollTop = scrollY; });
+  }
+  showToast('Widget removed ✓');
 }
 
 function setupWidgetModal() {
@@ -1219,10 +1340,21 @@ function setupWidgetModal() {
   document.getElementById('widget-modal-close')?.addEventListener('click', closeWidgetModal);
   document.getElementById('widget-cancel')?.addEventListener('click', closeWidgetModal);
   document.getElementById('widget-add')?.addEventListener('click', addSelectedWidgets);
+  document.getElementById('widget-tab-live')?.addEventListener('click', () => setWidgetTab('live'));
+  document.getElementById('widget-tab-sample')?.addEventListener('click', () => setWidgetTab('sample'));
   modal.addEventListener('click', (e) => { if (e.target === modal) closeWidgetModal(); });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && modal.classList.contains('visible')) closeWidgetModal();
   });
+}
+
+// Copy a widget's persisted ListCarousel settings (enabled / visible / speed)
+// into the mount opts.
+function applyCarouselOpts(wdef, opts) {
+  if (!wdef.config) return;
+  if (wdef.config.carousel != null) opts.carousel = wdef.config.carousel;
+  if (wdef.config.visibleCount) opts.visibleCount = wdef.config.visibleCount;
+  if (wdef.config.speed) opts.speed = wdef.config.speed;
 }
 
 // Build a widget grouping for the board (no S/M/L pill; shows a disabled notice
@@ -1238,9 +1370,46 @@ function buildWidgetSection(wdef) {
   drag.innerHTML = '<span class="wg-grip">⠿</span>';
   sec.appendChild(drag);
 
+  // Delete control (edit-mode only) — removes this widget's board placement.
+  // Does NOT touch the underlying integration configuration.
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'widget-del';
+  del.title = 'Remove widget from board';
+  del.setAttribute('aria-label', 'Remove widget');
+  del.textContent = '✕';
+  del.addEventListener('pointerdown', (e) => e.stopPropagation());  // don't start a drag
+  del.addEventListener('click', (e) => { e.stopPropagation(); removeWidgetGrouping(wdef.uid); });
+  sec.appendChild(del);
+
   const bodyEl = document.createElement('div');
   bodyEl.className = 'widget-body';
   const w = widgetDef(wdef.wid);
+
+  if (wdef.sample) {
+    // Sample widget: render static demo data, independent of any integration
+    // config. A small badge marks it as a non-functional preview.
+    sec.classList.add('widget-sample');
+    const badge = document.createElement('span');
+    badge.className = 'widget-sample-badge';
+    badge.textContent = 'SAMPLE';
+    sec.appendChild(badge);
+    let inst = (typeof mountSampleWidget === 'function') ? mountSampleWidget(wdef.wid, bodyEl) : null;
+    if (inst) {
+      mountedWidgets.push(inst);
+    } else {
+      bodyEl.innerHTML = '';
+      const ph = document.createElement('div'); ph.className = 'widget-placeholder';
+      if (w && w.emoji) { const em = document.createElement('div'); em.style.fontSize = '34px'; em.textContent = w.emoji; ph.appendChild(em); }
+      else if (w) { const img = document.createElement('img'); img.alt = ''; img.src = `../icons/integrations/${w.icon}`; img.onerror = () => { img.style.display = 'none'; }; ph.appendChild(img); }
+      const t = document.createElement('div'); t.textContent = `${wdef.name} (Sample)`;
+      ph.appendChild(t);
+      bodyEl.appendChild(ph);
+    }
+    sec.appendChild(bodyEl);
+    return sec;
+  }
+
   if (!widgetEnabled(wdef.wid)) {
     bodyEl.innerHTML =
       '<div class="widget-disabled"><div style="font-size:24px;">⚠️</div>' +
@@ -1266,9 +1435,35 @@ function buildWidgetSection(wdef) {
           wdef.config = Object.assign({}, wdef.config, { days: n });
           chromeSet({ dashboards: state.dashboards });
         };
+      } else if (wdef.intId === 'weather-combined') {
+        opts.hours = (wdef.config && wdef.config.hours) || 12;
+        opts.days = (wdef.config && wdef.config.days) || 5;
+        opts.speedMs = (wdef.config && wdef.config.speedMs) || 2000;
+        const persist = (patch) => { wdef.config = Object.assign({}, wdef.config, patch); chromeSet({ dashboards: state.dashboards }); };
+        opts.onHoursChange = (n) => persist({ hours: n });
+        opts.onDaysChange = (n) => persist({ days: n });
+        opts.onSpeedChange = (n) => persist({ speedMs: n });
       } else if (wdef.intId === 'tautulli') {
         if (wdef.config && wdef.config.maxVisible) opts.maxVisible = wdef.config.maxVisible;
         if (wdef.config && wdef.config.dwellMs) opts.dwellMs = wdef.config.dwellMs;
+        if (wdef.config && wdef.config.carousel != null) opts.carousel = wdef.config.carousel;
+        opts.onConfigChange = (patch) => {
+          wdef.config = Object.assign({}, wdef.config, patch);
+          chromeSet({ dashboards: state.dashboards });
+        };
+      } else if (wdef.intId === 'portainer') {
+        if (wdef.config) {
+          if (wdef.config.statusFilter) opts.statusFilter = wdef.config.statusFilter;
+          if (wdef.config.nodeFilter) opts.nodeFilter = wdef.config.nodeFilter;
+          if (wdef.config.pollMs) opts.pollMs = wdef.config.pollMs;
+        }
+        applyCarouselOpts(wdef, opts);
+        opts.onConfigChange = (patch) => {
+          wdef.config = Object.assign({}, wdef.config, patch);
+          chromeSet({ dashboards: state.dashboards });
+        };
+      } else if (wdef.intId === 'stocks' || wdef.intId === 'tautulli-list') {
+        applyCarouselOpts(wdef, opts);
         opts.onConfigChange = (patch) => {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });
@@ -2118,11 +2313,11 @@ function hoverInfoEl() {
     el = document.createElement('div');
     el.id = 'hover-info';
     el.style.cssText =
-      'position:fixed;left:16px;bottom:14px;z-index:2000;max-width:min(540px,62vw);' +
+      'position:fixed;left:50%;bottom:14px;z-index:2000;max-width:min(540px,62vw);' +
       'padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);' +
       'border-radius:8px;box-shadow:0 6px 22px rgba(0,0,0,0.30);' +
-      'font-size:12px;color:var(--text-primary);pointer-events:none;' +
-      'opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s;';
+      'font-size:12px;color:var(--text-primary);pointer-events:none;text-align:center;' +
+      'opacity:0;transform:translate(-50%,4px);transition:opacity .12s,transform .12s;';
     document.body.appendChild(el);
   }
   return el;
@@ -2138,12 +2333,12 @@ function showHoverInfo(bm) {
     '<div style="color:var(--text-muted);font-size:11px;margin-top:' + (desc ? '3px' : '0') +
     ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(bm.url) + '</div>';
   el.style.opacity = '1';
-  el.style.transform = 'translateY(0)';
+  el.style.transform = 'translate(-50%, 0)';
 }
 
 function hideHoverInfo() {
   const el = document.getElementById('hover-info');
-  if (el) { el.style.opacity = '0'; el.style.transform = 'translateY(4px)'; }
+  if (el) { el.style.opacity = '0'; el.style.transform = 'translate(-50%, 4px)'; }
 }
 
 // ─── Description tooltip ──────────────────────────────────────────────────────

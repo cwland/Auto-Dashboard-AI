@@ -14,6 +14,17 @@
     return cfg;
   }
 
+  // Pull the standard ListCarousel options out of a widget's persisted config.
+  function carouselOpts(opts) {
+    const o = {};
+    if (!opts) return o;
+    if (opts.carousel != null) o.carousel = opts.carousel;
+    if (opts.visibleCount != null) o.visibleCount = opts.visibleCount;
+    if (opts.speed != null) o.speed = opts.speed;
+    if (opts.onConfigChange) o.onConfigChange = opts.onConfigChange;
+    return o;
+  }
+
   function arr(host, s, svc) {
     const cfg = {
       service: svc, baseUrl: s[svc + 'Url'], apiKey: s[svc + 'ApiKey'],
@@ -45,13 +56,24 @@
         baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey,
         maxVisible: (opts && opts.maxVisible) || N(s.tautulliMaxSessions, 3),
         dwellMs: (opts && opts.dwellMs) || N(s.tautulliCarouselDwellMs, 4000),
+        carousel: (opts && opts.carousel != null) ? opts.carousel : true,
       }));
       w.onConfigChange = opts && opts.onConfigChange;
       return w;
     },
-    'tautulli-list': (h, s) => new TautulliListWidget(h, withPoll(s, 'tautulli', {
+    'tautulli-list': (h, s, opts) => new TautulliListWidget(h, withPoll(s, 'tautulli', Object.assign({
       baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey,
-    })),
+    }, carouselOpts(opts)))),
+    stocks: (h, s, opts) => new StocksWidget(h, withPoll(s, 'stocks', Object.assign({ symbols: StocksApi.parseSymbols(s.stocksSymbols) }, carouselOpts(opts)))),
+    portainer: (h, s, opts) => {
+      const base = withPoll(s, 'portainer', { baseUrl: s.portainerUrl, apiKey: s.portainerApiKey });
+      return new PortainerWidget(h, Object.assign(base, {
+        statusFilter: (opts && opts.statusFilter) || 'all',
+        nodeFilter: (opts && opts.nodeFilter) || 'all',
+        pollMs: (opts && opts.pollMs) || base.pollMs || 15000,
+        onConfigChange: opts && opts.onConfigChange,
+      }, carouselOpts(opts)));
+    },
     uptimekuma: (h, s) => new UptimeKumaWidget(h, {
       baseUrl: s.uptimeKumaUrl, slug: s.uptimeKumaSlug || 'default',
       pollMs: N(s.uptimeKumaRefreshSecs, 30) * 1000,
@@ -109,6 +131,11 @@
     'weather-forecast': (h, s, opts) => new WeatherForecastWidget(h, {
       apiKey: s.weatherApiKey, location: s.weatherLocation, units: s.weatherUnits || 'imperial',
       days: (opts && opts.days) || 5, onDaysChange: opts && opts.onDaysChange,
+    }),
+    'weather-combined': (h, s, opts) => new WeatherCombinedWidget(h, {
+      apiKey: s.weatherApiKey, location: s.weatherLocation, units: s.weatherUnits || 'imperial',
+      hours: (opts && opts.hours) || 12, days: (opts && opts.days) || 5, speedMs: (opts && opts.speedMs) || 2000,
+      onHoursChange: opts && opts.onHoursChange, onDaysChange: opts && opts.onDaysChange, onSpeedChange: opts && opts.onSpeedChange,
     }),
   };
 

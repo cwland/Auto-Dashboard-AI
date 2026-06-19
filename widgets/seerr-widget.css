@@ -30,12 +30,20 @@
   justify-content: space-between;
   gap: 12px;
 }
+.seerr-widget .seerr-headline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.seerr-widget .wg-icon { width: 18px; height: 18px; object-fit: contain; flex: 0 0 auto; }
+.seerr-widget .seerr-titles { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .seerr-widget .seerr-title {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--text-muted);
+}
+.seerr-widget .seerr-subtitle {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
 }
 .seerr-widget .seerr-tools { display: flex; align-items: center; gap: 10px; }
 .seerr-widget .seerr-error {
@@ -79,12 +87,13 @@
 .seerr-widget .seerr-row {
   display: grid;
   grid-template-columns: 38px 1fr auto;
-  align-items: center;
+  align-items: start;           /* top-align so titles line up row-to-row */
   gap: 12px;
   padding: 9px 12px;
   border-top: 1px solid var(--border);
 }
 .seerr-widget .seerr-row:first-child { border-top: none; }
+.seerr-widget .seerr-req-user { padding-top: 1px; }
 .seerr-widget .seerr-poster {
   width: 38px;
   aspect-ratio: 2 / 3;

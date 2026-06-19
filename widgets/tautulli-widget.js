@@ -273,7 +273,7 @@
     constructor(container, config) {
       this.el = container;
       this.cfg = Object.assign(
-        { baseUrl: '', apiKey: '', maxVisible: 3, pollMs: 5000, dwellMs: 4000 },
+        { baseUrl: '', apiKey: '', maxVisible: 3, pollMs: 5000, dwellMs: 4000, carousel: true },
         config || {}
       );
 
@@ -450,6 +450,17 @@
         inc.addEventListener('click', () => { set(Math.min(max, get() + 1)); draw(); });
         grp.append(lab, dec, cnt, inc); tools.appendChild(grp); draw();
       };
+      // Carousel enable/disable toggle.
+      const tgrp = document.createElement('div'); tgrp.className = 'tw-toolgrp';
+      const tbtn = document.createElement('button'); tbtn.type = 'button'; tbtn.className = 'tw-toggle';
+      const drawTog = () => { tbtn.textContent = 'Scroll ' + (this.cfg.carousel === false ? 'Off' : 'On'); };
+      tbtn.addEventListener('click', () => {
+        this.cfg.carousel = (this.cfg.carousel === false);
+        this.setConfig({ carousel: this.cfg.carousel });
+        if (this.onConfigChange) this.onConfigChange({ carousel: this.cfg.carousel });
+        drawTog();
+      });
+      tgrp.appendChild(tbtn); tools.appendChild(tgrp); drawTog();
       stepper('Streams',
         () => this.cfg.maxVisible,
         (v) => { this.setConfig({ maxVisible: v }); if (this.onConfigChange) this.onConfigChange({ maxVisible: v }); },
@@ -481,12 +492,12 @@
 
       el.innerHTML = `
         <div class="tw-bg" data-f="bg"></div>
+        <div class="tw-platform"><img class="tw-platform-img" alt="" data-f="platform"></div>
         <div class="tw-main">
           <div class="tw-poster"><img alt="" loading="lazy" data-f="posterImg"></div>
           <div class="tw-detail">
             <div class="tw-grid">${groupsHtml}</div>
             <div class="tw-detail-bottom">
-              <div class="tw-platform"><img class="tw-platform-img" alt="" data-f="platform"></div>
               <div class="tw-pbmeta">
                 <div class="tw-eta">ETA: <span data-f="eta"></span></div>
                 <div class="tw-ptext" data-f="progressText"></div>
@@ -622,6 +633,8 @@
       if (count === 0) mode = 'empty';
       else if (count <= max) mode = 'static';
       else mode = 'carousel';
+      // Carousel disabled by config → never rotate (show up to `max` statically).
+      if (this.cfg.carousel === false && mode === 'carousel') mode = 'static';
 
       // slots determine card width: fill the row in static mode, exactly max in carousel
       const slots = mode === 'carousel' ? max : Math.max(1, Math.min(count, max));
@@ -736,13 +749,21 @@
     constructor(container, config) {
       this.el = container;
       this.cfg = Object.assign(
-        { baseUrl: '', apiKey: '', pollMs: 5000, dataProvider: null },
+        { baseUrl: '', apiKey: '', pollMs: 5000, dataProvider: null,
+          carousel: true, visibleCount: 4, speed: 20, onConfigChange: null },
         config || {}
       );
       this.pollTimer = null;
       this.abort = null;
       this.destroyed = false;
       this._buildSkeleton();
+      if (typeof ListCarousel !== 'undefined') {
+        this.carousel = new ListCarousel({ root: this.el, viewport: this.viewport, track: this.track, enabled: this.cfg.carousel, visibleCount: this.cfg.visibleCount, speed: this.cfg.speed });
+        ListCarousel.buildControls(this.lcToolsEl, this.cfg, (patch) => {
+          this.carousel.update(patch);
+          if (this.cfg.onConfigChange) this.cfg.onConfigChange(patch);
+        });
+      }
     }
 
     start() {
@@ -755,7 +776,7 @@
       if (this.abort) { this.abort.abort(); this.abort = null; }
     }
     setConfig(patch) { Object.assign(this.cfg, patch || {}); }
-    destroy() { this.destroyed = true; this.stop(); this.el.innerHTML = ''; }
+    destroy() { this.destroyed = true; this.stop(); if (this.carousel) this.carousel.destroy(); this.el.innerHTML = ''; }
 
     async poll() {
       if (this.destroyed) return;
@@ -788,12 +809,20 @@
           <img class="wg-icon" src="../icons/integrations/tautulli.svg" alt="">
           <div class="tlw-title">Tautulli</div>
           <div class="tlw-summary"></div>
+          <div class="lc-tools"></div>
           <div class="tlw-error" style="display:none"></div>
         </div>
-        <div class="tlw-body"><div class="tlw-empty">No active streams</div></div>`;
+        <div class="tlw-body">
+          <div class="tlw-empty">No active streams</div>
+          <div class="tlw-viewport"><div class="tlw-track"></div></div>
+        </div>`;
       this.summaryEl = this.el.querySelector('.tlw-summary');
       this.errorEl = this.el.querySelector('.tlw-error');
       this.body = this.el.querySelector('.tlw-body');
+      this.emptyEl = this.el.querySelector('.tlw-empty');
+      this.viewport = this.el.querySelector('.tlw-viewport');
+      this.track = this.el.querySelector('.tlw-track');
+      this.lcToolsEl = this.el.querySelector('.lc-tools');
     }
 
     // `cards` are described-session objects (same shape as describeSession()).
@@ -805,32 +834,36 @@
           : '';
       }
       if (!cards.length) {
-        this.body.innerHTML = '<div class="tlw-empty">No active streams</div>';
+        this.emptyEl.style.display = '';
+        this.viewport.style.display = 'none';
+        this.track.innerHTML = '';
         return;
       }
-      const cell = (k, v) =>
-        `<div class="tlw-cell"><span class="tlw-k">${escHtml(k)}</span>` +
-        `<span class="tlw-v" title="${escAttr(v)}">${escHtml(v || '—')}</span></div>`;
-      this.body.innerHTML = cards.map((s) => {
+      this.emptyEl.style.display = 'none';
+      this.viewport.style.display = '';
+      const kv = (k, v) =>
+        `<span class="tlw-kv"><span class="tlw-k">${escHtml(k)}</span>` +
+        `<span class="tlw-v" title="${escAttr(v)}">${escHtml(v || '—')}</span></span>`;
+      this.track.innerHTML = cards.map((s) => {
         const sub = [s.mediaIcon, s.footSub].filter(Boolean).map(escHtml).join(' ');
         const avatar = s.avatarImg
           ? `<span class="tlw-avatar" style="background:${escAttr(s.avatarColor || '#555')}"><img alt="" src="${escAttr(s.avatarImg)}"></span>`
           : `<span class="tlw-avatar" style="background:${escAttr(s.avatarColor || '#555')}">${escHtml(s.avatarInitial || '?')}</span>`;
-        const meta = [
-          cell('Player', s.player), cell('Bandwidth', s.bandwidth),
-          cell('ETA', s.eta), cell('Time', s.progressText),
-        ].join('');
         const pct = Math.max(0, Math.min(100, Number(s.progressPct) || 0));
         return `<div class="tlw-row">
           <div class="tlw-user">${avatar}<span class="tlw-uname" title="${escAttr(s.username)}">${escHtml(s.username)}</span></div>
           <div class="tlw-main">
             <div class="tlw-rtitle" title="${escAttr(s.footTitle)}"><span class="tlw-state" title="${escAttr(s.state || '')}">${escHtml(s.stateIcon || '▶')}</span>${escHtml(s.footTitle)}</div>
-            <div class="tlw-rsub">${sub}</div>
+            <div class="tlw-rsub">${s.platformIcon ? `<img class="tlw-platform" data-pf alt="" src="${escAttr(s.platformIcon)}">` : ''}${sub}</div>
+            <div class="tlw-pb">${kv('Player', s.player)}${kv('Bandwidth', s.bandwidth)}</div>
+            <div class="tlw-prog-wrap"><div class="tlw-prog" style="width:${pct}%"></div></div>
+            <div class="tlw-foot">${kv('ETA', s.eta)}<span class="tlw-time" title="${escAttr(s.progressText)}">${escHtml(s.progressText || '')}</span></div>
           </div>
-          <div class="tlw-meta">${meta}</div>
-          <div class="tlw-prog" style="width:${pct}%"></div>
         </div>`;
       }).join('');
+      // Hide platform icons that fail to load (CSP-safe; can't use inline onerror).
+      this.track.querySelectorAll('img[data-pf]').forEach((img) => { img.onerror = () => { img.style.display = 'none'; }; });
+      if (this.carousel) this.carousel.layout();
     }
 
     _showError(msg) {

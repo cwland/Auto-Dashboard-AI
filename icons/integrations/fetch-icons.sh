@@ -57,6 +57,11 @@ svg/ical.svg
 svg/home-assistant.svg
 svg/opnsense.svg
 svg/nextcloud.svg
+svg/portainer.svg
+svg/docker.svg
+svg/grafana.svg
+svg/prometheus.svg
+svg/immich.svg
 "
 
 ok=0; fail=0; failed=""

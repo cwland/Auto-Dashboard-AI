@@ -55,13 +55,14 @@
 .plex-widget .plex-row {
   display: grid;
   grid-template-columns: 26px 1fr auto;
-  align-items: center;
+  align-items: start;            /* top-align so titles line up row-to-row */
   gap: 12px;
   padding: 10px 12px;
   border-top: 1px solid var(--border);
 }
 .plex-widget .plex-row:first-child { border-top: none; }
-.plex-widget .plex-type { font-size: 16px; text-align: center; }
+.plex-widget .plex-type { font-size: 16px; text-align: center; line-height: 18px; }
+.plex-widget .plex-row-user { padding-top: 1px; }
 .plex-widget .plex-row-main { min-width: 0; }
 .plex-widget .plex-row-title {
   font-size: 13.5px; font-weight: 600; color: var(--text-primary);

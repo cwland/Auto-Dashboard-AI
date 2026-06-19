@@ -56,14 +56,15 @@
 .ms-widget .ms-row {
   display: grid;
   grid-template-columns: 26px 1fr auto;
-  align-items: center;
+  align-items: start;           /* top-align so titles line up row-to-row */
   gap: 12px;
   padding: 10px 12px;
   border-top: 1px solid var(--border);
 }
 .ms-widget .ms-row:first-child { border-top: none; }
 .ms-widget .ms-row.ms-paused { opacity: 0.62; }
-.ms-widget .ms-type { font-size: 16px; text-align: center; }
+.ms-widget .ms-type { font-size: 16px; text-align: center; line-height: 18px; }
+.ms-widget .ms-row-user { padding-top: 1px; }
 .ms-widget .ms-row-main { min-width: 0; }
 .ms-widget .ms-row-title {
   font-size: 13.5px; font-weight: 600; color: var(--text-primary);

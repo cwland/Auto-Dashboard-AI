@@ -62,6 +62,12 @@
   cursor: pointer; font: 700 12px/1 var(--font, sans-serif); padding: 0;
 }
 .tautulli-widget .tw-step:hover { color: var(--accent, #6366f1); border-color: var(--accent, #6366f1); }
+.tautulli-widget .tw-toggle {
+  font: 700 9.5px/1 var(--font, sans-serif); border: 1px solid var(--border);
+  background: var(--bg-secondary); color: var(--text-secondary);
+  border-radius: 5px; padding: 3px 8px; cursor: pointer;
+}
+.tautulli-widget .tw-toggle:hover { color: var(--accent, #6366f1); border-color: var(--accent, #6366f1); }
 .tautulli-widget .tw-tcount {
   font-size: 10px; color: var(--text-muted); min-width: 24px; text-align: center;
   font-variant-numeric: tabular-nums;
@@ -176,20 +182,24 @@
   flex-direction: column;
 }
 
-/* Bottom row of the detail area: platform icon (left), ETA/progress (right) */
+/* Bottom row of the detail area: ETA/progress (right). */
 .tautulli-widget .tw-detail-bottom {
   display: flex;
   align-items: flex-end;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
   margin-top: 8px;
 }
+/* Platform (player) icon — pinned to the top-right of the card. Solid dark chip
+   so the (usually white) platform glyph stays readable on light themes too. */
 .tautulli-widget .tw-platform {
-  flex: 0 0 auto;
-  width: 26px; height: 26px;
+  position: absolute; top: 7px; right: 7px; z-index: 2;
+  width: 24px; height: 24px;
   border-radius: 6px;
   overflow: hidden;
   display: flex; align-items: center; justify-content: center;
+  background: #23272f; padding: 3px; box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 .tautulli-widget .tw-platform-img { width: 100%; height: 100%; object-fit: contain; display: block; }
 
@@ -346,17 +356,19 @@
   margin-left: auto; font-size: 11.5px; font-weight: 500;
   color: var(--text-secondary); font-variant-numeric: tabular-nums;
 }
+.tautulli-list-widget .lc-tools { display: flex; align-items: center; gap: 10px; }
 .tautulli-list-widget .tlw-error { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--danger, #ef4444); }
 .tautulli-list-widget .tlw-body { flex: 1; min-height: 0; overflow: auto; }
+.tautulli-list-widget .tlw-viewport { overflow: hidden; }
+.tautulli-list-widget .tlw-track { display: flex; flex-direction: column; will-change: transform; }
 .tautulli-list-widget .tlw-empty {
   color: var(--text-muted); font-size: 13px; font-weight: 600; text-align: center; padding: 22px 4px;
 }
 
 .tautulli-list-widget .tlw-row {
-  position: relative;
   display: grid;
-  grid-template-columns: 132px minmax(0, 1.2fr) minmax(0, 1.8fr);
-  align-items: center; gap: 12px;
+  grid-template-columns: 132px 1fr;     /* user | full-width details */
+  align-items: start; gap: 12px;
   padding: 9px 6px 11px;
   border-bottom: 1px solid var(--border);
 }
@@ -365,23 +377,42 @@
   font-size: 11px; color: var(--text-secondary);
   margin-right: 6px; flex: 0 0 auto;
 }
-.tautulli-list-widget .tlw-main { min-width: 0; }
+.tautulli-list-widget .tlw-main { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .tautulli-list-widget .tlw-rtitle {
   font-size: 13px; font-weight: 700; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tautulli-list-widget .tlw-rsub {
   display: flex; align-items: center; gap: 5px;
-  font-size: 11px; color: var(--text-muted); margin-top: 1px;
+  font-size: 11px; color: var(--text-muted);
 }
-.tautulli-list-widget .tlw-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; min-width: 0; }
-.tautulli-list-widget .tlw-cell { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+.tautulli-list-widget .tlw-platform {
+  width: 17px; height: 17px; object-fit: contain; border-radius: 3px; flex: 0 0 auto;
+  background: #23272f; padding: 2px; box-sizing: border-box;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+/* Player + Bandwidth, below the movie name */
+.tautulli-list-widget .tlw-pb { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 16px; }
+.tautulli-list-widget .tlw-kv { display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; }
 .tautulli-list-widget .tlw-k {
   font-size: 8.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-muted);
 }
 .tautulli-list-widget .tlw-v {
   font-size: 11.5px; font-weight: 500; color: var(--text-secondary);
   white-space: nowrap; font-variant-numeric: tabular-nums;
+  overflow: hidden; text-overflow: ellipsis;
+}
+/* Progress "line" with ETA (left) and time (right) below it */
+.tautulli-list-widget .tlw-prog-wrap {
+  height: 3px; margin-top: 4px; border-radius: 2px; overflow: hidden;
+  background: color-mix(in srgb, var(--text-muted) 28%, transparent);
+}
+.tautulli-list-widget .tlw-foot {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+}
+.tautulli-list-widget .tlw-time {
+  font-size: 11.5px; font-weight: 600; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .tautulli-list-widget .tlw-user { display: flex; align-items: center; justify-content: flex-start; gap: 7px; min-width: 0; }
 .tautulli-list-widget .tlw-avatar {
@@ -395,5 +426,5 @@
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .tautulli-list-widget .tlw-prog {
-  position: absolute; left: 0; bottom: 0; height: 2px; background: #e5a00d; border-radius: 0 2px 2px 0;
+  height: 100%; background: #e5a00d; border-radius: 2px;
 }
