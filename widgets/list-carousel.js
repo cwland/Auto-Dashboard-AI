@@ -28,7 +28,7 @@
     this.track = opts.track;
     this.enabled = opts.enabled !== false;
     this.visibleCount = Math.max(1, parseInt(opts.visibleCount, 10) || 5);
-    this.speed = Math.max(2, parseInt(opts.speed, 10) || 24);   // px / second
+    this.speed = Math.max(5, parseInt(opts.speed, 10) || 25);   // px / second
     this.resumeDelayMs = opts.resumeDelayMs != null ? opts.resumeDelayMs : 8000;
 
     this.offset = 0;           // current scroll offset (px), preserved across re-renders
@@ -167,7 +167,14 @@
   ListCarousel.prototype._setAutoFitSuppressed = function (on) {
     const gi = (this.root && this.root.closest) ? this.root.closest('.grid-stack-item') : null;
     if (!gi) return;
-    if (on) gi.dataset.lcNoFit = '1'; else delete gi.dataset.lcNoFit;
+    if (on) {
+      gi.dataset.lcNoFit = '1';                 // OFF: keep size, manual scrollbar
+    } else {
+      delete gi.dataset.lcNoFit;
+      delete gi.dataset.manualSize;             // ON: always auto-sized to the visible-count
+      // Ask the dashboard to snap this widget to exactly (header + visibleCount lines).
+      try { gi.dispatchEvent(new CustomEvent('lc-relayout', { bubbles: true })); } catch (_) {}
+    }
   };
 
   // Apply config changes (enabled / visibleCount / speed) and re-layout.
@@ -178,7 +185,7 @@
     if (patch.enabled != null) this.enabled = !!patch.enabled;
     if (patch.carousel != null) this.enabled = !!patch.carousel;
     if (patch.visibleCount != null) this.visibleCount = Math.max(1, parseInt(patch.visibleCount, 10) || this.visibleCount);
-    if (patch.speed != null) this.speed = Math.max(2, parseInt(patch.speed, 10) || this.speed);
+    if (patch.speed != null) this.speed = Math.max(5, parseInt(patch.speed, 10) || this.speed);
     this.layout();
   };
 
@@ -259,7 +266,7 @@
       g.append(label(lbl), dec, cnt, inc); draw(); toolsEl.appendChild(g);
     };
     stepper('Show', 'visibleCount', 2, 12, 1, '');
-    stepper('Speed', 'speed', 8, 96, 8, '');
+    stepper('Speed', 'speed', 5, 100, 5, '');
   };
 
   global.ListCarousel = ListCarousel;

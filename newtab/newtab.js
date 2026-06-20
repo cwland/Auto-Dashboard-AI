@@ -361,6 +361,7 @@ function renderDashboard(dashId) {
 let gridInstance = null;
 let mountedWidgets = [];   // live integration widget instances on the board
 let widgetObserver = null; // resizes widget groupings to fit their content
+let iconGrids = [];        // nested GridStacks (one per section) holding the bookmark icons
 let gridInteracting = false; // true while the user is dragging/resizing an item
 const GRID_COLS = 24;   // denser grid → finer snapping + sections can go small
 const GRID_CELL = 8;    // px per grid row — fine vertical snapping for consistent
@@ -541,6 +542,14 @@ function fitWidgetToContent(el) {
   if (wasStatic) gridInstance.setStatic(true);
   syncGridAttrs();
 }
+
+// A list widget (Stocks / Portainer / Tautulli list) fires this after Scroll is
+// turned ON or its "Show count" changes. The carousel has already cleared the
+// manual-size flag, so we snap the grouping to exactly the requested # of lines.
+document.addEventListener('lc-relayout', (e) => {
+  const item = e.target && e.target.closest && e.target.closest('.grid-stack-item[data-widget]');
+  if (item) requestAnimationFrame(() => fitWidgetToContent(item));
+});
 
 // After the grid is built, auto-size every widget grouping to its content and
 // keep watching for late/async content changes.
@@ -731,16 +740,8 @@ function setSectionIconSize(name, size) {
   if (el) {
     applyIconSize(el, size);
     updateTextPosButtons(el, name);   // Small forces "No Text"; M/L restores the choice
-    // Let the new icon size lay out, THEN size the section with the same
-    // deterministic fit that Save uses — so the live size matches the saved one
-    // and the group only grows as much as the icons actually need (no transient
-    // over-expansion that shoves other groups around). setSectionLiveMin just
-    // refreshes the min constraint; it does not force-grow.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setSectionLiveMin(el);
-      fitSectionToContent(el);
-      syncGridAttrs();
-    }));
+    // New icon size → recompute the nested icon grid's columns/cell + section fit.
+    requestAnimationFrame(() => requestAnimationFrame(() => { relayoutIconGrid(name); syncGridAttrs(); }));
   }
   markRearrangeChanged();
 }
@@ -903,6 +904,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
 
   // Tear down any previous grid instance + live widgets before rebuilding
   // (stops their polling/timers).
+  destroyIconGrids();
   if (gridInstance) { try { gridInstance.destroy(false); } catch (_) {} gridInstance = null; }
   mountedWidgets.forEach((w) => { try { (w.destroy || w.stop || function () {}).call(w); } catch (_) {} });
   mountedWidgets = [];
@@ -933,6 +935,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
     item.setAttribute('gs-min-w', minW);
     item.setAttribute('gs-min-h', GRID_MIN_H);
     item.setAttribute('gs-max-w', GRID_COLS);
+    applyLockedAttrs(item, pos);
 
     const content = document.createElement('div');
     content.className = 'grid-stack-item-content';
@@ -941,6 +944,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
     section.dataset.iconsize = iconSize;
     section.dataset.textpos = storedTextPos(name);
     content.appendChild(section);
+    content.appendChild(buildGridLock(name));      // lock/unlock in the top-right corner
     item.appendChild(content);
     gridEl.appendChild(item);
   });
@@ -960,12 +964,14 @@ function renderDashboardGrid(dash, folderNames, groups) {
     item.setAttribute('gs-min-w', 3);
     item.setAttribute('gs-min-h', 3);
     item.setAttribute('gs-max-w', GRID_COLS);
+    applyLockedAttrs(item, pos);
 
     const content = document.createElement('div');
     content.className = 'grid-stack-item-content';
     const wsec = buildWidgetSection(wdef);
     content.appendChild(wsec);
     attachWidgetToolsBubble(content, wsec, wdef);
+    content.appendChild(buildGridLock('@w:' + wdef.uid));   // lock/unlock in the top-right corner
     item.appendChild(content);
     gridEl.appendChild(item);
   });
@@ -1002,23 +1008,21 @@ function renderDashboardGrid(dash, folderNames, groups) {
     gridInteracting = false;
     // A manually-resized widget keeps its size (auto-fit no longer touches it).
     if (el.dataset.widget) { el.dataset.manualSize = '1'; syncGridAttrs(); return; }
+    // A resized section re-flows its nested icon grid (more/fewer columns).
+    if (el.dataset.folder) { requestAnimationFrame(() => { relayoutIconGrid(el.dataset.folder); syncGridAttrs(); }); return; }
     enforceSectionMin(el);
     requestAnimationFrame(() => { fitSectionToContent(el); syncGridAttrs(); });
   });
   gridInstance.on('dragstart', () => { gridInteracting = true; });
   gridInstance.on('dragstop', () => { gridInteracting = false; });
 
-  applyAllIconSizes();       // reflect each section's stored icon size
-  enforceAllSectionMins();   // estimate-based floor (fits icons + name)
-  // Exact pass once laid out: grow any section so all icons show with no overflow.
-  // The grid is static in view mode, so briefly unlock for the programmatic fit.
+  applyAllIconSizes();       // reflect each section's stored icon size (icon visuals)
+  // Build the nested icon GridStacks once the outer grid has laid out (so each
+  // section has a real width). Each grid then sizes its outer section to fit.
   requestAnimationFrame(() => {
     if (!gridInstance) return;
-    const wasStatic = !state.rearrangeMode;
-    if (wasStatic) gridInstance.setStatic(false);
-    fitAllSectionsToContent();
+    initIconGrids();
     syncGridAttrs();
-    if (wasStatic) gridInstance.setStatic(true);
   });
   setupWidgetAutoFit();   // size widget groupings to show the whole widget
 
@@ -1027,10 +1031,142 @@ function renderDashboardGrid(dash, folderNames, groups) {
     gridInstance.setStatic(false);
     gridInstance.enableMove(true);
     gridInstance.enableResize(true);
+    reassertGridLocks();   // global enable must not override per-item locks
   }
 }
 
+// Re-apply per-item move/resize locks after a global enableMove/enableResize.
+function reassertGridLocks() {
+  document.querySelectorAll('.grid-stack > .grid-stack-item.locked').forEach((el) => applyGridLock(el, true));
+}
+
 // ─── Folder section ───────────────────────────────────────────────────────────
+
+// ─── Icon grids — a nested GridStack per section (Homarr-style icon moving) ────
+// Each bookmark is a 1×1 node; icons move within and across sections via native
+// GridStack drag. Square cell px by icon size; the grid fits as many columns as
+// the section's width allows.
+// Cell footprint per icon size: width sets how many columns fit; height is taller
+// than width to leave room for the label below the icon (a square cell clipped it).
+const ICON_CELL = {
+  small:  { w: 64,  h: 66 },
+  medium: { w: 96,  h: 112 },
+  large:  { w: 128, h: 146 },
+};
+const ICON_GRID_MARGIN = 6;
+
+// The bundled gridstack.min.css ships width/left rules only for 12 columns; make
+// sure the rules exist for any column count a nested grid needs.
+function ensureGridColCss(cols) {
+  const id = 'gs-col-' + cols;
+  if (document.getElementById(id)) return;
+  const el = document.createElement('style'); el.id = id;
+  let css = `.gs-${cols}>.grid-stack-item{width:${100 / cols}%}`;
+  for (let i = 1; i <= cols; i++) css += `.gs-${cols}>.grid-stack-item[gs-w="${i}"]{width:${(i * 100) / cols}%}`;
+  for (let i = 1; i < cols; i++) css += `.gs-${cols}>.grid-stack-item[gs-x="${i}"]{left:${(i * 100) / cols}%}`;
+  el.textContent = css;
+  document.head.appendChild(el);
+}
+
+function destroyIconGrids() {
+  iconGrids.forEach((g) => { try { g.destroy(false); } catch (_) {} });
+  iconGrids = [];
+}
+
+// Columns + square cell for a section's icon grid, derived from its pixel width.
+function iconGridMetrics(gridEl, folder) {
+  const w = gridEl.clientWidth || 200;
+  const spec = ICON_CELL[storedIconSize(folder)] || ICON_CELL.medium;
+  const cols = Math.max(1, Math.floor((w + ICON_GRID_MARGIN) / (spec.w + ICON_GRID_MARGIN)));
+  return { cols, cell: spec.h };   // row height = the taller dimension (icon + label)
+}
+
+// Build a nested GridStack for every section once the outer grid has laid out.
+function initIconGrids() {
+  destroyIconGrids();
+  document.querySelectorAll('.folder-section .icon-grid').forEach((gridEl) => {
+    const folder = gridEl.dataset.folder;
+    const { cols, cell } = iconGridMetrics(gridEl, folder);
+    ensureGridColCss(cols);
+    let g;
+    try {
+      g = GridStack.init({
+        column: cols, cellHeight: cell, margin: ICON_GRID_MARGIN,
+        float: false, animate: false, acceptWidgets: '.icon-node',
+        disableOneColumnMode: true, staticGrid: !state.rearrangeMode,
+      }, gridEl);
+    } catch (_) { return; }
+    g._folder = folder;
+    iconGrids.push(g);
+    g.on('change', () => { persistIconPositions(g); fitSectionForIconGrid(gridEl); });
+    g.on('added', (e, nodes) => onIconsAdded(g, nodes));
+    fitSectionForIconGrid(gridEl);
+  });
+}
+
+// Save x/y for every icon back onto its bookmark.
+function persistIconPositions(g) {
+  const dash = getActiveDash();
+  if (!dash || !Array.isArray(dash.bookmarks)) return;
+  let touched = false;
+  (g.engine ? g.engine.nodes : []).forEach((n) => {
+    const id = n.el && n.el.dataset.bmId;
+    if (!id) return;
+    const bm = dash.bookmarks.find((b) => b.id === id);
+    if (bm && (bm.gx !== n.x || bm.gy !== n.y || bm.folder !== g._folder)) {
+      bm.gx = n.x; bm.gy = n.y; bm.folder = g._folder; touched = true;
+    }
+  });
+  if (touched) { chromeSet({ dashboards: state.dashboards }); markRearrangeChanged(); }
+}
+
+// An icon dragged in from another section — re-home its bookmark to this folder.
+function onIconsAdded(g, nodes) {
+  const dash = getActiveDash();
+  if (!dash) return;
+  nodes.forEach((n) => {
+    const id = n.el && n.el.dataset.bmId;
+    const bm = id && dash.bookmarks.find((b) => b.id === id);
+    if (bm) { bm.folder = g._folder; bm.gx = n.x; bm.gy = n.y; }
+  });
+  chromeSet({ dashboards: state.dashboards });
+  markRearrangeChanged();
+}
+
+// Size the OUTER section item so the nested icon grid (header + its rows) fits.
+function fitSectionForIconGrid(gridEl) {
+  if (!gridInstance || !gridEl) return;
+  const item = gridEl.closest('.grid-stack-item[data-folder]');
+  const g = gridEl.gridstack;
+  if (!item || !g) return;
+  const rows = Math.max(1, g.getRow());
+  const cell = g.getCellHeight() || ICON_CELL.medium;
+  const headerEl = item.querySelector('.folder-header');
+  const headerPx = headerEl ? headerEl.getBoundingClientRect().height : HEADER_PX;
+  const needPx = headerPx + rows * cell + ICON_GRID_MARGIN * (rows + 1) + 18;
+  const needH = Math.max(GRID_MIN_H, Math.ceil(needPx / GRID_CELL));
+  if (item.gridstackNode && item.gridstackNode.h === needH) return;
+  const wasStatic = !state.rearrangeMode;
+  if (wasStatic) gridInstance.setStatic(false);
+  try { gridInstance.update(item, { h: needH }); } catch (_) {}
+  if (wasStatic) gridInstance.setStatic(true);
+}
+
+// Enable/disable dragging for all icon grids (mirrors edit mode).
+function setIconGridsStatic(staticOn) {
+  iconGrids.forEach((g) => { try { g.setStatic(staticOn); } catch (_) {} });
+}
+
+// Recompute one section's icon-grid columns/cell after a width or icon-size change.
+function relayoutIconGrid(folder) {
+  const gridEl = document.querySelector(`.folder-section .icon-grid[data-folder="${CSS.escape(folder)}"]`);
+  const g = gridEl && gridEl.gridstack;
+  if (!gridEl || !g) return;
+  const { cols, cell } = iconGridMetrics(gridEl, folder);
+  ensureGridColCss(cols);
+  try { g.cellHeight(cell); if (g.getColumn() !== cols) g.column(cols, 'list'); } catch (_) {}
+  fitSectionForIconGrid(gridEl);
+}
 
 function buildFolderSection(folderName, bookmarks) {
   const section = document.createElement('div');
@@ -1044,9 +1180,27 @@ function buildFolderSection(folderName, bookmarks) {
     <span class="folder-name">${escapeHtml(getFolderDisplayName(folderName))}</span>
   `;
 
+  // Nested GridStack of icon nodes — each bookmark is its own 1×1 grid item, so
+  // moving icons (within and across sections) uses GridStack's native drag,
+  // exactly like Homarr. Saved positions come from bm.gx / bm.gy.
   const grid = document.createElement('div');
-  grid.className = 'bookmark-grid';
-  bookmarks.forEach((bm) => grid.appendChild(buildBookmarkCard(bm)));
+  grid.className = 'grid-stack icon-grid';
+  grid.dataset.folder = folderName;
+  bookmarks.forEach((bm) => {
+    const item = document.createElement('div');
+    item.className = 'grid-stack-item icon-node';
+    item.dataset.bmId = bm.id;
+    item.setAttribute('gs-w', '1');
+    item.setAttribute('gs-h', '1');
+    item.setAttribute('gs-no-resize', 'true');   // fixed size — set via S/M/L only, never by dragging
+    if (Number.isFinite(bm.gx)) item.setAttribute('gs-x', bm.gx);
+    if (Number.isFinite(bm.gy)) item.setAttribute('gs-y', bm.gy);
+    const content = document.createElement('div');
+    content.className = 'grid-stack-item-content';
+    content.appendChild(buildBookmarkCard(bm));
+    item.appendChild(content);
+    grid.appendChild(item);
+  });
 
   section.appendChild(header);
   section.appendChild(grid);
@@ -1094,33 +1248,29 @@ function buildBookmarkCard(bm) {
   const actions = document.createElement('div');
   actions.className = 'card-actions';
 
-  const infoBtn = document.createElement('button');
-  infoBtn.className = 'card-action-btn card-info-btn';
-  infoBtn.title = '';
-  infoBtn.textContent = 'ℹ';
-  infoBtn.addEventListener('click', (e) => {
-    e.preventDefault(); e.stopPropagation();
-    hideDescTooltip();
-    openEditModal(bm.id);
-  });
-  // Show description tooltip on hover
-  if (bm.description) {
-    infoBtn.addEventListener('mouseenter', (e) => showDescTooltip(e, bm.description));
-    infoBtn.addEventListener('mouseleave', hideDescTooltip);
-  }
-
   const removeBtn = document.createElement('button');
   removeBtn.className = 'card-action-btn card-remove-btn';
   removeBtn.title = 'Remove from dashboard';
   removeBtn.textContent = '✕';
+  removeBtn.addEventListener('pointerdown', (e) => e.stopPropagation());
   removeBtn.addEventListener('click', (e) => {
     e.preventDefault(); e.stopPropagation();
     removeBookmark(bm.id);
   });
-
-  actions.appendChild(infoBtn);
   actions.appendChild(removeBtn);
   card.appendChild(actions);
+
+  // Info / edit button — shown only in edit mode, bottom-right corner, no tooltip.
+  const infoBtn = document.createElement('button');
+  infoBtn.type = 'button';
+  infoBtn.className = 'card-action-btn card-info-btn';
+  infoBtn.textContent = 'ℹ';
+  infoBtn.addEventListener('pointerdown', (e) => e.stopPropagation());   // don't start a drag
+  infoBtn.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    openEditModal(bm.id);
+  });
+  card.appendChild(infoBtn);
 
   // ── Icon ──
   const iconWrapper = document.createElement('div');
@@ -1200,7 +1350,7 @@ function buildBookmarkCard(bm) {
   card.appendChild(title);
 
   // ── Pointer drag (active only in rearrange mode) ──
-  initCardPointerDrag(card);
+  card.draggable = false;   // GridStack handles dragging now (no native <a> drag, no custom FLIP)
 
   return card;
 }
@@ -1736,6 +1886,7 @@ function addWidgetItemInPlace(wdef) {
   const wsec = buildWidgetSection(wdef);
   content.appendChild(wsec);
   attachWidgetToolsBubble(content, wsec, wdef);
+  content.appendChild(buildGridLock('@w:' + wdef.uid));   // lock/unlock in the top-right corner
   item.appendChild(content);
 
   const wasStatic = !state.rearrangeMode;
@@ -1816,6 +1967,63 @@ function attachWidgetToolsBubble(content, sec, wdef) {
   bubble.className = 'widget-tools-bubble';
   tools.forEach((t) => bubble.appendChild(t));   // relocate the controls into the overlay
   content.appendChild(bubble);
+}
+
+// ─── Lock / unlock a grid item (section or widget) ───────────────────────────
+// A locked item can't be dragged or resized, AND other items can't push it out
+// of the way — Gridstack's locked + noMove + noResize. Persisted per item in
+// dash.layout[key].locked. `key` is the folder name, or "@w:<uid>" for widgets.
+
+// Stamp the Gridstack lock attributes before init when an item is saved locked.
+function applyLockedAttrs(item, pos) {
+  if (!pos || !pos.locked) return;
+  item.setAttribute('gs-locked', 'true');
+  item.setAttribute('gs-no-move', 'true');
+  item.setAttribute('gs-no-resize', 'true');
+  item.classList.add('locked');
+}
+
+// The small lock toggle shown in each item's top-right corner (edit mode only).
+function buildGridLock(key) {
+  const dash = getActiveDash();
+  const locked = !!(dash && dash.layout && dash.layout[key] && dash.layout[key].locked);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'grid-lock' + (locked ? ' is-locked' : '');
+  btn.dataset.lockKey = key;
+  btn.textContent = locked ? '🔒' : '🔓';
+  btn.title = locked ? 'Locked — click to unlock' : 'Lock in place';
+  btn.setAttribute('aria-label', btn.title);
+  btn.addEventListener('pointerdown', (e) => e.stopPropagation());   // never start a drag
+  btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleGridLock(btn); });
+  return btn;
+}
+
+function toggleGridLock(btn) {
+  const item = btn.closest('.grid-stack-item');
+  const key = btn.dataset.lockKey;
+  const dash = getActiveDash();
+  if (!item || !key || !dash) return;
+  if (!dash.layout[key]) dash.layout[key] = {};
+  const locked = !dash.layout[key].locked;
+  dash.layout[key].locked = locked;
+  applyGridLock(item, locked);
+  btn.classList.toggle('is-locked', locked);
+  btn.textContent = locked ? '🔒' : '🔓';
+  btn.title = locked ? 'Locked — click to unlock' : 'Lock in place';
+  btn.setAttribute('aria-label', btn.title);
+  markRearrangeChanged();
+}
+
+function applyGridLock(item, locked) {
+  if (!gridInstance || !item) return;
+  item.classList.toggle('locked', !!locked);
+  const wasStatic = !state.rearrangeMode;
+  if (wasStatic) gridInstance.setStatic(false);
+  try { gridInstance.update(item, { locked: !!locked, noMove: !!locked, noResize: !!locked }); } catch (_) {}
+  try { if (gridInstance.movable)   gridInstance.movable(item, !locked); }   catch (_) {}
+  try { if (gridInstance.resizable) gridInstance.resizable(item, !locked); } catch (_) {}
+  if (wasStatic) gridInstance.setStatic(true);
 }
 
 function buildWidgetSection(wdef) {
@@ -2007,7 +2215,9 @@ function enterRearrangeMode() {
     gridInstance.setStatic(false);
     gridInstance.enableMove(true);
     gridInstance.enableResize(true);
+    reassertGridLocks();   // global enable must not override per-item locks
   }
+  setIconGridsStatic(false);   // enable icon dragging within/between sections
 }
 
 function exitRearrangeMode(discard = false) {
@@ -2025,7 +2235,8 @@ function exitRearrangeMode(discard = false) {
   rearrangeBtn.disabled = false;
   rearrangeSaveBtn.classList.remove('has-changes');
 
-  // Re-lock the grid.
+  // Re-lock the grid (and the nested icon grids).
+  setIconGridsStatic(true);
   if (gridInstance) {
     gridInstance.setStatic(true);
     if (discard && layoutSnapshot) {
@@ -2136,6 +2347,7 @@ function initCardPointerDrag(cardEl) {
 }
 
 function dragStart(cardEl, e) {
+  clearTimeout(pDrag._cleanupT);   // don't let a prior drag's cleanup fire mid-drag
   const rect = cardEl.getBoundingClientRect();
 
   // 1. Placeholder div — holds the card's grid slot while we drag
@@ -2169,11 +2381,29 @@ function dragStart(cardEl, e) {
   pDrag.oy          = e.clientY - rect.top;
   pDrag.ghostW      = rect.width;  // used for ghost-center threshold
   pDrag.lastTarget  = null;
+  pDrag.aborted     = false;
+  pDrag.originGrid  = ph.parentNode;   // the card's starting slot (for abort / off-grid)
+  pDrag.originNext  = ph.nextSibling;
+
+  // Esc aborts the drag — placeholder + layout slide back to the original spots.
+  pDrag._onKey = (ev) => { if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); abortDrag(); } };
+  document.addEventListener('keydown', pDrag._onKey, true);
 
   // Document-level listeners — no pointer capture needed
   document.addEventListener('pointermove',   onDragMove,   { passive: false });
   document.addEventListener('pointerup',     onDragEnd);
   document.addEventListener('pointercancel', onDragEnd);
+}
+
+// Send the placeholder (and the whole layout) back to the drag's starting slot,
+// animated, without committing a reorder.
+function abortDrag() {
+  if (!pDrag.active) return;
+  pDrag.aborted = true;
+  if (pDrag.placeholder && pDrag.originGrid) {
+    flipDo(() => pDrag.originGrid.insertBefore(pDrag.placeholder, pDrag.originNext));
+  }
+  onDragEnd();
 }
 
 function onDragMove(e) {
@@ -2219,7 +2449,15 @@ function onDragMove(e) {
   // ── No direct card hit — find the grid under cursor and nearest card ─────
   // This handles: space before the first card, gaps between cards, empty grids.
   const grid = findGridFromEls(els);
-  if (!grid) return;
+  if (!grid) {
+    // Dragged off every grid → send the placeholder home; the layout slides back
+    // to its original arrangement until the cursor returns over a grid.
+    if (pDrag.lastTarget !== 'origin' && pDrag.originGrid) {
+      pDrag.lastTarget = 'origin';
+      flipDo(() => pDrag.originGrid.insertBefore(pDrag.placeholder, pDrag.originNext));
+    }
+    return;
+  }
 
   const cards = [...grid.querySelectorAll('.bookmark-card')].filter(c => c !== pDrag.srcEl);
 
@@ -2283,17 +2521,31 @@ function onDragEnd() {
 
   pDrag.ghost?.remove();
 
+  // Let any in-flight FLIP settle (no abrupt snap), THEN clear the inline
+  // translate/transition so the cards' normal CSS transitions (hover, etc.)
+  // resume. Cancelled if a new drag starts before it fires.
+  clearTimeout(pDrag._cleanupT);
+  pDrag._cleanupT = setTimeout(() => {
+    document.querySelectorAll('.bookmark-card').forEach((c) => { c.style.transition = ''; c.style.translate = ''; });
+  }, FLIP_MS + 40);
+
   document.removeEventListener('pointermove',   onDragMove);
   document.removeEventListener('pointerup',     onDragEnd);
   document.removeEventListener('pointercancel', onDragEnd);
+  if (pDrag._onKey) { document.removeEventListener('keydown', pDrag._onKey, true); pDrag._onKey = null; }
 
-  const changed = pDrag.lastTarget !== null;
+  // No real change if the drag was aborted (Esc) or the card ended back at its
+  // original slot (dropped off-grid).
+  const changed = !pDrag.aborted && pDrag.lastTarget !== null && pDrag.lastTarget !== 'origin';
 
   pDrag.active      = false;
   pDrag.srcEl       = null;
   pDrag.ghost       = null;
   pDrag.placeholder = null;
   pDrag.lastTarget  = null;
+  pDrag.aborted     = false;
+  pDrag.originGrid  = null;
+  pDrag.originNext  = null;
 
   if (changed) markRearrangeChanged();
 }
@@ -2313,42 +2565,44 @@ function endPointerDrag() { onDragEnd(); }
  * 4. Measure "after" positions.
  * 5. Snap displaced cards to "before" position, then CSS-transition to natural.
  */
+const FLIP_MS = 240;
+const FLIP_EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
+
 function flipDo(fn) {
-  // All real cards currently in the grids (not ghost, not srcEl which is off-screen)
-  const cards = [...document.querySelectorAll('.bookmark-card:not(.drag-ghost)')]
-    .filter((c) => c !== pDrag.srcEl);
+  const cards = [...document.querySelectorAll('.bookmark-card:not(.drag-ghost)')].filter((c) => c !== pDrag.srcEl);
 
-  // Step 1 — reset any running FLIP translate so measurements are accurate
-  cards.forEach((c) => {
-    c.style.transition = 'none';
-    c.style.translate  = '';
-  });
-  void document.body.offsetHeight; // force layout
+  // FIRST — measure each card's CURRENT VISUAL position. getBoundingClientRect
+  // includes any in-flight `translate`, so a card mid-animation continues
+  // smoothly from where it is (this is what the old version got wrong: it reset
+  // translates to baseline before measuring, which made interrupted cards snap
+  // and "jump", badly on row-wraps and fast drags).
+  const first = new Map(cards.map((c) => [c, c.getBoundingClientRect()]));
 
-  // Step 2 — measure natural "before" positions
-  const before = new Map(cards.map((c) => [c, c.getBoundingClientRect()]));
-
-  // Step 3 — DOM mutation
+  // Move the placeholder to its new slot.
   fn();
-  void document.body.offsetHeight; // force layout after mutation
 
-  // Steps 4+5 — for each moved card: snap to old pos, then animate to new pos
+  // LAST — clear transforms so we read the new NATURAL layout in one pass.
+  cards.forEach((c) => { c.style.transition = 'none'; c.style.translate = ''; });
+  const last = new Map(cards.map((c) => [c, c.getBoundingClientRect()]));
+
+  // INVERT — offset each card back to where it visually was (still no transition).
+  let any = false;
   cards.forEach((c) => {
-    const b = before.get(c);
-    if (!b) return;
-    const a = c.getBoundingClientRect();
-    const dx = b.left - a.left;
-    const dy = b.top  - a.top;
-    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return; // didn't move
+    const f = first.get(c), l = last.get(c);
+    const dx = f.left - l.left, dy = f.top - l.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) { c.style.translate = ''; return; }
+    c.style.translate = `${dx}px ${dy}px`;
+    any = true;
+  });
+  if (!any) return;
 
-    // Invert: place card visually at its old position (no transition)
-    c.style.transition = 'none';
-    c.style.translate  = `${dx}px ${dy}px`;
-
-    // Play: next frame, let the CSS `transition: translate 0.2s` animate it home
-    requestAnimationFrame(() => {
-      c.style.transition = ''; // CSS rule takes over: transition: translate 0.2s
-      c.style.translate  = ''; // triggers animation to natural (0,0)
+  // PLAY — next frame, ease each card to its natural spot. Works identically for
+  // horizontal moves and vertical row-wraps (dx AND dy are animated).
+  requestAnimationFrame(() => {
+    cards.forEach((c) => {
+      if (!c.style.translate) return;
+      c.style.transition = `translate ${FLIP_MS}ms ${FLIP_EASE}`;
+      c.style.translate = '';
     });
   });
 }

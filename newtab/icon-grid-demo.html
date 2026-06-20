@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="default">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Icon Grid — Homarr-style drag prototype</title>
+  <link rel="stylesheet" href="../styles/common.css">
+  <link rel="stylesheet" href="vendor/gridstack.min.css">
+  <style>
+    body { margin: 0; padding: 28px; background: var(--bg-primary); color: var(--text-primary);
+           font-family: var(--font, system-ui, sans-serif); }
+    .demo-head { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
+    .demo-head h1 { font-size: 18px; margin: 0; font-weight: 700; }
+    .demo-head .hint { font-size: 12.5px; color: var(--text-muted); }
+    .edit-btn { margin-left: auto; padding: 8px 16px; border-radius: 8px; border: 1px solid var(--accent);
+                background: var(--accent); color: #fff; font-weight: 600; cursor: pointer; font-size: 13px; }
+    .edit-btn.off { background: var(--bg-secondary); color: var(--accent); }
+
+    .sections { display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; }
+    .section { flex: 1 1 360px; min-width: 320px; background: var(--bg-secondary);
+               border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px 16px 18px; }
+    .section-title { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .06em;
+                     text-transform: uppercase; color: var(--accent); background: var(--accent-light);
+                     padding: 5px 12px; border-radius: 20px; margin-bottom: 12px; }
+
+    /* Native GridStack handles positioning. Cells are kept square via cellHeight = width/column (set in JS). */
+    .grid-stack { background: transparent; }
+    body.editing .grid-stack { background-image:
+      repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px calc(100% / 6)); border-radius: 8px; }
+
+    .icon-card {
+      width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 8px; padding: 8px; box-sizing: border-box; background: var(--bg-card);
+      border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer;
+      transition: border-color .12s, transform .12s, box-shadow .12s; user-select: none;
+    }
+    body.editing .icon-card { cursor: grab; }
+    .icon-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+    .icon-badge { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+                  font-size: 20px; font-weight: 800; color: #fff; }
+    .icon-label { font-size: 11.5px; font-weight: 600; color: var(--text-primary); max-width: 100%;
+                  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* While dragging, GridStack shows a placeholder element — style it like a drop slot. */
+    .grid-stack-placeholder > .placeholder-content {
+      border: 2px dashed var(--accent); background: var(--accent-light); border-radius: var(--radius); inset: 0;
+    }
+    .status { margin-top: 18px; font-size: 12px; color: var(--text-muted); font-family: var(--font-mono, monospace); }
+  </style>
+</head>
+<body>
+  <div class="demo-head">
+    <h1>🤖 Icon drag prototype — Homarr-style (native GridStack)</h1>
+    <span class="hint">Each icon is a 1×1 grid node. Drag within a group, or across into the other group.</span>
+    <button class="edit-btn" id="edit-toggle">Editing: ON</button>
+  </div>
+
+  <div class="sections">
+    <div class="section">
+      <span class="section-title">Media</span>
+      <div class="grid-stack" id="grid-a" data-section="Media"></div>
+    </div>
+    <div class="section">
+      <span class="section-title">Tools</span>
+      <div class="grid-stack" id="grid-b" data-section="Tools"></div>
+    </div>
+  </div>
+
+  <div class="status" id="status">Drag events will show here…</div>
+
+  <script src="vendor/gridstack-all.js"></script>
+  <script>
+    const COLS = 6;
+
+    // The bundled gridstack.min.css ships width/left rules only for a 12-column
+    // grid; for any other column count we generate the matching rules (this is
+    // exactly what the main app's injectGridColumnCss does). Without this the
+    // items have no width and the grid looks blank.
+    (function injectColCss(cols) {
+      let css = `.gs-${cols}>.grid-stack-item{width:${100 / cols}%}`;
+      for (let i = 1; i <= cols; i++) css += `.gs-${cols}>.grid-stack-item[gs-w="${i}"]{width:${(i * 100) / cols}%}`;
+      for (let i = 1; i < cols; i++) css += `.gs-${cols}>.grid-stack-item[gs-x="${i}"]{left:${(i * 100) / cols}%}`;
+      const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
+    })(COLS);
+
+    const COLORS = ['#6366f1','#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+    const ITEMS_A = ['Plex','Tautulli','Jellyfin','Sonarr','Radarr','Overseerr','Prowlarr','SABnzbd'];
+    const ITEMS_B = ['Portainer','Pi-hole','Uptime','Grafana'];
+
+    function makeIcon(name, i) {
+      const wrap = document.createElement('div');
+      wrap.className = 'grid-stack-item';
+      wrap.setAttribute('gs-w', '1'); wrap.setAttribute('gs-h', '1');
+      wrap.dataset.id = name;
+      wrap.innerHTML =
+        '<div class="grid-stack-item-content"><div class="icon-card">' +
+          '<div class="icon-badge" style="background:' + COLORS[i % COLORS.length] + '">' + name[0] + '</div>' +
+          '<div class="icon-label">' + name + '</div>' +
+        '</div></div>';
+      return wrap;
+    }
+
+    function buildGrid(elId, items) {
+      const el = document.getElementById(elId);
+      items.forEach((n, i) => el.appendChild(makeIcon(n, i)));
+      // Homarr's exact options: square cells, float, no animation, acceptWidgets for cross-grid drag.
+      const grid = GridStack.init({
+        column: COLS,
+        cellHeight: el.clientWidth / COLS,   // square cells
+        margin: 8,
+        float: true,
+        animate: false,
+        acceptWidgets: true,                 // ← lets icons drag BETWEEN sections
+        disableOneColumnMode: true,
+        staticGrid: false,
+      }, el);
+      return grid;
+    }
+
+    const status = document.getElementById('status');
+    const grids = [buildGrid('grid-a', ITEMS_A), buildGrid('grid-b', ITEMS_B)];
+
+    // Keep cells square on resize.
+    function squareCells() {
+      grids.forEach((g) => g.cellHeight(g.el.clientWidth / COLS));
+    }
+    window.addEventListener('resize', squareCells);
+    requestAnimationFrame(squareCells);
+
+    // Show that persistence hooks are trivial (Homarr saves x/y on change, folder on cross-grid add).
+    grids.forEach((g) => {
+      g.on('change', (e, nodes) => {
+        status.textContent = 'change → ' + nodes.map((n) => `${n.el.dataset.id}@(${n.x},${n.y})`).join('  ');
+      });
+      g.on('added', (e, nodes) => {
+        const sec = g.el.dataset.section;
+        status.textContent = 'moved to "' + sec + '" → ' + nodes.map((n) => n.el.dataset.id).join(', ');
+      });
+    });
+
+    // Edit toggle = Homarr's setStatic(!editMode).
+    let editing = true;
+    const btn = document.getElementById('edit-toggle');
+    btn.addEventListener('click', () => {
+      editing = !editing;
+      grids.forEach((g) => g.setStatic(!editing));
+      document.body.classList.toggle('editing', editing);
+      btn.textContent = 'Editing: ' + (editing ? 'ON' : 'OFF');
+      btn.classList.toggle('off', !editing);
+    });
+    document.body.classList.add('editing');
+  </script>
+</body>
+</html>
