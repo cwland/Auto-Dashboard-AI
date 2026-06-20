@@ -1,0 +1,98 @@
+/* Auto Dashboard AI — Tautulli stats widgets (Recently Added, Watch Stats,
+   Libraries, Top Users & Platforms). Themed via the shared design tokens.
+   Clean-room styling inspired by — but not copied from — Tautulli's dashboard. */
+
+.tautulli-stats-widget {
+  display: flex; flex-direction: column; height: 100%; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.tautulli-stats-widget .ts-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 2px 2px 8px; border-bottom: 1px solid var(--border); margin-bottom: 6px;
+}
+.tautulli-stats-widget .ts-header .wg-icon { width: 18px; height: 18px; }
+.tautulli-stats-widget .ts-title {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.tautulli-stats-widget .ts-summary {
+  margin-left: auto; font-size: 11.5px; font-weight: 500;
+  color: var(--text-secondary); font-variant-numeric: tabular-nums;
+}
+.tautulli-stats-widget .lc-tools { display: flex; align-items: center; gap: 10px; }
+.tautulli-stats-widget .ts-error { margin-left: 8px; font-size: 11px; font-weight: 600; color: var(--danger, #ef4444); }
+.tautulli-stats-widget .ts-body { flex: 1; min-height: 0; overflow: auto; }
+.tautulli-stats-widget .ts-viewport { overflow: hidden; }
+.tautulli-stats-widget .ts-track { display: flex; flex-direction: column; will-change: transform; }
+.tautulli-stats-widget .ts-empty {
+  color: var(--text-muted); font-size: 13px; font-weight: 600; text-align: center; padding: 22px 4px;
+}
+
+/* Common row */
+.tautulli-stats-widget .ts-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 6px 4px; border-bottom: 1px solid var(--border);
+}
+.tautulli-stats-widget .ts-row:last-child { border-bottom: none; }
+.tautulli-stats-widget .ts-rmain { min-width: 0; flex: 1 1 auto; }
+.tautulli-stats-widget .ts-rtitle {
+  font-size: 12.5px; font-weight: 700; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tautulli-stats-widget .ts-rsub {
+  font-size: 11px; color: var(--text-secondary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tautulli-stats-widget .ts-rmeta { font-size: 10px; color: var(--text-muted); margin-top: 1px; }
+
+/* Poster thumb */
+.tautulli-stats-widget .ts-poster {
+  flex: 0 0 auto; width: 34px; height: 50px; border-radius: 4px; overflow: hidden;
+  background: var(--bg-secondary); display: flex; align-items: center; justify-content: center;
+}
+.tautulli-stats-widget .ts-poster.ts-poster-sm { width: 28px; height: 42px; }
+.tautulli-stats-widget .ts-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tautulli-stats-widget .ts-poster-ph { font-size: 16px; }
+
+/* Watch stats */
+.tautulli-stats-widget .ts-rank {
+  flex: 0 0 auto; width: 18px; text-align: center;
+  font-size: 12px; font-weight: 800; color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.tautulli-stats-widget .ts-plays {
+  flex: 0 0 auto; font-size: 13px; font-weight: 700; color: var(--accent, #6366f1);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.tautulli-stats-widget .ts-plays small { font-size: 9px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+
+/* Libraries grid */
+.tautulli-stats-widget .ts-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px;
+}
+.tautulli-stats-widget .ts-lib {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-secondary);
+}
+.tautulli-stats-widget .ts-lib-ico { font-size: 20px; flex: 0 0 auto; }
+.tautulli-stats-widget .ts-lib-main { min-width: 0; }
+.tautulli-stats-widget .ts-lib-name { font-size: 12.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tautulli-stats-widget .ts-lib-c1 { font-size: 11.5px; font-weight: 600; color: var(--text-secondary); }
+.tautulli-stats-widget .ts-lib-c2 { font-size: 10px; color: var(--text-muted); }
+
+/* Top users & platforms */
+.tautulli-stats-widget .ts-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.tautulli-stats-widget .ts-col-h {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-muted); padding-bottom: 5px; border-bottom: 1px solid var(--border); margin-bottom: 4px;
+}
+.tautulli-stats-widget .ts-ur {
+  display: flex; align-items: center; gap: 7px; padding: 5px 2px;
+}
+.tautulli-stats-widget .ts-ur-av {
+  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent, #6366f1); color: #fff; font-size: 9px; font-weight: 700;
+}
+.tautulli-stats-widget .ts-ur-av img { width: 100%; height: 100%; object-fit: cover; }
+.tautulli-stats-widget .ts-ur-n { flex: 1 1 auto; min-width: 0; font-size: 12px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tautulli-stats-widget .ts-ur-p { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }

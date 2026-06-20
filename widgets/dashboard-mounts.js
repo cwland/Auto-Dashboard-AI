@@ -64,6 +64,10 @@
     'tautulli-list': (h, s, opts) => new TautulliListWidget(h, withPoll(s, 'tautulli', Object.assign({
       baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey,
     }, carouselOpts(opts)))),
+    'tautulli-recent': (h, s, opts) => new TautulliRecentWidget(h, withPoll(s, 'tautulli', Object.assign({ baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey }, carouselOpts(opts)))),
+    'tautulli-watch': (h, s, opts) => new TautulliWatchStatsWidget(h, withPoll(s, 'tautulli', Object.assign({ baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey }, carouselOpts(opts)))),
+    'tautulli-libraries': (h, s) => new TautulliLibrariesWidget(h, withPoll(s, 'tautulli', { baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey })),
+    'tautulli-top': (h, s) => new TautulliTopUsersWidget(h, withPoll(s, 'tautulli', { baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey })),
     stocks: (h, s, opts) => new StocksWidget(h, withPoll(s, 'stocks', Object.assign({ symbols: StocksApi.parseSymbols(s.stocksSymbols) }, carouselOpts(opts)))),
     portainer: (h, s, opts) => {
       const base = withPoll(s, 'portainer', { baseUrl: s.portainerUrl, apiKey: s.portainerApiKey });
@@ -139,14 +143,53 @@
     }),
   };
 
+  // Widget id → base integration id (for multi-endpoint resolution). Variant
+  // widgets (tautulli-list, weather-current, …) resolve to their parent service.
+  const WIDGET_BASE_INT = {
+    'tautulli-list': 'tautulli', 'tautulli-recent': 'tautulli', 'tautulli-watch': 'tautulli',
+    'tautulli-libraries': 'tautulli', 'tautulli-top': 'tautulli',
+    'weather-current': 'weather', 'weather-hourly': 'weather', 'weather-forecast': 'weather', 'weather-combined': 'weather',
+  };
+  function baseIntOf(intId) { return WIDGET_BASE_INT[intId] || intId; }
+  global.dashboardWidgetBaseInt = baseIntOf;
+
+  // Render the "this endpoint was deleted" placeholder into a widget host.
+  // `label` names the configuration the placement belonged to (e.g.
+  // "Tautulli Streams — Cabin") so the user knows which one to check.
+  function renderConfigRemoved(host, label) {
+    if (!host) return;
+    const safe = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    host.innerHTML =
+      '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;' +
+      'gap:6px;padding:18px;text-align:center;color:var(--text-muted);">' +
+      '<div style="font-size:26px;line-height:1;">⚠️</div>' +
+      '<div style="font-size:14px;font-weight:600;color:var(--text-secondary);">Configuration removed</div>' +
+      (label ? `<div style="font-size:12.5px;font-weight:600;color:var(--text-primary);">${safe(label)}</div>` : '') +
+      '<div style="font-size:12px;">Please check setup.</div></div>';
+  }
+  global.renderConfigRemoved = renderConfigRemoved;
+
   // Mount a live widget for an integration into `host`. Returns the widget
   // instance (so the caller can destroy it later), or null if there's no live
-  // mount for this integration yet (caller shows a placeholder).
+  // mount for this integration yet (caller shows a placeholder). When the
+  // placement points at a multi-endpoint service whose endpoint has been
+  // deleted, renders a "configuration removed" notice and returns a no-op stub.
   global.mountDashboardWidget = function (intId, host, settings, opts) {
     const fn = MOUNTS[intId];
     if (typeof fn !== 'function') return null;
+    opts = opts || {};
+    let s = settings || {};
+    const base = baseIntOf(intId);
+    if (global.Endpoints && Endpoints.isMulti(base)) {
+      const resolved = Endpoints.resolve(s, base, opts.endpointId);
+      if (resolved === null) {
+        renderConfigRemoved(host, opts.removedLabel);
+        return { removed: true, start() {}, stop() {}, destroy() { if (host) host.innerHTML = ''; } };
+      }
+      s = resolved;
+    }
     try {
-      const w = fn(host, settings || {}, opts || {});
+      const w = fn(host, s, opts);
       if (w && typeof w.start === 'function') w.start();
       return w;
     } catch (e) {

@@ -28,14 +28,14 @@
 
   // ── Media servers ─────────────────────────────────────────────────────────
   M.plex = dp(typeof PlexWidget !== 'undefined' ? PlexWidget : undefined, () => PlexApi.mapSessions([
-    { type: 'episode', grandparentTitle: 'Severance', parentTitle: 'Season 2', title: 'Cold Harbor', index: '4', user: { title: 'cory' }, player: { product: 'Plex Web', title: 'Chrome' }, session: { id: 's1' } },
+    { type: 'episode', grandparentTitle: 'Severance', parentTitle: 'Season 2', title: 'Cold Harbor', index: '4', user: { title: 'avery' }, player: { product: 'Plex Web', title: 'Chrome' }, session: { id: 's1' } },
     { type: 'movie', title: 'Dune: Part Two', user: { title: 'jordan' }, player: { product: 'Plex for Apple TV', title: 'Living Room' }, session: { id: 's2' } },
     { type: 'track', grandparentTitle: 'Daft Punk', parentTitle: 'Discovery', title: 'Digital Love', user: { title: 'sam' }, player: { product: 'Plexamp', title: 'iPhone' } },
   ]));
 
   function mediaRaw(service) {
     return [
-      { Id: 's1', UserName: 'cory', Client: service === 'emby' ? 'Emby Web' : 'Jellyfin Web', DeviceName: 'Chrome', PlayState: { PositionTicks: 30000000000, IsPaused: false }, NowPlayingItem: { Type: 'Episode', SeriesName: 'Severance', SeasonName: 'Season 2', IndexNumber: 4, Name: 'Cold Harbor', RunTimeTicks: 60000000000 } },
+      { Id: 's1', UserName: 'avery', Client: service === 'emby' ? 'Emby Web' : 'Jellyfin Web', DeviceName: 'Chrome', PlayState: { PositionTicks: 30000000000, IsPaused: false }, NowPlayingItem: { Type: 'Episode', SeriesName: 'Severance', SeasonName: 'Season 2', IndexNumber: 4, Name: 'Cold Harbor', RunTimeTicks: 60000000000 } },
       { Id: 's2', UserName: 'jordan', Client: 'Roku', DeviceName: 'Living Room', PlayState: { PositionTicks: 18000000000, IsPaused: true }, NowPlayingItem: { Type: 'Movie', Name: 'Dune: Part Two', ProductionYear: 2024, RunTimeTicks: 166000000000 } },
       { Id: 's3', UserName: 'sam', Client: 'Finamp', DeviceName: 'iPhone', PlayState: { PositionTicks: 90000000000, IsPaused: false }, NowPlayingItem: { Type: 'Audio', AlbumArtist: 'Daft Punk', Album: 'Discovery', Name: 'Digital Love', RunTimeTicks: 180000000000 } },
     ];
@@ -45,21 +45,25 @@
 
   // ── Tautulli (carousel + list) ─────────────────────────────────────────────
   const tauChrome = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" rx="11" fill="#e8483c"/><circle cx="24" cy="24" r="9" fill="#fff"/><circle cx="24" cy="24" r="5" fill="#4285f4"/></svg>');
+  const tauApple = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" rx="11" fill="#0a0a0a"/><rect x="12" y="14" width="24" height="15" rx="2" fill="none" stroke="#fff" stroke-width="2.4"/><rect x="18" y="32" width="12" height="2.6" rx="1.3" fill="#fff"/></svg>');
+  const tauAndroid = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" rx="11" fill="#3ddc84"/><path d="M15 23a9 9 0 0 1 18 0z" fill="#0a0a0a"/><rect x="15" y="24" width="18" height="11" rx="2.5" fill="#0a0a0a"/><circle cx="20" cy="20.5" r="1.4" fill="#3ddc84"/><circle cx="28" cy="20.5" r="1.4" fill="#3ddc84"/></svg>');
+  const tauArt = (c1, c2) => 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340"><defs><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient></defs><rect width="600" height="340" fill="url(#a)"/></svg>`);
   function tauCard(over) {
     return Object.assign({
-      key: 'k', poster: poster('NOW', '#3a5a7a', '#1a2a3a'), backdrop: '',
-      username: 'cory', product: 'Plex Web', player: 'Chrome', quality: 'Original (4.3 Mbps)', qualityWarn: true,
+      key: 'k', poster: poster('NOW', '#3a5a7a', '#1a2a3a'), backdrop: tauArt('#2c4a63', '#101820'),
+      username: 'avery', product: 'Plex Web', player: 'Chrome', quality: 'Original (4.3 Mbps)', qualityWarn: true,
       stream: 'Transcode (Throttled)', container: 'Converting (MKV → MP4)', video: 'Direct Stream (H264 720p)',
       audio: 'Transcode (AC3 5.1 → AAC)', subtitle: 'None', location: 'LAN: 192.168.50.16', secure: true,
       bandwidth: '5.0 Mbps', eta: '19:14', progressText: '1:22 / 42:50', progressPct: 32,
       state: 'playing', stateIcon: '▶', mediaIcon: '🖥', footTitle: 'Severance - Cold Harbor', footSub: 'S2 · E4',
-      platformIcon: tauChrome, avatarInitial: 'C', avatarColor: '#e07a7a', avatarImg: '',
+      platformIcon: tauChrome, avatarInitial: 'A', avatarColor: '#e07a7a', avatarImg: '',
     }, over);
   }
   function tauCards() {
     return [
       tauCard({ key: 'a' }),
-      tauCard({ key: 'b', footTitle: 'Dune: Part Two', footSub: '2024', mediaIcon: '🎬', product: 'Plex for Apple TV', player: 'Living Room', bandwidth: '12.4 Mbps', avatarInitial: 'J', avatarColor: '#6f8fe0', username: 'jordan', state: 'paused', stateIcon: '❚❚', progressPct: 61, poster: poster('DUNE', '#7a5a3a', '#3a2a1a') }),
+      tauCard({ key: 'b', footTitle: 'Dune: Part Two', footSub: '2024', mediaIcon: '🎬', product: 'Plex for Apple TV', player: 'Living Room', bandwidth: '12.4 Mbps', avatarInitial: 'J', avatarColor: '#6f8fe0', username: 'jordan', state: 'paused', stateIcon: '❚❚', progressPct: 61, poster: poster('DUNE', '#7a5a3a', '#3a2a1a'), backdrop: tauArt('#6a4a2e', '#1a1208'), platformIcon: tauApple }),
     ];
   }
   M.tautulli = (host) => {
@@ -79,6 +83,35 @@
     w._renderSessions(tauCards(), { count: 2, total: '17.4 Mbps' });
     return w;
   };
+  const tsRecent = () => [
+    { title: 'Severance', sub: 'S2 · E4 — Cold Harbor', poster: poster('SEV', '#2c4a63', '#101820'), added: '2h ago', library: 'TV Shows', icon: '📺' },
+    { title: 'Dune: Part Two', sub: '2024', poster: poster('DUNE', '#7a5a3a', '#3a2a1a'), added: '5h ago', library: 'Movies', icon: '🎬' },
+    { title: 'Shōgun', sub: 'S1 · E9 — Crimson Sky', poster: poster('SHO', '#5a2a2a', '#2a1010'), added: '1d ago', library: 'TV Shows', icon: '📺' },
+    { title: 'Furiosa', sub: '2024', poster: poster('FUR', '#7a3a1a', '#2a1208'), added: '2d ago', library: 'Movies', icon: '🎬' },
+    { title: 'Discovery', sub: 'Daft Punk', poster: poster('DP', '#3a3a5a', '#15151f'), added: '3d ago', library: 'Music', icon: '🎵' },
+  ];
+  const tsWatch = () => [
+    { title: 'Severance', plays: 69, poster: poster('SEV', '#2c4a63', '#101820'), type: '📺' },
+    { title: 'Game of Thrones', plays: 54, poster: poster('GOT', '#3a2a4a', '#150f1f'), type: '📺' },
+    { title: 'Dune: Part Two', plays: 41, poster: poster('DUNE', '#7a5a3a', '#3a2a1a'), type: '🎬' },
+    { title: 'Foundation', plays: 33, poster: poster('FND', '#2a4a4a', '#0f1f1f'), type: '📺' },
+    { title: 'Furiosa', plays: 22, poster: poster('FUR', '#7a3a1a', '#2a1208'), type: '🎬' },
+    { title: 'Shōgun', plays: 18, poster: poster('SHO', '#5a2a2a', '#2a1010'), type: '📺' },
+  ];
+  const tsLibs = () => [
+    { name: 'Movies', type: 'movie', icon: '🎬', primary: '612 movies', secondary: '' },
+    { name: 'TV Shows', type: 'show', icon: '📺', primary: '148 shows', secondary: '620 seasons · 8,240 episodes' },
+    { name: 'Music', type: 'artist', icon: '🎵', primary: '320 artists', secondary: '1,240 albums · 14,900 tracks' },
+    { name: 'Photos', type: 'photo', icon: '🖼️', primary: '4,512 photos', secondary: '' },
+  ];
+  const tsTop = () => ({
+    users: [{ name: 'avery', plays: 142, thumb: '' }, { name: 'jordan', plays: 98, thumb: '' }, { name: 'sam', plays: 54, thumb: '' }, { name: 'alex', plays: 31, thumb: '' }],
+    platforms: [{ name: 'Plex Web', plays: 120 }, { name: 'Apple TV', plays: 96 }, { name: 'Roku', plays: 64 }, { name: 'Android', plays: 45 }],
+  });
+  M['tautulli-recent'] = dp(typeof TautulliRecentWidget !== 'undefined' ? TautulliRecentWidget : undefined, () => tsRecent());
+  M['tautulli-watch'] = dp(typeof TautulliWatchStatsWidget !== 'undefined' ? TautulliWatchStatsWidget : undefined, () => tsWatch());
+  M['tautulli-libraries'] = dp(typeof TautulliLibrariesWidget !== 'undefined' ? TautulliLibrariesWidget : undefined, () => tsLibs());
+  M['tautulli-top'] = dp(typeof TautulliTopUsersWidget !== 'undefined' ? TautulliTopUsersWidget : undefined, () => tsTop());
 
   // ── Media management / requests ─────────────────────────────────────────────
   function arrMount(service) {
@@ -106,7 +139,7 @@
   M.radarr = arrMount('radarr');
 
   M.seerr = dp(typeof SeerrWidget !== 'undefined' ? SeerrWidget : undefined, () => {
-    const USERS = [{ id: 1, displayName: 'cory', requestCount: 42 }, { id: 2, displayName: 'jordan', requestCount: 27 }, { id: 3, displayName: 'sam', requestCount: 11 }];
+    const USERS = [{ id: 1, displayName: 'avery', requestCount: 42 }, { id: 2, displayName: 'jordan', requestCount: 27 }, { id: 3, displayName: 'sam', requestCount: 11 }];
     const TITLES = [['movie', 'Dune: Part Two'], ['tv', 'Severance'], ['movie', 'Furiosa'], ['tv', 'Shogun'], ['movie', 'Mickey 17'], ['tv', 'Foundation']];
     const reqs = TITLES.map((t, i) => { const status = [1, 2, 5, 2, 3, 5][i], mediaStatus = [2, 3, 5, 4, 1, 5][i]; const raw = { id: 100 + i, type: t[0], status, createdAt: new Date(Date.now() - i * 86400000).toISOString(), media: { status: mediaStatus, tmdbId: 1000 + i, downloadStatus: i === 1 ? [{}] : [] }, requestedBy: USERS[i % USERS.length] }; return SeerrApi.mapRequest(raw, { name: t[1], posterPath: null }, 'http://demo'); });
     const stats = { total: reqs.length, movie: 3, tv: 3, pending: 2, approved: 2, declined: 1, processing: 1, available: 3 };
@@ -221,7 +254,7 @@
   M.navidrome = dp(typeof NavidromeWidget !== 'undefined' ? NavidromeWidget : undefined, () => {
     const artistsBody = { artists: { index: [{ artist: new Array(120).fill({}) }, { artist: new Array(90).fill({}) }] } };
     const albumPages = [new Array(500).fill({ songCount: 11 }), new Array(180).fill({ songCount: 9 })];
-    const np = { nowPlaying: { entry: [{ title: 'Digital Love', artist: 'Daft Punk', album: 'Discovery', username: 'cory', playerName: 'Plexamp' }] } };
+    const np = { nowPlaying: { entry: [{ title: 'Digital Love', artist: 'Daft Punk', album: 'Discovery', username: 'avery', playerName: 'Plexamp' }] } };
     return { artistCount: NavidromeApi.countArtists(artistsBody), ...NavidromeApi.countAlbumsSongs(albumPages), nowPlaying: NavidromeApi.mapNowPlaying(np) };
   });
   M.prowlarr = dp(typeof ProwlarrWidget !== 'undefined' ? ProwlarrWidget : undefined, () => ProwlarrApi.buildIndexers(
@@ -230,7 +263,7 @@
   M.tracearr = dp(typeof TracearrWidget !== 'undefined' ? TracearrWidget : undefined, () => TracearrApi.buildDashboard(
     { activeStreams: 3, totalUsers: 14, totalSessions: 5210, recentViolations: 2, timestamp: '' },
     { summary: { total: 3, transcodes: 1, directStreams: 1, directPlays: 1, totalBitrate: '24 Mbps' }, data: [
-      { id: 's1', serverName: 'Plex', username: 'cory', mediaTitle: 'Cold Harbor', mediaType: 'episode', showTitle: 'Severance', seasonNumber: 2, episodeNumber: 4, state: 'playing', isTranscode: false },
+      { id: 's1', serverName: 'Plex', username: 'avery', mediaTitle: 'Cold Harbor', mediaType: 'episode', showTitle: 'Severance', seasonNumber: 2, episodeNumber: 4, state: 'playing', isTranscode: false },
       { id: 's2', serverName: 'Plex', username: 'jordan', mediaTitle: 'Dune: Part Two', mediaType: 'movie', year: 2024, state: 'paused', videoDecision: 'transcode' },
       { id: 's3', serverName: 'Jellyfin', username: 'sam', mediaTitle: 'Live News', mediaType: 'live', state: 'playing', isTranscode: false },
     ] }, null, null));

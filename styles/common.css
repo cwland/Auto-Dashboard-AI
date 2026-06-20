@@ -198,18 +198,29 @@ body {
 
 /* Banners */
 .banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  display: block;
   padding: 10px 16px;
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 500;
+  line-height: 1.5;
 }
 .banner-warning { background: var(--warning-light); color: var(--warning); border: 1px solid rgba(245,158,11,0.25); }
 .banner-success { background: var(--success-light); color: var(--success); border: 1px solid rgba(34,197,94,0.25); }
 .banner-danger  { background: var(--danger-light);  color: var(--danger);  border: 1px solid rgba(239,68,68,0.25); }
-.banner-info    { background: var(--accent-light);  color: var(--accent);  border: 1px solid rgba(99,102,241,0.25); }
+/* Info/help callout: a readable paragraph (not a flex row), with an accent
+   stripe. Body text stays legible; only inline links use the accent color. */
+.banner-info {
+  display: block;
+  line-height: 1.55;
+  font-weight: 500;
+  background: var(--accent-light);
+  color: var(--text-secondary);
+  border: 1px solid rgba(99,102,241,0.25);
+  border-left: 3px solid var(--accent);
+}
+.banner-info strong { color: var(--text-primary); font-weight: 600; }
+.banner-info a { color: var(--accent); font-weight: 600; }
 
 /* Badge */
 .badge {

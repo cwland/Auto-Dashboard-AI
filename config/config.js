@@ -26,7 +26,7 @@
 
 // Apply the saved theme as early as possible (before settings finish loading)
 // to avoid a flash of the default palette. applyTheme is hoisted below.
-chrome.storage.local.get('settings', ({ settings: s }) => applyTheme(s && s.theme));
+chrome.storage.local.get('settings', ({ settings: s }) => { injectCustomThemeStyles(s && s.customThemes); applyTheme(s && s.theme); });
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -299,6 +299,8 @@ const DEFAULT_SETTINGS = {
   dashboardSwitcher: 'dropdown',  // 'dropdown' | 'tabs' | 'sidebar'
   pollSecs: {},      // { integrationId: refreshIntervalSeconds } — per-widget override
   integrationDescriptions: {},  // { serviceKey: 'short label' } — identifies a configuration
+  customThemes: [],             // [{ id, name, colors:{...} }] — user-created themes
+  instances: {},                // { intId: [{ id, name, validated, fields:{...} }] } — multi-endpoint configs
   clockFormat: '12',
   dateVisible: true,
   dateFormat: 'long',
@@ -521,6 +523,12 @@ const progressOverlay = $('progress-overlay');
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 async function init() {
+  // Keep the header version badge in sync with the manifest (never hard-code it).
+  try {
+    const v = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) ? chrome.runtime.getManifest().version : null;
+    const verEl = document.getElementById('app-version');
+    if (v && verEl) verEl.textContent = 'v' + v;
+  } catch (_) { /* ignore */ }
   await loadSettings();
   await loadDashboards();
   setupNavigation();
@@ -593,6 +601,12 @@ async function loadSettings() {
       if (state.currentSettings[e.enabledKey] && !descs[k]) descs[k] = e.name.slice(0, 20);
     });
   }
+  // Multi-endpoint migration: fold legacy flat config into instances[intId].
+  if (window.Endpoints) {
+    const names = {}; INTEGRATIONS.forEach((e) => { names[e.id] = e.name; });
+    Endpoints.migrate(state.savedSettings, names);
+    Endpoints.migrate(state.currentSettings, names);
+  }
   applySettingsToUI();
   updateSaveBar();
 }
@@ -613,6 +627,281 @@ function renderThemePicker() {
   grid.querySelectorAll('.theme-card').forEach((card) => {
     card.classList.toggle('active', card.dataset.theme === current);
   });
+  renderCustomThemes();
+}
+
+// ─── Custom themes ────────────────────────────────────────────────────────────
+// A custom theme = { id:'custom-xxxx', name, colors:{ bgPrimary, bgSecondary,
+// textPrimary, textMuted, border, accent } }. The remaining design tokens are
+// derived. The full set is injected as html[data-theme="custom-xxxx"] rules.
+const CT_FIELDS = [
+  ['bgPrimary', 'Page background', '#0f0f13'],
+  ['bgSecondary', 'Card / surface', '#1a1a24'],
+  ['textPrimary', 'Text', '#e2e8f0'],
+  ['textMuted', 'Muted text', '#a8bac8'],
+  ['border', 'Borders', '#2a2a3e'],
+  ['accent', 'Accent', '#6366f1'],
+];
+
+// Pure color/derivation helpers live in the shared theme-engine.js.
+const TE = (typeof window !== 'undefined' && window.ThemeEngine) || {};
+const ctContrast = (a, b) => TE.contrast(a, b);
+const ctValidHex = (v) => TE.validHex(v);
+const ctNormHex = (v) => TE.normHex(v);
+function injectCustomThemeStyles(themes) { window.ThemeEngine.injectCustomThemeStyles(themes || []); }
+function applyCustomThemeStyles() { injectCustomThemeStyles(state.currentSettings.customThemes || []); }
+
+// Swatches (page bg, card bg, text, accent) for a custom-theme card.
+function ctSwatches(c) {
+  return `<div class="theme-swatches">` +
+    [c.bgPrimary, c.bgSecondary, c.textPrimary, c.accent]
+      .map((col) => `<span class="swatch" style="background:${escapeHtml(col)}"></span>`).join('') +
+    `</div>`;
+}
+
+function renderCustomThemes() {
+  const grid = document.getElementById('custom-theme-grid');
+  if (!grid) return;
+  applyCustomThemeStyles();
+  const current = state.currentSettings.theme || 'auto';
+  const themes = state.currentSettings.customThemes || [];
+  grid.innerHTML = '';
+  themes.forEach((t) => {
+    const card = document.createElement('div');
+    card.className = 'theme-card ct-card' + (t.id === current ? ' active' : '');
+    card.dataset.theme = t.id;
+    card.innerHTML = ctSwatches(t.colors || {}) +
+      `<div class="theme-name">${escapeHtml(t.name || 'Custom')}</div>` +
+      `<button class="ct-del" type="button" title="Delete theme" aria-label="Delete theme">✕</button>`;
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.ct-del')) { e.stopPropagation(); deleteCustomTheme(t.id); return; }
+      state.currentSettings.theme = t.id;
+      applyTheme(t.id);
+      renderThemePicker();
+      updateSaveBar();
+    });
+    grid.appendChild(card);
+  });
+}
+
+function deleteCustomTheme(id) {
+  const list = state.currentSettings.customThemes || [];
+  state.currentSettings.customThemes = list.filter((t) => t.id !== id);
+  if (state.currentSettings.theme === id) { state.currentSettings.theme = 'auto'; applyTheme('auto'); }
+  applyCustomThemeStyles();
+  renderThemePicker();
+  updateSaveBar();
+}
+
+function addCustomTheme(name, colors, select) {
+  const id = 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const theme = { id, name: (name || 'Custom').slice(0, 24), colors };
+  if (!Array.isArray(state.currentSettings.customThemes)) state.currentSettings.customThemes = [];
+  state.currentSettings.customThemes.push(theme);
+  applyCustomThemeStyles();
+  if (select) { state.currentSettings.theme = id; applyTheme(id); }
+  renderThemePicker();
+  updateSaveBar();
+  return theme;
+}
+
+// ─── Add-theme modal ──────────────────────────────────────────────────────────
+const ctModalState = { aiThemes: [], aiSelected: new Set(), manual: {} };
+
+// Minimum WCAG AA contrast for body text.
+const CT_MIN_CONTRAST = 4.5;
+function ctTextContrast(c) {
+  return Math.min(ctContrast(c.textPrimary, c.bgPrimary), ctContrast(c.textPrimary, c.bgSecondary));
+}
+function ctMissing(c) { return CT_FIELDS.filter(([k]) => !ctValidHex(c[k])).map(([, label]) => label); }
+
+function openCustomThemeModal() {
+  ctModalState.aiThemes = []; ctModalState.aiSelected = new Set();
+  ctModalState.manual = {}; CT_FIELDS.forEach(([k, , def]) => { ctModalState.manual[k] = def; });
+  document.getElementById('ct-prompt').value = '';
+  document.getElementById('ct-name').value = '';
+  document.getElementById('ct-ai-warn').textContent = '';
+  document.getElementById('ct-palettes').innerHTML = '';
+  buildManualRows();
+  setCtMode('ai');
+  document.getElementById('custom-theme-modal').classList.add('visible');
+}
+function closeCustomThemeModal() { document.getElementById('custom-theme-modal').classList.remove('visible'); }
+
+function setCtMode(mode) {
+  document.querySelectorAll('.ct-tab').forEach((b) => b.classList.toggle('active', b.dataset.ctmode === mode));
+  document.getElementById('ct-pane-ai').classList.toggle('active', mode === 'ai');
+  document.getElementById('ct-pane-manual').classList.toggle('active', mode === 'manual');
+  document.getElementById('ct-save-manual').style.display = mode === 'manual' ? '' : 'none';
+  const addSel = document.getElementById('ct-add-selected');
+  addSel.style.display = mode === 'ai' ? '' : 'none';
+  if (mode === 'ai') updateCtAddSelected();
+}
+
+// ── Manual tab ──
+function buildManualRows() {
+  const wrap = document.getElementById('ct-color-rows');
+  wrap.innerHTML = '';
+  CT_FIELDS.forEach(([key, label]) => {
+    const row = document.createElement('div');
+    row.className = 'ct-color-row';
+    const val = ctNormHex(ctModalState.manual[key] || '#000000');
+    row.innerHTML =
+      `<input type="color" value="${val}" data-ctk="${key}" aria-label="${escapeHtml(label)}">` +
+      `<label>${escapeHtml(label)}</label>` +
+      `<input type="text" value="${val}" data-ctk="${key}" maxlength="7" spellcheck="false">`;
+    const [picker, , text] = row.children;
+    picker.addEventListener('input', () => {
+      ctModalState.manual[key] = picker.value; text.value = picker.value; refreshManualPreview();
+    });
+    text.addEventListener('input', () => {
+      const v = text.value.trim();
+      if (ctValidHex(v)) { const n = ctNormHex(v); ctModalState.manual[key] = n; picker.value = n; }
+      refreshManualPreview();
+    });
+    wrap.appendChild(row);
+  });
+  refreshManualPreview();
+}
+function refreshManualPreview() {
+  const c = ctModalState.manual;
+  const prev = document.getElementById('ct-manual-prev');
+  prev.innerHTML =
+    `<span class="seg" style="background:${escapeHtml(c.bgPrimary)};color:${escapeHtml(c.textPrimary)}">Page</span>` +
+    `<span class="seg" style="background:${escapeHtml(c.bgSecondary)};color:${escapeHtml(c.textPrimary)}">Card</span>` +
+    `<span class="seg" style="background:${escapeHtml(c.accent)};color:#fff">Accent</span>`;
+  const warn = document.getElementById('ct-manual-warn');
+  const missing = ctMissing(c);
+  if (missing.length) { warn.style.color = 'var(--danger)'; warn.textContent = `Enter a valid hex for: ${missing.join(', ')}.`; return; }
+  const ratio = ctTextContrast(c);
+  if (ratio < CT_MIN_CONTRAST) {
+    warn.style.color = 'var(--warning)';
+    warn.textContent = `Text contrast is ${ratio.toFixed(1)}:1 — below the 4.5:1 readability guideline. You can still save it.`;
+  } else { warn.style.color = 'var(--text-muted)'; warn.textContent = `Text contrast ${ratio.toFixed(1)}:1 ✓ meets WCAG AA.`; }
+}
+function saveManualTheme() {
+  const c = ctModalState.manual;
+  const missing = ctMissing(c);
+  if (missing.length) { refreshManualPreview(); return; }
+  const name = (document.getElementById('ct-name').value || '').trim() || 'Custom';
+  const colors = {}; CT_FIELDS.forEach(([k]) => { colors[k] = ctNormHex(c[k]); });
+  addCustomTheme(name, colors, true);
+  closeCustomThemeModal();
+}
+
+// ── AI tab ──
+async function generateAiPalettes() {
+  const desc = (document.getElementById('ct-prompt').value || '').trim();
+  const warn = document.getElementById('ct-ai-warn');
+  const btn = document.getElementById('ct-generate');
+  if (!desc) { warn.style.color = 'var(--warning)'; warn.textContent = 'Describe the theme first.'; return; }
+  if (!activeAI(state.currentSettings).apiKey) {
+    warn.style.color = 'var(--warning)';
+    warn.textContent = 'Add an AI API key in the AI subtab to generate palettes — or use the Manual tab.';
+    return;
+  }
+  btn.disabled = true;
+  warn.style.color = 'var(--text-muted)';
+  warn.innerHTML = '<span class="ct-spinner"></span>Generating accessible palettes…';
+  const sys = 'You are a UI color designer. Return ONLY valid JSON: an array of exactly 3 objects, no prose, no markdown fences. ' +
+    'Each object: {"name":string,"bgPrimary":hex,"bgSecondary":hex,"textPrimary":hex,"textMuted":hex,"border":hex,"accent":hex}. ' +
+    'bgPrimary=page background, bgSecondary=card/surface (slightly different from bgPrimary), textPrimary=body text, ' +
+    'textMuted=secondary text, border=subtle separators, accent=primary action color. ' +
+    'CRITICAL accessibility: textPrimary must have a WCAG contrast ratio of at least 4.7:1 against BOTH bgPrimary and bgSecondary. ' +
+    'Give each palette a short evocative name. The 3 palettes should be distinct interpretations.';
+  const user = `Theme description: "${desc}". Generate 3 distinct, accessible palettes.`;
+  try {
+    const raw = await callProviderAI(
+      [{ role: 'system', content: sys }, { role: 'user', content: user }],
+      { maxTokens: 1200, temperature: 0.7, settings: state.currentSettings }
+    );
+    const themes = parseAiPalettes(raw);
+    if (!themes.length) throw new Error('No usable palettes returned.');
+    ctModalState.aiThemes = themes; ctModalState.aiSelected = new Set();
+    renderAiPalettes();
+    warn.style.color = 'var(--text-muted)';
+    warn.textContent = 'Select one or more palettes, then “Add selected”.';
+  } catch (err) {
+    warn.style.color = 'var(--danger)';
+    warn.textContent = `Could not generate palettes: ${err.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+function parseAiPalettes(raw) {
+  let s = String(raw || '').trim();
+  s = s.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  const start = s.indexOf('['); const end = s.lastIndexOf(']');
+  if (start !== -1 && end !== -1) s = s.slice(start, end + 1);
+  let arr;
+  try { arr = JSON.parse(s); } catch (_) { return []; }
+  if (!Array.isArray(arr)) return [];
+  return arr.map((o) => {
+    const colors = {};
+    CT_FIELDS.forEach(([k]) => { colors[k] = ctValidHex(o[k]) ? ctNormHex(o[k]) : null; });
+    return { name: String(o.name || 'Custom').slice(0, 24), colors };
+  }).filter((t) => CT_FIELDS.every(([k]) => t.colors[k]));
+}
+function renderAiPalettes() {
+  const wrap = document.getElementById('ct-palettes');
+  wrap.innerHTML = '';
+  ctModalState.aiThemes.forEach((t, i) => {
+    const c = t.colors;
+    const ratio = ctTextContrast(c);
+    const ok = ratio >= CT_MIN_CONTRAST;
+    const el = document.createElement('div');
+    el.className = 'ct-pal' + (ctModalState.aiSelected.has(i) ? ' selected' : '');
+    el.innerHTML =
+      `<div class="ct-pal-top">` +
+        `<span class="ct-pal-name">${escapeHtml(t.name)}</span>` +
+        `<span class="ct-pal-badge ${ok ? 'ok' : 'warn'}">${ratio.toFixed(1)}:1 ${ok ? 'AA ✓' : 'low'}</span>` +
+        `<span class="ct-pal-check">✓ selected</span>` +
+      `</div>` +
+      `<div class="ct-pal-prev">` +
+        `<span class="seg" style="background:${c.bgPrimary};color:${c.textPrimary}">Page</span>` +
+        `<span class="seg" style="background:${c.bgSecondary};color:${c.textPrimary}">Card</span>` +
+        `<span class="seg" style="background:${c.bgSecondary};color:${c.textMuted}">Muted</span>` +
+        `<span class="seg" style="background:${c.accent};color:#fff">Accent</span>` +
+      `</div>`;
+    el.addEventListener('click', () => {
+      if (ctModalState.aiSelected.has(i)) ctModalState.aiSelected.delete(i);
+      else ctModalState.aiSelected.add(i);
+      el.classList.toggle('selected');
+      updateCtAddSelected();
+    });
+    wrap.appendChild(el);
+  });
+  updateCtAddSelected();
+}
+function updateCtAddSelected() {
+  const btn = document.getElementById('ct-add-selected');
+  const n = ctModalState.aiSelected.size;
+  btn.disabled = n === 0;
+  btn.textContent = n > 1 ? `Add ${n} themes` : 'Add selected';
+}
+function addSelectedAiThemes() {
+  const idx = [...ctModalState.aiSelected].sort((a, b) => a - b);
+  idx.forEach((i, n) => {
+    const t = ctModalState.aiThemes[i];
+    addCustomTheme(t.name, t.colors, n === idx.length - 1); // select the last one added
+  });
+  if (idx.length) closeCustomThemeModal();
+}
+
+function setupCustomThemeModal() {
+  const addBtn = document.getElementById('add-custom-theme');
+  if (!addBtn || addBtn.dataset.wired) return;
+  addBtn.dataset.wired = '1';
+  addBtn.addEventListener('click', openCustomThemeModal);
+  document.getElementById('ct-close')?.addEventListener('click', closeCustomThemeModal);
+  document.getElementById('ct-cancel')?.addEventListener('click', closeCustomThemeModal);
+  document.getElementById('custom-theme-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'custom-theme-modal') closeCustomThemeModal();
+  });
+  document.querySelectorAll('.ct-tab').forEach((b) => b.addEventListener('click', () => setCtMode(b.dataset.ctmode)));
+  document.getElementById('ct-generate')?.addEventListener('click', generateAiPalettes);
+  document.getElementById('ct-add-selected')?.addEventListener('click', addSelectedAiThemes);
+  document.getElementById('ct-save-manual')?.addEventListener('click', saveManualTheme);
 }
 
 // Keep state.currentSettings.apiKey / .model mirrored to the active provider's
@@ -1080,6 +1369,15 @@ function setupEyeballToggle(inputId, btnId) {
 }
 
 function setupSettingsListeners() {
+  // Settings sub-tabs (AI / Theme / Startup / Clock).
+  document.querySelectorAll('.set-subnav .set-subtab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const sub = btn.dataset.sub;
+      document.querySelectorAll('.set-subnav .set-subtab').forEach((b) => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.set-sub').forEach((p) => p.classList.toggle('active', p.id === `set-sub-${sub}`));
+    });
+  });
+
   // Eyeball toggles — both API key fields start visible
   setupEyeballToggle('api-key', 'api-key-toggle');
   setupEyeballToggle('weather-api-key', 'weather-key-toggle');
@@ -1145,6 +1443,8 @@ function setupSettingsListeners() {
     renderThemePicker();
     updateSaveBar();
   });
+
+  setupCustomThemeModal();
 
   // Clock format radios
   document.querySelectorAll('input[name="clock-format"]').forEach((r) => {
@@ -1235,8 +1535,13 @@ function setupSettingsListeners() {
   if (weatherLocEl) {
     weatherLocEl.addEventListener('input', () => {
       state.currentSettings.weatherLocation = weatherLocEl.value.trim();
+      // Changing the city invalidates this endpoint until it's re-verified.
+      state.weatherApiKeyValidated = false;
+      const vr = document.getElementById('weather-validation-result');
+      if (vr) vr.style.display = 'none';
       updateSaveBar();
       updateWeatherPreviewButton();
+      refreshIntegrationModalSave();
     });
   }
 
@@ -2040,6 +2345,7 @@ function hasSettingsTabChanges() {
          (c.dashboardSwitcher || 'dropdown') !== (s.dashboardSwitcher || 'dropdown') ||
          j(c.pollSecs) !== j(s.pollSecs) ||
          j(c.integrationDescriptions) !== j(s.integrationDescriptions) ||
+         j(c.customThemes) !== j(s.customThemes) ||
          c.clockFormat !== s.clockFormat || c.dateVisible !== s.dateVisible ||
          c.dateFormat !== s.dateFormat;
 }
@@ -2078,6 +2384,7 @@ async function saveSettings() {
     dashboardSwitcher:   state.currentSettings.dashboardSwitcher,
     pollSecs:            state.currentSettings.pollSecs,
     integrationDescriptions: state.currentSettings.integrationDescriptions,
+    customThemes:        state.currentSettings.customThemes,
     clockFormat:         state.currentSettings.clockFormat,
     dateVisible:         state.currentSettings.dateVisible,
     dateFormat:          state.currentSettings.dateFormat,
@@ -2204,6 +2511,7 @@ async function saveSettings() {
     homeassistantEnabled: state.currentSettings.homeassistantEnabled, homeassistantUrl: state.currentSettings.homeassistantUrl, homeassistantToken: state.currentSettings.homeassistantToken, homeassistantEntities: state.currentSettings.homeassistantEntities, homeassistantAllowToggle: state.currentSettings.homeassistantAllowToggle,
     nextcloudEnabled: state.currentSettings.nextcloudEnabled, nextcloudUrl: state.currentSettings.nextcloudUrl, nextcloudUsername: state.currentSettings.nextcloudUsername, nextcloudPassword: state.currentSettings.nextcloudPassword,
     opnsenseEnabled: state.currentSettings.opnsenseEnabled, opnsenseUrl: state.currentSettings.opnsenseUrl, opnsenseKey: state.currentSettings.opnsenseKey, opnsenseSecret: state.currentSettings.opnsenseSecret,
+    instances:           state.currentSettings.instances,
     savedAt: Date.now(),
   };
   await chromeStorageSet({ settings });
@@ -2214,6 +2522,7 @@ async function saveSettings() {
 
 function discardChanges() {
   state.currentSettings = { ...state.savedSettings };
+  state.currentSettings.instances = JSON.parse(JSON.stringify(state.savedSettings.instances || {}));
   state.apiKeyValidated        = !!state.savedSettings.apiKey;
   state.weatherApiKeyValidated = !!state.savedSettings.weatherApiKey;
   state.tautulliApiKeyValidated = !!(state.savedSettings.tautulliApiKey && state.savedSettings.tautulliUrl);
@@ -2657,6 +2966,10 @@ function openTautulliPreview() {
   if (typeof TautulliListWidget !== 'undefined') {
     mk('Streams (list)', (el) => new TautulliListWidget(el, { baseUrl: base, apiKey, pollMs }));
   }
+  if (typeof TautulliRecentWidget !== 'undefined') mk('Recently Added', (el) => new TautulliRecentWidget(el, { baseUrl: base, apiKey, pollMs }));
+  if (typeof TautulliWatchStatsWidget !== 'undefined') mk('Most Watched', (el) => new TautulliWatchStatsWidget(el, { baseUrl: base, apiKey, pollMs }));
+  if (typeof TautulliLibrariesWidget !== 'undefined') mk('Libraries', (el) => new TautulliLibrariesWidget(el, { baseUrl: base, apiKey, pollMs }));
+  if (typeof TautulliTopUsersWidget !== 'undefined') mk('Top Users & Platforms', (el) => new TautulliTopUsersWidget(el, { baseUrl: base, apiKey, pollMs }));
 
   modal.classList.add('visible');
 }
@@ -5113,16 +5426,11 @@ function renderEditHeader() {
             '</label>').join('') +
         '</div>' +
       '</div>' +
-      '<div class="toggle-row" style="margin:0;">' +
-        '<label class="label" for="wiz-edit-text" style="margin:0 10px 0 0;">Show text</label>' +
-        '<label class="toggle-switch"><input type="checkbox" id="wiz-edit-text"><span class="toggle-slider"></span></label>' +
-      '</div>' +
       '<button type="button" class="btn btn-secondary" id="wiz-refresh-icons" style="margin-left:auto;" ' +
         'title="Re-fetch any bookmarks still showing the default icon">↻ Refresh missing icons</button>' +
     '</div>' +
     '<div id="wiz-refresh-status" class="wiz-refresh-status" style="display:none;"></div>';
   hdr.querySelector('#wiz-edit-title').value = wizard.data.title || '';
-  hdr.querySelector('#wiz-edit-text').checked = wizard.data.showText !== false;
   hdr.querySelector('#wiz-refresh-icons').addEventListener('click', wizRefreshIcons);
   setupShapePicker('wiz-edit-shape-picker');
   selectShapeOption('wiz-edit-shape-picker', wizard.data.defaultShape || 'rounded');
@@ -5265,7 +5573,6 @@ async function wizGenerate() {
     dash.bookmarks = bookmarks;
     dash.sectionOrder = secs.map((s) => s.name);
     dash.defaultShape = getSelectedShape('wiz-edit-shape-picker', dash.defaultShape || 'rounded');
-    dash.showText = document.getElementById('wiz-edit-text')?.checked !== false;
     applyIconSizesToLayout(dash, secs);
     await saveDashboards();
     closeWizard();
@@ -5417,7 +5724,6 @@ function openDashEditModal(id) {
   editingDashboardId = id;
 
   document.getElementById('dash-edit-name').value = dash.name || '';
-  document.getElementById('dash-edit-text-toggle').checked = dash.showText !== false;
   selectShapeOption('dash-edit-shape-picker', dash.defaultShape || 'rounded');
 
   document.getElementById('dash-edit-modal').classList.add('visible');
@@ -5430,7 +5736,6 @@ async function saveDashEdit() {
 
   const newName = document.getElementById('dash-edit-name').value.trim();
   dash.name         = newName || dash.name;
-  dash.showText     = document.getElementById('dash-edit-text-toggle').checked;
   dash.defaultShape = getSelectedShape('dash-edit-shape-picker', dash.defaultShape || 'rounded');
 
   await saveDashboards();
@@ -5450,7 +5755,7 @@ function showProgress(msg, pct) {
   // Restore the standard progress layout in case a previous success state mutated it
   const modal = document.querySelector('.progress-modal');
   modal.innerHTML = `
-    <div class="progress-icon">🤖</div>
+    <div class="progress-icon"><img src="../icons/robot.svg" alt="" style="width:44px;height:44px;object-fit:contain;display:inline-block;"></div>
     <h3>Generating Dashboard</h3>
     <p id="progress-message"></p>
     <div class="progress-bar-track">
@@ -5604,7 +5909,7 @@ const INTEGRATIONS = [
   { id:'seerr',          name:'Seerr',                 cat:'Media Requests',   icon:'seerr.svg',                 w:1 },
   { id:'sonarr',         name:'Sonarr',                cat:'Media Management', icon:'sonarr.svg',                w:1 },
   { id:'speedtest',      name:'Speedtest Tracker',     cat:'Network',          icon:'speedtest-tracker.png',     w:1 },
-  { id:'tautulli',       name:'Tautulli',              cat:'Media Server',     icon:'tautulli.svg',              w:2, validatedKey:'tautulliApiKeyValidated' },
+  { id:'tautulli',       name:'Tautulli',              cat:'Media Server',     icon:'tautulli.svg',              w:6, validatedKey:'tautulliApiKeyValidated' },
   { id:'tracearr',       name:'Tracearr',              cat:'Media Monitoring', icon:'tracearr.svg',              w:1 },
   { id:'transmission',   name:'Transmission',          cat:'Downloads',        icon:'transmission.svg',          w:1 },
   { id:'truenas',        name:'TrueNAS',               cat:'System Health',    icon:'truenas.svg',               w:1 },
@@ -5629,6 +5934,10 @@ const WIZ_WIDGETS = (() => {
     .map((e) => ({ wid: e.id, intId: e.id, name: e.name, icon: e.icon, enabledKey: e.enabledKey }));
   list.push(
     { wid: 'tautulli-list',    intId: 'tautulli-list',    name: 'Tautulli Streams',  icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+    { wid: 'tautulli-recent',  intId: 'tautulli-recent',  name: 'Tautulli Recently Added', icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+    { wid: 'tautulli-watch',   intId: 'tautulli-watch',   name: 'Tautulli Most Watched',   icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+    { wid: 'tautulli-libraries', intId: 'tautulli-libraries', name: 'Tautulli Libraries',  icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+    { wid: 'tautulli-top',     intId: 'tautulli-top',     name: 'Tautulli Top Users',      icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
     { wid: 'weather-combined', intId: 'weather-combined', name: 'Weather (Combined)', icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
     { wid: 'weather-current',  intId: 'weather-current',  name: 'Current Weather',    icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
     { wid: 'weather-hourly',   intId: 'weather-hourly',   name: 'Hourly Forecast',    icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
@@ -5645,25 +5954,40 @@ const WIZ_SERVICE_META = {
 };
 let wizWidgetTab = 'live';   // 'live' | 'sample'
 function wizServiceKey(w) { return (w.enabledKey || '').replace(/Enabled$/, ''); }
+// Variant widget id → base integration id (config.js has no dashboard-mounts.js).
+const WIZ_BASE_INT = {
+  'tautulli-list': 'tautulli', 'tautulli-recent': 'tautulli', 'tautulli-watch': 'tautulli',
+  'tautulli-libraries': 'tautulli', 'tautulli-top': 'tautulli',
+  'weather-combined': 'weather', 'weather-current': 'weather', 'weather-hourly': 'weather', 'weather-forecast': 'weather',
+};
+function wizBaseInt(intId) { return WIZ_BASE_INT[intId] || intId; }
 function wizServiceMeta(key, widgets) {
   const o = WIZ_SERVICE_META[key] || {};
   const first = widgets[0] || {};
   return { name: o.name || first.name || key, icon: o.icon || first.icon };
 }
 
-function wizWidgetCard(w, sample, updateCount) {
-  const selected = wizard.data.widgets.some((x) => x.wid === w.wid && !!x.sample === sample);
+function wizWidgetCard(w, sample, updateCount, endpointId, endpointName) {
+  const epKey = endpointId || null;
+  const matches = (x) => x.wid === w.wid && !!x.sample === sample && (x.endpointId || null) === epKey;
   const card = document.createElement('div');
-  card.className = 'wiz-wp-card' + (sample ? ' is-sample' : '') + (selected ? ' selected' : '');
+  card.className = 'wiz-wp-card' + (sample ? ' is-sample' : '') + (wizard.data.widgets.some(matches) ? ' selected' : '');
   const img = document.createElement('img'); img.alt = ''; img.src = intIconSrc(w.icon); img.onerror = () => { img.style.visibility = 'hidden'; };
   const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = w.name + (sample ? ' (Sample)' : '');
   card.append(img, nm);
   card.addEventListener('click', () => {
-    const i = wizard.data.widgets.findIndex((x) => x.wid === w.wid && !!x.sample === sample);
+    const i = wizard.data.widgets.findIndex(matches);
     if (i >= 0) { wizard.data.widgets.splice(i, 1); card.classList.remove('selected'); }
     else {
       const entry = { uid: 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), wid: w.wid, intId: w.intId, name: w.name };
       if (sample) entry.sample = true;
+      if (endpointId) {
+        entry.endpointId = endpointId;
+        if (endpointName) {
+          entry.endpointName = endpointName;
+          if (window.Endpoints && Endpoints.count(state.currentSettings, wizBaseInt(w.intId)) > 1) entry.name = `${w.name} — ${endpointName}`;
+        }
+      }
       wizard.data.widgets.push(entry); card.classList.add('selected');
     }
     updateCount();
@@ -5708,10 +6032,17 @@ function renderWizWidgetPanel() {
     panel.appendChild(e); updateCount(); return;
   }
 
-  // Group by active service → configuration (description) → widgets.
+  // Group by base integration → (multi-endpoint) one block per endpoint → widgets.
   const descs = state.currentSettings.integrationDescriptions || {};
   const groups = new Map();
-  source.forEach((w) => { const k = wizServiceKey(w); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(w); });
+  source.forEach((w) => { const k = wizBaseInt(w.intId); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(w); });
+
+  const addDescRow = (g, text) => { const dl = document.createElement('div'); dl.className = 'wiz-wp-desc'; dl.textContent = text; g.appendChild(dl); };
+  const addGrid = (g, widgets, endpointId, endpointName) => {
+    const grid = document.createElement('div'); grid.className = 'wiz-wp-grid';
+    widgets.forEach((w) => grid.appendChild(wizWidgetCard(w, sample, updateCount, endpointId, endpointName)));
+    g.appendChild(grid);
+  };
 
   const body = document.createElement('div');
   Array.from(groups.entries())
@@ -5723,14 +6054,15 @@ function renderWizWidgetPanel() {
       const img = document.createElement('img'); img.alt = ''; img.src = intIconSrc(meta.icon); img.onerror = () => { img.style.visibility = 'hidden'; };
       const nm = document.createElement('span'); nm.className = 'wiz-wp-gname'; nm.textContent = meta.name;
       gh.append(img, nm); g.appendChild(gh);
-      // Configuration description (always shown for live so the user knows which
-      // configuration they're adding; "Sample" for demo widgets).
-      const dl = document.createElement('div'); dl.className = 'wiz-wp-desc';
-      dl.textContent = sample ? 'Sample (demo data)' : (descs[key] || meta.name);
-      g.appendChild(dl);
-      const grid = document.createElement('div'); grid.className = 'wiz-wp-grid';
-      widgets.forEach((w) => grid.appendChild(wizWidgetCard(w, sample, updateCount)));
-      g.appendChild(grid);
+
+      if (!sample && window.Endpoints && Endpoints.isMulti(key)) {
+        const eps = Endpoints.list(state.currentSettings, key);
+        if (!eps.length) addDescRow(g, 'No endpoints configured');
+        eps.forEach((ep) => { addDescRow(g, ep.name || 'Endpoint'); addGrid(g, widgets, ep.id, ep.name); });
+      } else {
+        addDescRow(g, sample ? 'Sample (demo data)' : (descs[key] || meta.name));
+        addGrid(g, widgets, null, null);
+      }
       body.appendChild(g);
     });
   panel.appendChild(body);
@@ -5742,7 +6074,7 @@ function renderWizWidgetPanel() {
 // fake data. Weather's sample shows all three weather widgets at once.
 const SAMPLE_IDS = new Set(INTEGRATIONS.map((e) => e.id));
 
-const intCatalog = { cat: 'All', query: '', openId: null };
+const intCatalog = { cat: 'All', query: '', openId: null, epIndex: 0 };
 
 const intEntry      = (id) => INTEGRATIONS.find((e) => e.id === id);
 const intIconSrc    = (icon) => icon.startsWith('data:') ? icon : `../icons/integrations/${icon}`;
@@ -5811,10 +6143,18 @@ function renderIntegrationGrid() {
     card.className = 'int-card state-' + s + (enabled ? ' clickable' : '');
     const sampleBtn = SAMPLE_IDS.has(e.id)
       ? '<button class="int-sample-btn" type="button" title="View a sample of this widget">👁</button>' : '';
+    // "+" quick-add appears only when the integration is enabled, saved
+    // (operational), exposes a widget, and — if multi-endpoint — has at least
+    // one configured endpoint to point the widget at.
+    const hasEndpoint = !window.Endpoints || !Endpoints.isMulti(e.id) || Endpoints.count(state.currentSettings, e.id) > 0;
+    const showAddDash = enabled && intWasSaved(e) && intSupportsWidgets(e) && hasEndpoint;
+    const addDashBtn = showAddDash
+      ? '<button class="int-add-dash" type="button" title="Add to Dashboard" aria-label="Add to Dashboard">＋</button>' : '';
     card.innerHTML =
       '<span class="int-badge setup">⚙ Setup required</span>' +
       '<span class="int-badge active">✓ Active</span>' +
       sampleBtn +
+      addDashBtn +
       `<img class="int-card-ico" src="${intIconSrc(e.icon)}" alt="">` +
       `<p class="int-card-nm">${e.name}</p>` +
       `<p class="int-card-cat">${e.cat}</p>` +
@@ -5843,6 +6183,10 @@ function renderIntegrationGrid() {
       ev.stopPropagation();
       openSampleModal(e.id);
     });
+    card.querySelector('.int-add-dash')?.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      openAddToDashModal(e.id);
+    });
 
     card.addEventListener('click', () => {
       if (intIsEnabled(e)) {
@@ -5857,30 +6201,172 @@ function renderIntegrationGrid() {
   });
 }
 
+// ─── Multi-endpoint editing (inside the integration modal) ───────────────────
+// A service may hold several named endpoints. The existing per-integration form
+// edits the flat settings keys as a "working buffer" for the SELECTED endpoint;
+// we sync that buffer into the endpoint on switch/save and load it back on open.
+function epIsMulti(e) { return !!(window.Endpoints && Endpoints.isMulti(e.id)); }
+function epList(e) { return (window.Endpoints) ? Endpoints.list(state.currentSettings, e.id) : []; }
+function epCurrent(e) { return epList(e)[intCatalog.epIndex] || null; }
+function intCurrentName(e) { return epIsMulti(e) ? ((epCurrent(e) && epCurrent(e).name) || '') : intGetDesc(e); }
+
+// Guarantee a freshly-enabled service has at least one endpoint to edit,
+// seeded from any legacy flat values that are already present.
+function epEnsureOne(e) {
+  if (!epIsMulti(e)) return;
+  if (Endpoints.count(state.currentSettings, e.id) === 0) {
+    const seed = {};
+    Endpoints.schema(e.id).fields.forEach((k) => {
+      seed[k] = (state.currentSettings[k] !== undefined) ? state.currentSettings[k] : DEFAULT_SETTINGS[k];
+    });
+    Endpoints.add(state.currentSettings, e.id, e.name.slice(0, 20), seed);
+  }
+}
+
+// Write the live form (flat keys) + validation + name into endpoint #idx.
+function syncFormToEndpoint(e, idx) {
+  if (!epIsMulti(e)) return;
+  const ep = epList(e)[idx]; if (!ep) return;
+  Endpoints.schema(e.id).fields.forEach((k) => { ep.fields[k] = state.currentSettings[k]; });
+  ep.validated = !!state[e.validatedKey];
+}
+
+// Load endpoint #idx into the live form (flat keys) and repopulate the inputs.
+function loadEndpointIntoForm(e, idx) {
+  if (!epIsMulti(e)) return;
+  const ep = epList(e)[idx]; if (!ep) return;
+  Endpoints.schema(e.id).fields.forEach((k) => {
+    state.currentSettings[k] = (ep.fields[k] !== undefined) ? ep.fields[k] : DEFAULT_SETTINGS[k];
+  });
+  state[e.validatedKey] = !!ep.validated;
+  const descEl = document.getElementById('int-m-desc');
+  if (descEl) descEl.value = ep.name || '';
+  const cnt = document.getElementById('int-m-desc-count');
+  if (cnt) cnt.textContent = `${(ep.name || '').length}/20`;
+  applySettingsToUI();   // repopulates every form input from the flat keys
+  // Re-apply secret eyeball visibility for this integration's form, and keep the
+  // (relocated) form visible regardless of what applySettingsToUI set.
+  const cfg = document.getElementById(e.configId);
+  if (cfg) cfg.style.display = 'block';
+  const showSecrets = !intWasSaved(e);
+  if (cfg) cfg.querySelectorAll('.eyeball-btn').forEach((btn) => {
+    const input = btn.closest('.api-key-row')?.querySelector('input');
+    if (input) applyEyeballState(input, btn, showSecrets);
+  });
+}
+
+function renderEndpointTabs(e) {
+  const bar = document.getElementById('int-m-eps');
+  const tabs = document.getElementById('int-m-eps-tabs');
+  const del = document.getElementById('int-m-eps-del');
+  if (!bar || !tabs) return;
+  if (!epIsMulti(e)) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  const eps = epList(e);
+  tabs.innerHTML = '';
+  eps.forEach((ep, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'int-m-ep' + (i === intCatalog.epIndex ? ' active' : '');
+    b.innerHTML = `<span class="int-m-ep-nm">${escapeHtml(ep.name || ('Endpoint ' + (i + 1)))}</span>` +
+      (ep.validated ? '<span class="int-m-ep-ok" title="Validated">✓</span>' : '');
+    b.addEventListener('click', () => switchEndpoint(e, i));
+    tabs.appendChild(b);
+  });
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'int-m-ep int-m-ep-add';
+  add.textContent = '+ Add endpoint';
+  add.addEventListener('click', () => addEndpointInModal(e));
+  tabs.appendChild(add);
+  if (del) del.style.display = eps.length ? '' : 'none';
+}
+
+function switchEndpoint(e, i) {
+  if (i === intCatalog.epIndex) return;
+  syncFormToEndpoint(e, intCatalog.epIndex);
+  intCatalog.epIndex = i;
+  loadEndpointIntoForm(e, i);
+  renderEndpointTabs(e);
+  refreshIntegrationModalSave();
+}
+
+function addEndpointInModal(e) {
+  syncFormToEndpoint(e, intCatalog.epIndex);
+  const blank = {};
+  Endpoints.schema(e.id).fields.forEach((k) => { blank[k] = DEFAULT_SETTINGS[k]; });
+  Endpoints.add(state.currentSettings, e.id, '', blank);
+  intCatalog.epIndex = Endpoints.count(state.currentSettings, e.id) - 1;
+  state[e.validatedKey] = false;
+  loadEndpointIntoForm(e, intCatalog.epIndex);
+  renderEndpointTabs(e);
+  const descEl = document.getElementById('int-m-desc'); if (descEl) descEl.focus();
+  refreshIntegrationModalSave();
+}
+
+function deleteEndpointInModal(e) {
+  const eps = epList(e);
+  const ep = eps[intCatalog.epIndex]; if (!ep) return;
+  if (!confirm(`Delete endpoint "${ep.name || 'this endpoint'}"?\nAny dashboard widget using it will show "configuration removed".`)) return;
+  Endpoints.remove(state.currentSettings, e.id, ep.id);
+  const left = epList(e);
+  // The service stays enabled even at zero endpoints, so existing dashboard
+  // placements that referenced the deleted endpoint render "configuration
+  // removed" (rather than a generic "service disabled"). Use the card toggle to
+  // turn the service off entirely.
+  // Keep legacy flat keys + description pointed at the surviving first endpoint.
+  if (left[0]) {
+    Endpoints.schema(e.id).fields.forEach((k) => { if (left[0].fields[k] !== undefined) state.currentSettings[k] = left[0].fields[k]; });
+    intSetDesc(e, left[0].name || e.name);
+  }
+  saveSettings();   // deletes are committed immediately
+  if (left.length === 0) { closeIntegrationModal(); return; }
+  intCatalog.epIndex = Math.min(intCatalog.epIndex, left.length - 1);
+  loadEndpointIntoForm(e, intCatalog.epIndex);
+  renderEndpointTabs(e);
+  refreshIntegrationModalSave();
+}
+
 function openIntegrationModal(id) {
   const e = intEntry(id);
   if (!e) return;
   intCatalog.openId = id;
+  intCatalog.epIndex = 0;
 
   document.getElementById('int-m-ico').src = intIconSrc(e.icon);
   document.getElementById('int-m-name').textContent = e.name;
   document.getElementById('int-m-cat').textContent = `${e.cat} · ${e.w} widget${e.w === 1 ? '' : 's'}`;
-
-  // Required description (≤20 chars). Backfill the integration name as the
-  // default so configurations created before this feature are still labelled.
-  intCatalog.descKey = intDescKey(e);
-  let dv = intGetDesc(e);
-  if (!dv) { dv = e.name.slice(0, 20); intSetDesc(e, dv); }
-  const descEl = document.getElementById('int-m-desc');
-  const descCnt = document.getElementById('int-m-desc-count');
-  if (descEl) descEl.value = dv;
-  if (descCnt) descCnt.textContent = `${dv.length}/20`;
 
   // Relocate the existing config form into the modal body (preserves all
   // element IDs and event handlers).
   const cfg = document.getElementById(e.configId);
   const body = document.getElementById('int-m-body');
   if (cfg && body) { body.appendChild(cfg); cfg.style.display = 'block'; }
+
+  const descLabel = document.querySelector('.int-m-desc-label');
+  if (epIsMulti(e)) {
+    // Multi-endpoint: the "description" field becomes the selected endpoint's
+    // NAME, and a selector bar lets the user switch / add / delete endpoints.
+    if (descLabel) descLabel.textContent = 'Name';
+    const descEl = document.getElementById('int-m-desc');
+    if (descEl) descEl.placeholder = 'Name this endpoint (e.g. Living Room)';
+    epEnsureOne(e);
+    intCatalog.epIndex = 0;
+    loadEndpointIntoForm(e, 0);   // sets the name field + repopulates the form
+    renderEndpointTabs(e);
+  } else {
+    // Single-instance (Weather / Stocks): keep the per-service description.
+    if (descLabel) descLabel.textContent = 'Description';
+    const epsBar = document.getElementById('int-m-eps');
+    if (epsBar) epsBar.style.display = 'none';
+    intCatalog.descKey = intDescKey(e);
+    let dv = intGetDesc(e);
+    if (!dv) { dv = e.name.slice(0, 20); intSetDesc(e, dv); }
+    const descEl = document.getElementById('int-m-desc');
+    const descCnt = document.getElementById('int-m-desc-count');
+    if (descEl) { descEl.value = dv; descEl.placeholder = 'Label this configuration (max 20)'; }
+    if (descCnt) descCnt.textContent = `${dv.length}/20`;
+  }
 
   // Secret fields default to VISIBLE during first-time setup, and HIDDEN when
   // re-opening an integration that's already been saved.
@@ -5933,9 +6419,18 @@ function closeIntegrationModal() {
     const savedVal = intWasSaved(e);
     state.currentSettings[e.enabledKey] = savedVal;
     intSyncLegacyToggle(e, savedVal);
+    // Discard any unsaved endpoint edits/additions by restoring this service's
+    // instances from the last saved state (Save commits; Cancel/close reverts).
+    if (state.currentSettings.instances) {
+      const saved = state.savedSettings.instances && state.savedSettings.instances[e.id];
+      state.currentSettings.instances[e.id] = Array.isArray(saved) ? JSON.parse(JSON.stringify(saved)) : [];
+    }
+    const descLabel = document.querySelector('.int-m-desc-label');
+    if (descLabel) descLabel.textContent = 'Description';
   }
 
   intCatalog.openId = null;
+  intCatalog.epIndex = 0;
   renderIntegrationGrid();
 }
 
@@ -5945,23 +6440,53 @@ function refreshIntegrationModalSave() {
   const save = document.getElementById('int-m-save');
   const note = document.getElementById('int-m-note');
   if (!save) return;
-  const ok = intIsValidated(e);
-  const desc = intGetDesc(e).trim();
-  const descOk = desc.length > 0 && desc.length <= 20;
-  const ready = ok && descOk;
+  const multi = epIsMulti(e);
+  let ready, noteText;
+  if (multi) {
+    // Every endpoint must be named AND validated before the service can save.
+    // The currently-open endpoint uses the live validation flag; the others use
+    // their stored flag (set when they were last validated).
+    const eps = epList(e);
+    const curIdx = intCatalog.epIndex;
+    const named = eps.every((ep) => ep.name && ep.name.trim().length > 0 && ep.name.length <= 20);
+    const validatedAll = eps.length > 0 && eps.every((ep, i) => (i === curIdx ? !!state[e.validatedKey] : !!ep.validated));
+    ready = eps.length > 0 && named && validatedAll;
+    noteText = !eps.length ? 'Add at least one endpoint.'
+      : !named ? 'Name every endpoint (1–20 characters).'
+        : !validatedAll ? 'Validate every endpoint before saving.'
+          : 'All endpoints validated — click Save.';
+  } else {
+    const ok = intIsValidated(e);
+    const desc = intCurrentName(e).trim();
+    const descOk = desc.length > 0 && desc.length <= 20;
+    ready = ok && descOk;
+    noteText = !descOk ? 'Enter a description (1–20 characters) to identify this configuration.'
+      : !ok ? 'Validate the connection to enable Save.'
+        : 'Validated — click Save to activate this integration.';
+  }
   save.disabled = !ready;
   save.classList.toggle('is-ready', ready);
-  if (note) note.textContent = !descOk
-    ? 'Enter a description (1–20 characters) to identify this configuration.'
-    : !ok
-      ? 'Validate the connection to enable Save.'
-      : 'Validated — click Save to activate this integration.';
+  if (note) note.textContent = noteText;
 }
 
 async function saveIntegrationFromModal() {
   const e = intEntry(intCatalog.openId);
   if (!e || !intIsValidated(e)) return;
-  state.currentSettings[e.enabledKey] = true;
+  if (epIsMulti(e)) {
+    syncFormToEndpoint(e, intCatalog.epIndex);
+    const ep = epCurrent(e);
+    if (ep && !ep.name) ep.name = e.name.slice(0, 20);
+    state.currentSettings[e.enabledKey] = Endpoints.count(state.currentSettings, e.id) > 0;
+    // Mirror the first endpoint onto the legacy flat keys + description so any
+    // not-yet-migrated reader still sees a coherent configuration.
+    const first = epList(e)[0];
+    if (first) {
+      Endpoints.schema(e.id).fields.forEach((k) => { if (first.fields[k] !== undefined) state.currentSettings[k] = first.fields[k]; });
+      intSetDesc(e, first.name || e.name);
+    }
+  } else {
+    state.currentSettings[e.enabledKey] = true;
+  }
   await saveSettings();               // persists everything from currentSettings
   closeIntegrationModal();            // saved value is now ON, so it stays ON
 }
@@ -5989,6 +6514,136 @@ function closeSampleModal() {
   if (frame) frame.src = 'about:blank';   // stop the demo's polling/timers
 }
 
+// ─── Quick "Add to Dashboard" from an integration card ───────────────────────
+// The default widget added by the card's "+" button. Most integrations expose a
+// base widget whose id === the integration id; weather has only variants, so it
+// defaults to the combined widget. Any future integration with a base widget
+// gains this automatically.
+const INT_DEFAULT_WID = { weather: 'weather-combined' };
+function intDefaultWid(e) { return INT_DEFAULT_WID[e.id] || e.id; }
+function intDefaultWidgetName(e) { return e.id === 'weather' ? 'Weather (Combined)' : e.name; }
+function intSupportsWidgets(e) { return !!intDefaultWid(e); }
+
+const a2dState = { intId: null, wid: null, endpointId: null, endpointName: null, sel: new Set() };
+
+async function openAddToDashModal(intId) {
+  const e = intEntry(intId);
+  if (!e) return;
+  a2dState.intId = intId;
+  a2dState.wid = intDefaultWid(e);
+  a2dState.endpointId = null;
+  a2dState.endpointName = null;
+  // Multi-endpoint services quick-add the FIRST endpoint's widget.
+  if (window.Endpoints && Endpoints.isMulti(intId)) {
+    const eps = Endpoints.list(state.currentSettings, intId);
+    if (eps[0]) { a2dState.endpointId = eps[0].id; a2dState.endpointName = eps[0].name; }
+  }
+  a2dState.sel = new Set();
+
+  // Always work from the freshest dashboards in storage.
+  const stored = await chromeStorageGet(['dashboards']);
+  state.dashboards = stored.dashboards || [];
+
+  document.getElementById('a2d-title').textContent = `Add ${e.name} to dashboard`;
+  const widName = intDefaultWidgetName(e) + (a2dState.endpointName ? ` — ${a2dState.endpointName}` : '');
+  const sub = document.getElementById('a2d-sub');
+  if (sub) sub.textContent = `Choose which dashboards get the “${widName}” widget.`;
+  renderA2dList();
+  document.getElementById('add-to-dash-modal').classList.add('visible');
+}
+
+function closeAddToDashModal() {
+  document.getElementById('add-to-dash-modal')?.classList.remove('visible');
+}
+
+// Does this dashboard already hold the widget we're about to add?
+function a2dHasWidget(dash) {
+  return Array.isArray(dash.widgets) && dash.widgets.some((w) =>
+    w.wid === a2dState.wid && (w.endpointId || null) === (a2dState.endpointId || null) && !w.sample);
+}
+
+function renderA2dList() {
+  const list = document.getElementById('a2d-list');
+  if (!list) return;
+  list.innerHTML = '';
+  if (!state.dashboards.length) {
+    list.innerHTML = '<div class="a2d-empty">No dashboards yet — create one in the Dashboards tab first.</div>';
+    a2dUpdateAdd();
+    return;
+  }
+  state.dashboards.forEach((dash) => {
+    const exists = a2dHasWidget(dash);
+    const row = document.createElement('label');
+    row.className = 'a2d-row' + (exists ? ' is-added' : '');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.disabled = exists;
+    cb.checked = a2dState.sel.has(dash.id);
+    cb.addEventListener('change', () => {
+      if (cb.checked) a2dState.sel.add(dash.id); else a2dState.sel.delete(dash.id);
+      a2dUpdateAdd();
+    });
+    const main = document.createElement('div');
+    main.className = 'a2d-main';
+    const nm = document.createElement('div');
+    nm.className = 'a2d-name';
+    nm.textContent = dash.name || 'Untitled dashboard';
+    main.appendChild(nm);
+    if (dash.description) {
+      const d = document.createElement('div');
+      d.className = 'a2d-desc';
+      d.textContent = dash.description;
+      main.appendChild(d);
+    }
+    row.append(cb, main);
+    if (exists) {
+      const tag = document.createElement('span');
+      tag.className = 'a2d-added-tag';
+      tag.textContent = 'Already added';
+      tag.title = 'Already added to this dashboard';
+      row.appendChild(tag);
+    }
+    list.appendChild(row);
+  });
+  a2dUpdateAdd();
+}
+
+function a2dUpdateAdd() {
+  const n = a2dState.sel.size;
+  const btn = document.getElementById('a2d-add');
+  const note = document.getElementById('a2d-note');
+  if (btn) { btn.disabled = n === 0; btn.textContent = n > 1 ? `Add to ${n} dashboards` : 'Add to dashboard'; }
+  if (note) note.textContent = n ? `${n} selected` : 'Select one or more dashboards';
+}
+
+async function confirmAddToDash() {
+  const e = intEntry(a2dState.intId);
+  if (!e || !a2dState.sel.size) return;
+  const widName = intDefaultWidgetName(e);
+  let count = 0;
+  a2dState.sel.forEach((dashId) => {
+    const dash = state.dashboards.find((d) => d.id === dashId);
+    if (!dash || a2dHasWidget(dash)) return;     // skip duplicates defensively
+    if (!Array.isArray(dash.widgets)) dash.widgets = [];
+    const entry = {
+      uid: 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      wid: a2dState.wid,
+      intId: a2dState.wid,
+      name: widName,
+    };
+    if (a2dState.endpointId) {
+      entry.endpointId = a2dState.endpointId;
+      entry.endpointName = a2dState.endpointName;
+      entry.name = `${widName} — ${a2dState.endpointName}`;
+    }
+    dash.widgets.push(entry);
+    count++;
+  });
+  await saveDashboards();
+  closeAddToDashModal();
+  showToast(`Widget added to ${count} dashboard${count === 1 ? '' : 's'} ✓`);
+}
+
 function setupIntegrationsCatalog() {
   const search = document.getElementById('int-search');
   if (search) search.addEventListener('input', (ev) => {
@@ -6011,11 +6666,24 @@ function setupIntegrationsCatalog() {
     const e = intEntry(intCatalog.openId);
     if (!e) return;
     const v = descEl.value.slice(0, 20);
-    intSetDesc(e, v);
+    if (epIsMulti(e)) {
+      const ep = epCurrent(e);
+      if (ep) ep.name = v;
+      intSetDesc(e, (epList(e)[0] && epList(e)[0].name) || v);  // keep legacy map coherent
+      renderEndpointTabs(e);
+    } else {
+      intSetDesc(e, v);
+    }
     const cnt = document.getElementById('int-m-desc-count');
     if (cnt) cnt.textContent = `${v.length}/20`;
     refreshIntegrationModalSave();
     updateSaveBar();
+  });
+
+  // Delete the currently-selected endpoint.
+  document.getElementById('int-m-eps-del')?.addEventListener('click', () => {
+    const e = intEntry(intCatalog.openId);
+    if (e) deleteEndpointInModal(e);
   });
 
   // Refresh-interval change → store per-integration override.
@@ -6034,6 +6702,16 @@ function setupIntegrationsCatalog() {
   sampleOverlay?.addEventListener('click', (e) => { if (e.target === sampleOverlay) closeSampleModal(); });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && sampleOverlay && sampleOverlay.classList.contains('open')) closeSampleModal();
+  });
+
+  // Add-to-dashboard modal — backdrop-click and Esc close it.
+  document.getElementById('a2d-close')?.addEventListener('click', closeAddToDashModal);
+  document.getElementById('a2d-cancel')?.addEventListener('click', closeAddToDashModal);
+  document.getElementById('a2d-add')?.addEventListener('click', confirmAddToDash);
+  const a2dOverlay = document.getElementById('add-to-dash-modal');
+  a2dOverlay?.addEventListener('click', (e) => { if (e.target === a2dOverlay) closeAddToDashModal(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && a2dOverlay && a2dOverlay.classList.contains('visible')) closeAddToDashModal();
   });
 
   renderIntegrationGrid();

@@ -20,7 +20,7 @@ const SAMPLES = {
   // ── Media servers ──────────────────────────────────────────────────────
   plex(h) {
     const raw = [
-      { type: 'episode', grandparentTitle: 'Severance', parentTitle: 'Season 2', title: 'Cold Harbor', index: '4', user: { title: 'cory' }, player: { product: 'Plex Web', title: 'Chrome' }, session: { id: 's1' } },
+      { type: 'episode', grandparentTitle: 'Severance', parentTitle: 'Season 2', title: 'Cold Harbor', index: '4', user: { title: 'avery' }, player: { product: 'Plex Web', title: 'Chrome' }, session: { id: 's1' } },
       { type: 'movie', title: 'Dune: Part Two', user: { title: 'jordan' }, player: { product: 'Plex for Apple TV', title: 'Living Room' }, session: { id: 's2' } },
       { type: 'track', grandparentTitle: 'Daft Punk', parentTitle: 'Discovery', title: 'Digital Love', user: { title: 'sam' }, player: { product: 'Plexamp', title: 'iPhone' } },
     ];
@@ -34,12 +34,12 @@ const SAMPLES = {
     const backdrop = (c1, c2) => 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="600" height="340"><rect width="600" height="340" fill="${c1}"/></svg>`);
     const card = (over) => Object.assign({
       key: 'k', poster: poster('NOW', '#3a5a7a', '#1a2a3a'), backdrop: backdrop('#2a3a4a', '#10161e'),
-      username: 'cory', product: 'Plex Web', player: 'Chrome', quality: 'Original (4.3 Mbps)', qualityWarn: true,
+      username: 'avery', product: 'Plex Web', player: 'Chrome', quality: 'Original (4.3 Mbps)', qualityWarn: true,
       stream: 'Transcode (Throttled)', container: 'Converting (MKV → MP4)', video: 'Direct Stream (H264 720p)',
       audio: 'Transcode (AC3 5.1 → AAC)', subtitle: 'None', location: 'LAN: 192.168.50.16', secure: true,
       bandwidth: '5.0 Mbps', eta: '19:14', progressText: '1:22 / 42:50', progressPct: 32,
       state: 'playing', stateIcon: '▶', mediaIcon: '🖥', footTitle: 'Severance - Cold Harbor', footSub: 'S2 · E4',
-      platformIcon: chrome, avatarInitial: 'C', avatarColor: '#e07a7a', avatarImg: '',
+      platformIcon: chrome, avatarInitial: 'A', avatarColor: '#e07a7a', avatarImg: '',
     }, over);
     const cardsA = [
       card({ key: 'a' }),
@@ -61,22 +61,28 @@ const SAMPLES = {
       lw.stop();
       lw._renderSessions(cardsA, { count: 2, total: '17.4 Mbps' });
     }
+
+    // Widgets 3–6 — the stats widgets (each mounts its own captioned tile).
+    ['tautulli-recent', 'tautulli-watch', 'tautulli-libraries', 'tautulli-top']
+      .forEach((wid) => { if (typeof SAMPLES[wid] === 'function') SAMPLES[wid](); });
   },
 
   'tautulli-list'(h) {
     const pf = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><circle cx="20" cy="20" r="18" fill="#e8483c"/><circle cx="20" cy="20" r="7" fill="#fff"/><circle cx="20" cy="20" r="4" fill="#4285f4"/></svg>');
+    const pfApple = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" rx="9" fill="#0a0a0a"/><rect x="10" y="11" width="20" height="13" rx="2" fill="none" stroke="#fff" stroke-width="2"/><rect x="15" y="27" width="10" height="2.2" rx="1.1" fill="#fff"/></svg>');
+    const pfAndroid = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" rx="9" fill="#3ddc84"/><path d="M12 19a8 8 0 0 1 16 0z" fill="#0a0a0a"/><rect x="12" y="20" width="16" height="10" rx="2.2" fill="#0a0a0a"/><circle cx="17" cy="16.5" r="1.2" fill="#3ddc84"/><circle cx="23" cy="16.5" r="1.2" fill="#3ddc84"/></svg>');
     const card = (over) => Object.assign({
-      username: 'cory', product: 'Plex Web', player: 'Chrome', bandwidth: '5.0 Mbps', platformIcon: pf,
+      username: 'avery', product: 'Plex Web', player: 'Chrome', bandwidth: '5.0 Mbps', platformIcon: pf,
       location: 'LAN: 192.168.50.16', eta: '19:14', progressText: '1:22 / 42:50', progressPct: 32,
       state: 'playing', stateIcon: '▶', mediaIcon: '🖥', footTitle: 'Severance - Cold Harbor', footSub: 'S2 · E4',
-      avatarInitial: 'C', avatarColor: '#e07a7a', avatarImg: '',
+      avatarInitial: 'A', avatarColor: '#e07a7a', avatarImg: '',
     }, over);
     const w = new TautulliListWidget(tile('Tautulli — Streams'), { baseUrl: '', apiKey: '' });
     w.stop();
     w._renderSessions([
       card({}),
-      card({ footTitle: 'Dune: Part Two', footSub: '🎬 2024', mediaIcon: '🎬', product: 'Plex for Apple TV', player: 'Living Room', bandwidth: '12.4 Mbps', location: 'WAN: 73.42.10.5', eta: '20:38', progressText: '48:10 / 2:46:00', progressPct: 29, state: 'paused', stateIcon: '❚❚', username: 'jordan', avatarInitial: 'J', avatarColor: '#6f8fe0' }),
-      card({ footTitle: 'Daft Punk - Digital Love', footSub: '🎵 Discovery', mediaIcon: '🎵', product: 'Plexamp', player: 'iPhone', bandwidth: '0.3 Mbps', location: 'WAN: 98.11.4.20', eta: '18:52', progressText: '1:48 / 4:58', progressPct: 36, username: 'sam', avatarInitial: 'S', avatarColor: '#7ec07e' }),
+      card({ footTitle: 'Dune: Part Two', footSub: '🎬 2024', mediaIcon: '🎬', product: 'Plex for Apple TV', player: 'Living Room', bandwidth: '12.4 Mbps', location: 'WAN: 73.42.10.5', eta: '20:38', progressText: '48:10 / 2:46:00', progressPct: 29, state: 'paused', stateIcon: '❚❚', username: 'jordan', avatarInitial: 'J', avatarColor: '#6f8fe0', platformIcon: pfApple }),
+      card({ footTitle: 'Daft Punk - Digital Love', footSub: '🎵 Discovery', mediaIcon: '🎵', product: 'Plexamp', player: 'Pixel 8', bandwidth: '0.3 Mbps', location: 'WAN: 98.11.4.20', eta: '18:52', progressText: '1:48 / 4:58', progressPct: 36, username: 'sam', avatarInitial: 'S', avatarColor: '#7ec07e', platformIcon: pfAndroid }),
     ], { count: 3, total: '17.7 Mbps' });
   },
 
@@ -84,7 +90,7 @@ const SAMPLES = {
   sonarr: (h) => arr('sonarr'),
   radarr: (h) => arr('radarr'),
   seerr(h) {
-    const USERS = [{ id: 1, displayName: 'cory', requestCount: 42 }, { id: 2, displayName: 'jordan', requestCount: 27 }, { id: 3, displayName: 'sam', requestCount: 11 }];
+    const USERS = [{ id: 1, displayName: 'avery', requestCount: 42 }, { id: 2, displayName: 'jordan', requestCount: 27 }, { id: 3, displayName: 'sam', requestCount: 11 }];
     const TITLES = [['movie', 'Dune: Part Two'], ['tv', 'Severance'], ['movie', 'Furiosa'], ['tv', 'Shogun'], ['movie', 'Mickey 17'], ['tv', 'Foundation']];
     const reqs = TITLES.map((t, i) => {
       const status = [1, 2, 5, 2, 3, 5][i], mediaStatus = [2, 3, 5, 4, 1, 5][i];
@@ -227,7 +233,7 @@ const SAMPLES = {
   navidrome(h) {
     const artistsBody = { artists: { index: [{ artist: new Array(120).fill({}) }, { artist: new Array(90).fill({}) }] } };
     const albumPages = [new Array(500).fill({ songCount: 11 }), new Array(180).fill({ songCount: 9 })];
-    const np = { nowPlaying: { entry: [{ title: 'Digital Love', artist: 'Daft Punk', album: 'Discovery', username: 'cory', playerName: 'Plexamp' }] } };
+    const np = { nowPlaying: { entry: [{ title: 'Digital Love', artist: 'Daft Punk', album: 'Discovery', username: 'avery', playerName: 'Plexamp' }] } };
     new NavidromeWidget(tile('Navidrome'), { dataProvider: () => Promise.resolve({ artistCount: NavidromeApi.countArtists(artistsBody), ...NavidromeApi.countAlbumsSongs(albumPages), nowPlaying: NavidromeApi.mapNowPlaying(np) }) }).start();
   },
   prowlarr(h) {
@@ -237,7 +243,7 @@ const SAMPLES = {
   tracearr(h) {
     const stats = { activeStreams: 3, totalUsers: 14, totalSessions: 5210, recentViolations: 2, timestamp: '' };
     const streams = { summary: { total: 3, transcodes: 1, directStreams: 1, directPlays: 1, totalBitrate: '24 Mbps' }, data: [
-      { id: 's1', serverName: 'Plex', username: 'cory', mediaTitle: 'Cold Harbor', mediaType: 'episode', showTitle: 'Severance', seasonNumber: 2, episodeNumber: 4, state: 'playing', isTranscode: false },
+      { id: 's1', serverName: 'Plex', username: 'avery', mediaTitle: 'Cold Harbor', mediaType: 'episode', showTitle: 'Severance', seasonNumber: 2, episodeNumber: 4, state: 'playing', isTranscode: false },
       { id: 's2', serverName: 'Plex', username: 'jordan', mediaTitle: 'Dune: Part Two', mediaType: 'movie', year: 2024, state: 'paused', videoDecision: 'transcode' },
       { id: 's3', serverName: 'Jellyfin', username: 'sam', mediaTitle: 'Live News', mediaType: 'live', state: 'playing', isTranscode: false },
     ] };
@@ -288,7 +294,7 @@ const SAMPLES = {
 // ── Shared builders ───────────────────────────────────────────────────────
 function mediaServer(service) {
   const raw = [
-    { Id: 's1', UserName: 'cory', Client: service === 'emby' ? 'Emby Web' : 'Jellyfin Web', DeviceName: 'Chrome', PlayState: { PositionTicks: 30000000000, IsPaused: false }, NowPlayingItem: { Type: 'Episode', SeriesName: 'Severance', SeasonName: 'Season 2', IndexNumber: 4, Name: 'Cold Harbor', RunTimeTicks: 60000000000 } },
+    { Id: 's1', UserName: 'avery', Client: service === 'emby' ? 'Emby Web' : 'Jellyfin Web', DeviceName: 'Chrome', PlayState: { PositionTicks: 30000000000, IsPaused: false }, NowPlayingItem: { Type: 'Episode', SeriesName: 'Severance', SeasonName: 'Season 2', IndexNumber: 4, Name: 'Cold Harbor', RunTimeTicks: 60000000000 } },
     { Id: 's2', UserName: 'jordan', Client: 'Roku', DeviceName: 'Living Room', PlayState: { PositionTicks: 18000000000, IsPaused: true }, NowPlayingItem: { Type: 'Movie', Name: 'Dune: Part Two', ProductionYear: 2024, RunTimeTicks: 166000000000 } },
     { Id: 's3', UserName: 'sam', Client: 'Finamp', DeviceName: 'iPhone', PlayState: { PositionTicks: 90000000000, IsPaused: false }, NowPlayingItem: { Type: 'Audio', AlbumArtist: 'Daft Punk', Album: 'Discovery', Name: 'Digital Love', RunTimeTicks: 180000000000 } },
   ];
@@ -375,6 +381,44 @@ SAMPLES.stocks = function () {
     mk('BTC-USD', 'Bitcoin USD', walk(63000, 22, 1400, 200), 61240.0),
   ];
   new StocksWidget(tile('Stocks'), { dataProvider: () => Promise.resolve(data) }).start();
+};
+
+// ── Tautulli stats widgets ───────────────────────────────────────────────
+SAMPLES['tautulli-recent'] = function () {
+  const data = [
+    { title: 'Severance', sub: 'S2 · E4 — Cold Harbor', poster: poster('SEV', '#2c4a63', '#101820'), added: '2h ago', library: 'TV Shows', icon: '📺' },
+    { title: 'Dune: Part Two', sub: '2024', poster: poster('DUNE', '#7a5a3a', '#3a2a1a'), added: '5h ago', library: 'Movies', icon: '🎬' },
+    { title: 'Shōgun', sub: 'S1 · E9 — Crimson Sky', poster: poster('SHO', '#5a2a2a', '#2a1010'), added: '1d ago', library: 'TV Shows', icon: '📺' },
+    { title: 'Furiosa', sub: '2024', poster: poster('FUR', '#7a3a1a', '#2a1208'), added: '2d ago', library: 'Movies', icon: '🎬' },
+    { title: 'Discovery', sub: 'Daft Punk', poster: poster('DP', '#3a3a5a', '#15151f'), added: '3d ago', library: 'Music', icon: '🎵' },
+  ];
+  new TautulliRecentWidget(tile('Tautulli — Recently Added'), { dataProvider: () => Promise.resolve(data) }).start();
+};
+SAMPLES['tautulli-watch'] = function () {
+  const data = [
+    { title: 'Severance', plays: 69, poster: poster('SEV', '#2c4a63', '#101820'), type: '📺' },
+    { title: 'Game of Thrones', plays: 54, poster: poster('GOT', '#3a2a4a', '#150f1f'), type: '📺' },
+    { title: 'Dune: Part Two', plays: 41, poster: poster('DUNE', '#7a5a3a', '#3a2a1a'), type: '🎬' },
+    { title: 'Foundation', plays: 33, poster: poster('FND', '#2a4a4a', '#0f1f1f'), type: '📺' },
+    { title: 'Furiosa', plays: 22, poster: poster('FUR', '#7a3a1a', '#2a1208'), type: '🎬' },
+  ];
+  new TautulliWatchStatsWidget(tile('Tautulli — Most Watched'), { dataProvider: () => Promise.resolve(data) }).start();
+};
+SAMPLES['tautulli-libraries'] = function () {
+  const data = [
+    { name: 'Movies', type: 'movie', icon: '🎬', primary: '612 movies', secondary: '' },
+    { name: 'TV Shows', type: 'show', icon: '📺', primary: '148 shows', secondary: '620 seasons · 8,240 episodes' },
+    { name: 'Music', type: 'artist', icon: '🎵', primary: '320 artists', secondary: '1,240 albums · 14,900 tracks' },
+    { name: 'Photos', type: 'photo', icon: '🖼️', primary: '4,512 photos', secondary: '' },
+  ];
+  new TautulliLibrariesWidget(tile('Tautulli — Libraries'), { dataProvider: () => Promise.resolve(data) }).start();
+};
+SAMPLES['tautulli-top'] = function () {
+  const data = {
+    users: [{ name: 'avery', plays: 142, thumb: '' }, { name: 'jordan', plays: 98, thumb: '' }, { name: 'sam', plays: 54, thumb: '' }, { name: 'alex', plays: 31, thumb: '' }],
+    platforms: [{ name: 'Plex Web', plays: 120 }, { name: 'Apple TV', plays: 96 }, { name: 'Roku', plays: 64 }, { name: 'Android', plays: 45 }],
+  };
+  new TautulliTopUsersWidget(tile('Tautulli — Top Users & Platforms'), { dataProvider: () => Promise.resolve(data) }).start();
 };
 
 // ── Boot ────────────────────────────────────────────────────────────────

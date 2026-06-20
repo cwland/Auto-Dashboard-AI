@@ -6,6 +6,7 @@
   <title>Auto Dashboard AI — Settings</title>
   <link rel="stylesheet" href="../styles/common.css">
   <link rel="stylesheet" href="../widgets/tautulli-widget.css">
+  <link rel="stylesheet" href="../widgets/tautulli-stats.css">
   <link rel="stylesheet" href="../widgets/uptime-kuma-widget.css">
   <link rel="stylesheet" href="../widgets/arr-calendar-widget.css">
   <link rel="stylesheet" href="../widgets/seerr-widget.css">
@@ -131,6 +132,13 @@
     /* ── Tab panels ───────────────────────────────────────────────────────── */
     .tab-panel { display: none; flex: 1; overflow-y: auto; }
     .tab-panel.active { display: flex; flex-direction: column; }
+    /* Settings sub-tabs */
+    .set-subnav { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 20px; border-bottom: 1px solid var(--border); }
+    .set-subtab { appearance: none; border: 0; background: transparent; color: var(--text-secondary); font: 600 13.5px/1 inherit; padding: 10px 15px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .set-subtab:hover { color: var(--text-primary); }
+    .set-subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .set-sub { display: none; }
+    .set-sub.active { display: block; }
 
     /* Getting Started & How to Use share a readable content width */
     .doc-content {
@@ -370,6 +378,17 @@
     .int-m-t p { margin:2px 0 0; font-size:11.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; }
     .int-m-x { background:none; border:none; color:var(--text-muted); font-size:24px; line-height:1; cursor:pointer; padding:2px 8px; border-radius:8px; }
     .int-m-x:hover { background:var(--bg-hover); color:var(--text-primary); }
+    .int-m-eps { display:flex; align-items:center; gap:10px; padding:11px 20px; border-bottom:1px solid var(--border); background:var(--bg-secondary); }
+    .int-m-eps-tabs { display:flex; flex-wrap:wrap; gap:6px; flex:1; min-width:0; }
+    .int-m-ep { display:inline-flex; align-items:center; gap:5px; padding:5px 11px; border:1px solid var(--border); border-radius:20px; background:var(--bg-card); color:var(--text-secondary); font-size:12.5px; font-weight:600; cursor:pointer; font-family:var(--font); max-width:180px; }
+    .int-m-ep:hover { border-color:var(--accent); color:var(--text-primary); }
+    .int-m-ep.active { border-color:var(--accent); background:var(--accent-light); color:var(--text-primary); }
+    .int-m-ep .int-m-ep-nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .int-m-ep-ok { color:var(--success); font-weight:700; }
+    .int-m-ep-add { border-style:dashed; color:var(--accent); background:transparent; }
+    .int-m-ep-add:hover { background:var(--accent-light); }
+    .int-m-eps-del { flex:0 0 auto; padding:5px 11px; border:1px solid var(--border); border-radius:7px; background:var(--bg-card); color:var(--text-muted); font-size:12px; font-weight:600; cursor:pointer; font-family:var(--font); }
+    .int-m-eps-del:hover { border-color:var(--danger); color:var(--danger); background:var(--danger-light); }
     .int-m-desc-row { display:flex; align-items:center; gap:12px; padding:13px 20px; border-bottom:1px solid var(--border); }
     .int-m-desc-label { font-size:13px; font-weight:600; color:var(--text-secondary); flex:0 0 auto; }
     .int-m-desc-row .input { flex:1; }
@@ -732,9 +751,69 @@
     .theme-swatches .swatch { flex:1; height:26px; border-radius:5px; border:1px solid rgba(128,128,128,.25); }
     .theme-name { font-size:12.5px; font-weight:600; color:var(--text-primary); }
 
+    /* ── Custom themes ──────────────────────────────────────────────────── */
+    .ct-section-head { display:flex; align-items:center; justify-content:space-between; margin:18px 0 4px; }
+    .btn-sm { padding:6px 12px; font-size:12px; }
+    .ct-card { position:relative; }
+    .ct-del { position:absolute; top:6px; right:6px; width:20px; height:20px; border:none; border-radius:6px;
+      background:rgba(0,0,0,.28); color:#fff; font-size:11px; line-height:1; cursor:pointer; opacity:0;
+      display:flex; align-items:center; justify-content:center; transition:opacity .15s, background .15s; }
+    .ct-card:hover .ct-del { opacity:1; }
+    .ct-del:hover { background:var(--danger); }
+    #custom-theme-grid:empty::after { content:'No custom themes yet — click “Add custom theme”.'; grid-column:1/-1;
+      font-size:12px; color:var(--text-muted); padding:6px 2px; }
+
+    /* ── Add-theme modal ────────────────────────────────────────────────── */
+    .ct-tabs { display:flex; gap:6px; border-bottom:1px solid var(--border); margin:-4px 0 4px; }
+    .ct-tab { background:none; border:none; padding:9px 14px; font-size:13px; font-weight:600; cursor:pointer;
+      color:var(--text-muted); border-bottom:2px solid transparent; font-family:var(--font); }
+    .ct-tab.active { color:var(--text-primary); border-bottom-color:var(--accent); }
+    .ct-pane { display:none; flex-direction:column; gap:14px; }
+    .ct-pane.active { display:flex; }
+    .ct-hint { font-size:12px; color:var(--text-muted); margin:0; }
+    .ct-palettes { display:flex; flex-direction:column; gap:10px; }
+    .ct-pal { border:1.5px solid var(--border); border-radius:var(--radius); padding:12px; cursor:pointer;
+      background:var(--bg-secondary); transition:border-color .15s, background .15s; }
+    .ct-pal:hover { border-color:var(--accent); }
+    .ct-pal.selected { border-color:var(--accent); background:var(--accent-light); }
+    .ct-pal-top { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+    .ct-pal-name { font-size:13px; font-weight:600; color:var(--text-primary); }
+    .ct-pal-check { font-size:13px; color:var(--accent); font-weight:700; opacity:0; }
+    .ct-pal.selected .ct-pal-check { opacity:1; }
+    .ct-pal-prev { display:flex; height:34px; border-radius:6px; overflow:hidden; border:1px solid rgba(128,128,128,.25); }
+    .ct-pal-prev .seg { flex:1; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:600; }
+    .ct-pal-badge { font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:20px; }
+    .ct-pal-badge.ok { background:var(--success-light); color:var(--success); }
+    .ct-pal-badge.warn { background:var(--warning-light); color:var(--warning); }
+    .ct-color-row { display:flex; align-items:center; gap:10px; }
+    .ct-color-row label { flex:1; font-size:13px; color:var(--text-secondary); }
+    .ct-color-row input[type="color"] { width:38px; height:32px; padding:0; border:1px solid var(--border);
+      border-radius:7px; background:none; cursor:pointer; flex-shrink:0; }
+    .ct-color-row input[type="text"] { width:96px; flex-shrink:0; font-family:var(--font-mono,monospace); text-transform:lowercase; }
+    .ct-warn { font-size:12px; color:var(--warning); margin:0; min-height:0; }
+    .ct-warn:empty { display:none; }
+    .ct-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(128,128,128,.35);
+      border-top-color:var(--accent); border-radius:50%; animation:ctspin .7s linear infinite; vertical-align:-2px; margin-right:6px; }
+    @keyframes ctspin { to { transform:rotate(360deg); } }
+
     /* ── Integration "view sample" button + sample modal ────────────────── */
     .int-sample-btn { position:absolute; top:9px; right:9px; width:24px; height:24px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--border); border-radius:7px; background:var(--bg-secondary); color:var(--text-muted); font-size:12px; line-height:1; cursor:pointer; opacity:.7; transition:opacity .15s, border-color .15s, color .15s; z-index:2; }
     .int-sample-btn:hover { opacity:1; border-color:var(--accent); color:var(--accent); }
+    /* "Add to Dashboard" quick action (bottom-right of a configured card). */
+    .int-add-dash { position:absolute; bottom:9px; right:9px; width:26px; height:26px; display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--accent); border-radius:7px; background:var(--accent-light); color:var(--accent); font-size:17px; line-height:1; cursor:pointer; opacity:.9; transition:opacity .15s, background .15s, color .15s; z-index:3; font-family:var(--font); }
+    .int-add-dash:hover { opacity:1; background:var(--accent); color:#fff; }
+    /* Dashboard-selection modal rows. */
+    .a2d-list { display:flex; flex-direction:column; gap:8px; max-height:46vh; overflow-y:auto; }
+    .a2d-row { display:flex; align-items:flex-start; gap:11px; padding:11px 13px; border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; background:var(--bg-secondary); transition:border-color .15s, background .15s; }
+    .a2d-row:hover { border-color:var(--accent); }
+    .a2d-row input[type="checkbox"] { width:16px; height:16px; accent-color:var(--accent); margin-top:2px; flex-shrink:0; cursor:pointer; }
+    .a2d-main { flex:1; min-width:0; }
+    .a2d-name { font-size:13.5px; font-weight:600; color:var(--text-primary); }
+    .a2d-desc { font-size:12px; color:var(--text-muted); margin-top:2px; }
+    .a2d-row.is-added { opacity:.65; cursor:default; }
+    .a2d-row.is-added:hover { border-color:var(--border); }
+    .a2d-added-tag { flex-shrink:0; align-self:center; font-size:11px; font-weight:600; color:var(--success); background:var(--success-light); padding:2px 8px; border-radius:20px; }
+    .a2d-empty { font-size:12.5px; color:var(--text-muted); padding:10px 2px; }
 
     /* ── Integration modal: refresh-interval row ─────────────────────────── */
     .int-m-poll { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 20px; border-top:1px solid var(--border); background:var(--bg-card); }
@@ -883,10 +962,10 @@
   <!-- ── Page header ──────────────────────────────────────────────────────── -->
   <header class="page-header">
     <div class="header-brand">
-      <a class="logo-icon" href="../newtab/dashboard.html" title="Open your dashboard">🤖</a>
+      <a class="logo-icon" href="../newtab/dashboard.html" title="Open your dashboard"><img src="../icons/robot.svg" alt="Auto Dashboard AI" style="width:26px;height:26px;object-fit:contain;display:block;"></a>
       <div>
         <div class="logo-name">Auto Dashboard AI</div>
-        <div class="logo-ver">v1.0.8</div>
+        <div class="logo-ver" id="app-version">v1.0.15</div>
       </div>
     </div>
 
@@ -921,7 +1000,7 @@
     <div class="doc-content">
 
       <div class="gs-hero">
-        <div class="gs-hero-icon">🤖</div>
+        <div class="gs-hero-icon"><img src="../icons/robot.svg" alt="" style="width:64px;height:64px;object-fit:contain;display:inline-block;"></div>
         <h1>Welcome to Auto Dashboard AI</h1>
         <p>Turn your bookmarks into a beautiful, AI-enriched dashboard that appears every time you open a new tab. Setup takes about two minutes.</p>
       </div>
@@ -1121,6 +1200,14 @@
   <div class="tab-panel" id="tab-settings">
     <div class="settings-content">
 
+      <div class="set-subnav" role="tablist">
+        <button class="set-subtab active" type="button" data-sub="ai">🤖 AI Provider</button>
+        <button class="set-subtab" type="button" data-sub="theme">🎨 Theme</button>
+        <button class="set-subtab" type="button" data-sub="startup">🚀 Startup &amp; New Tab</button>
+        <button class="set-subtab" type="button" data-sub="clock">🕐 Clock &amp; Date</button>
+      </div>
+
+      <div class="set-sub active" id="set-sub-ai">
       <!-- AI Provider -->
       <div class="card">
         <div class="section-title">AI Provider</div>
@@ -1175,6 +1262,9 @@
         </p>
       </div>
 
+      </div>
+
+      <div class="set-sub" id="set-sub-theme">
       <!-- Theme -->
       <div class="card">
         <div class="section-title">Theme</div>
@@ -1208,8 +1298,18 @@
         <div class="theme-card" data-theme="bronze"><div class="theme-swatches"><span class="swatch" style="background:#0a0700"></span><span class="swatch" style="background:#1a1100"></span><span class="swatch" style="background:#fef9c3"></span><span class="swatch" style="background:#d97706"></span></div><div class="theme-name">Bronze</div></div>
         <div class="theme-card" data-theme="volcanic"><div class="theme-swatches"><span class="swatch" style="background:#0c0500"></span><span class="swatch" style="background:#1c0c04"></span><span class="swatch" style="background:#fed7aa"></span><span class="swatch" style="background:#ea580c"></span></div><div class="theme-name">Volcanic</div></div>
       </div>
+
+      <div class="ct-section-head">
+        <div class="theme-section-label" style="margin:0;">Custom</div>
+        <button type="button" class="btn btn-secondary btn-sm" id="add-custom-theme">+ Add custom theme</button>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">Build your own palette — let AI generate accessible color sets from a few words, or pick each color yourself.</p>
+      <div class="theme-grid" id="custom-theme-grid"></div>
       </div>
 
+      </div>
+
+      <div class="set-sub" id="set-sub-startup">
       <!-- Startup & New Tab -->
       <div class="card">
         <div class="section-title">🚀 Startup &amp; New Tab</div>
@@ -1258,6 +1358,9 @@
         </div>
       </div>
 
+      </div>
+
+      <div class="set-sub" id="set-sub-clock">
       <!-- Clock & Date -->
       <div class="card">
         <div class="section-title">🕐 Clock &amp; Date</div>
@@ -1309,6 +1412,7 @@
           </div>
         </div>
       </div>
+      </div>
 
     </div>
   </div>
@@ -1350,6 +1454,13 @@
 
         <div id="weather-config">
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              Live local weather from <a href="https://openweathermap.org/" target="_blank" rel="noopener">OpenWeatherMap</a>.
+              Add a free API key and a location to enable the Current, Hourly, 5-Day, and Combined weather widgets.
+              The free <strong>Current Weather Data</strong> plan is all you need — optionally subscribe to
+              <strong>One Call API 3.0</strong> for true hourly data in the Combined widget.
+            </p>
 
             <div class="form-group">
               <label class="label">OpenWeatherMap API Key</label>
@@ -2913,6 +3024,10 @@
         <div class="int-m-t"><h3 id="int-m-name"></h3><p id="int-m-cat"></p></div>
         <button class="int-m-x" id="int-m-close" title="Close" type="button">&times;</button>
       </div>
+      <div class="int-m-eps" id="int-m-eps" style="display:none;">
+        <div class="int-m-eps-tabs" id="int-m-eps-tabs"></div>
+        <button class="int-m-eps-del" id="int-m-eps-del" type="button" title="Delete this endpoint">🗑 Delete</button>
+      </div>
       <div class="int-m-desc-row">
         <label class="int-m-desc-label" for="int-m-desc">Description</label>
         <input class="input" type="text" id="int-m-desc" maxlength="20" placeholder="Label this configuration (max 20)" autocomplete="off">
@@ -2929,6 +3044,66 @@
           <button class="btn btn-ghost" id="int-m-cancel" type="button">Cancel</button>
           <button class="btn btn-primary" id="int-m-save" type="button" disabled>Save</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add custom theme modal -->
+  <div class="modal-overlay" id="custom-theme-modal" role="dialog" aria-modal="true">
+    <div class="modal-box modal-wide">
+      <div class="modal-header"><h3>🎨 Add custom theme</h3><button class="modal-close-btn" id="ct-close">✕</button></div>
+      <div class="modal-body">
+        <div class="ct-tabs">
+          <button type="button" class="ct-tab active" data-ctmode="ai">✨ AI generate</button>
+          <button type="button" class="ct-tab" data-ctmode="manual">🎚 Manual</button>
+        </div>
+
+        <!-- AI pane -->
+        <div class="ct-pane active" id="ct-pane-ai">
+          <p class="ct-hint">Describe a mood, holiday, or vibe and AI will propose three accessible palettes (text/background contrast meets WCAG AA). Pick one — or add them all.</p>
+          <div class="form-group">
+            <label class="label" for="ct-prompt">Describe your theme</label>
+            <textarea id="ct-prompt" class="input" rows="2" placeholder="e.g. cozy autumn, Halloween night, festive Christmas, calm ocean spa"></textarea>
+          </div>
+          <div>
+            <button type="button" class="btn btn-primary btn-sm" id="ct-generate">Generate palettes</button>
+          </div>
+          <p class="ct-warn" id="ct-ai-warn"></p>
+          <div class="ct-palettes" id="ct-palettes"></div>
+        </div>
+
+        <!-- Manual pane -->
+        <div class="ct-pane" id="ct-pane-manual">
+          <p class="ct-hint">Pick each color or paste a hex value. The remaining design tokens (hover, card, accent shades) are derived automatically.</p>
+          <div class="form-group">
+            <label class="label" for="ct-name">Theme name</label>
+            <input type="text" id="ct-name" class="input" maxlength="24" placeholder="My theme">
+          </div>
+          <div id="ct-color-rows"></div>
+          <div class="ct-pal-prev" id="ct-manual-prev"></div>
+          <p class="ct-warn" id="ct-manual-warn"></p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="ct-cancel">Cancel</button>
+        <button class="btn btn-primary" id="ct-save-manual" style="display:none;">Add theme</button>
+        <button class="btn btn-primary" id="ct-add-selected" style="display:none;">Add selected</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add integration to dashboard(s) modal -->
+  <div class="modal-overlay" id="add-to-dash-modal" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-header"><h3 id="a2d-title">Add to dashboard</h3><button class="modal-close-btn" id="a2d-close">✕</button></div>
+      <div class="modal-body">
+        <p class="a2d-sub" id="a2d-sub" style="font-size:12.5px;color:var(--text-muted);margin:0;"></p>
+        <div class="a2d-list" id="a2d-list"></div>
+      </div>
+      <div class="modal-footer">
+        <span class="a2d-note" id="a2d-note" style="margin-right:auto;font-size:12px;color:var(--text-muted);"></span>
+        <button class="btn btn-ghost" id="a2d-cancel">Cancel</button>
+        <button class="btn btn-primary" id="a2d-add" disabled>Add to dashboard</button>
       </div>
     </div>
   </div>
@@ -3308,13 +3483,6 @@
               </div>
             </div>
 
-            <div class="toggle-row">
-              <label class="label" for="create-text-toggle" style="margin:0;">Show text below icons</label>
-              <label class="toggle-switch">
-                <input type="checkbox" id="create-text-toggle" checked>
-                <span class="toggle-slider"></span>
-              </label>
-            </div>
 
             <button class="btn btn-primary" id="generate-btn" disabled>✨ Generate Dashboard</button>
             <div id="generate-error" class="banner banner-danger" style="display:none;"></div>
@@ -3353,13 +3521,6 @@
         <input class="input" type="text" id="dash-edit-name" maxlength="60">
       </div>
 
-      <div class="toggle-row">
-        <label class="label" for="dash-edit-text-toggle" style="margin:0;">Show text below icons</label>
-        <label class="toggle-switch">
-          <input type="checkbox" id="dash-edit-text-toggle">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
 
       <div class="form-group" style="margin-bottom:0;">
         <label class="label">Default Icon Shape</label>
@@ -3398,7 +3559,7 @@
 <!-- Progress overlay -->
 <div id="progress-overlay">
   <div class="progress-modal">
-    <div class="progress-icon">🤖</div>
+    <div class="progress-icon"><img src="../icons/robot.svg" alt="" style="width:44px;height:44px;object-fit:contain;display:inline-block;"></div>
     <h3>Generating Dashboard</h3>
     <p id="progress-message">Sending bookmarks to AI for analysis...</p>
     <div class="progress-bar-track">
@@ -3456,10 +3617,6 @@
                   <label class="shape-option" data-shape="circle"><input type="radio" name="wiz-shape" value="circle"><span class="shape-swatch shape-circle"></span><span class="shape-option-label">Circle</span></label>
                   <label class="shape-option" data-shape="squircle"><input type="radio" name="wiz-shape" value="squircle"><span class="shape-swatch shape-squircle"></span><span class="shape-option-label">Squircle</span></label>
                 </div>
-              </div>
-              <div class="toggle-row" style="margin-top:14px;">
-                <label class="label" for="wiz-text-toggle" style="margin:0;">Show text below icons</label>
-                <label class="toggle-switch"><input type="checkbox" id="wiz-text-toggle" checked><span class="toggle-slider"></span></label>
               </div>
 
             </div>
@@ -3520,6 +3677,8 @@
   </div>
 
 
+<script src="../widgets/theme-engine.js"></script>
+<script src="../widgets/endpoints.js"></script>
 <script src="../widgets/tautulli-widget.js"></script>
 <script src="../widgets/uptime-kuma-widget.js"></script>
 <script src="../widgets/arr-calendar-widget.js"></script>
@@ -3547,6 +3706,7 @@
 <script src="../widgets/opnsense-widget.js"></script>
 <script src="../widgets/weather-widget.js"></script>
 <script src="../widgets/list-carousel.js"></script>
+<script src="../widgets/tautulli-stats-widgets.js"></script>
 <script src="../widgets/portainer-widget.js"></script>
 <script src="../widgets/stocks-widget.js"></script>
 <script src="config.js"></script>

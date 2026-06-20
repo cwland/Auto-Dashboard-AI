@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="vendor/gridstack.min.css">
   <!-- Integration widget styles (for live widgets added to the board) -->
   <link rel="stylesheet" href="../widgets/tautulli-widget.css">
+  <link rel="stylesheet" href="../widgets/tautulli-stats.css">
   <link rel="stylesheet" href="../widgets/uptime-kuma-widget.css">
   <link rel="stylesheet" href="../widgets/arr-calendar-widget.css">
   <link rel="stylesheet" href="../widgets/seerr-widget.css">
@@ -273,6 +274,20 @@
     /* Shared list-carousel controls (Scroll on/off, Show, Speed) — edit mode only. */
     .grid-stack .lc-tools { display: none; }
     body.rearrange-mode .grid-stack .lc-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    /* Widget config controls float in a pill straddling the top-center border in
+       edit mode — same visual language as the section S/M/L selector. It's an
+       overlay (position:absolute), so it never reflows or resizes the widget. */
+    .widget-tools-bubble {
+      position: absolute; left: 50%; top: 0; transform: translate(-50%, -50%);
+      display: none; align-items: center; gap: 8px; z-index: 20; white-space: nowrap;
+      padding: 4px 12px; border-radius: 999px;
+      background: var(--bg-primary); border: 1px solid var(--border);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.28);
+    }
+    body.rearrange-mode .widget-tools-bubble { display: flex; }
+    .widget-tools-bubble .lc-tools, .widget-tools-bubble .pc-tools { display: flex !important; align-items: center; gap: 12px; flex-wrap: nowrap !important; }
+    /* Sample widgets are static examples — never show config controls. */
+    .widget-sample .lc-tools, .widget-sample .pc-tools { display: none !important; }
     .widget-disabled {
       flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 8px; text-align: center; color: var(--text-muted); font-size: 12.5px; padding: 16px;
@@ -286,14 +301,15 @@
 
     /* Rearrange-mode floating tools menu (draggable, starts top-right of grid). */
     .rearrange-tools {
-      position: fixed; top: 104px; right: 26px;
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
       display: none; gap: 6px; align-items: center; z-index: 1500;
       background: var(--bg-card); border: 1px solid var(--border);
       border-radius: 999px; padding: 7px 10px; box-shadow: 0 8px 30px rgba(0,0,0,0.34);
     }
     body.rearrange-mode .rearrange-tools { display: flex; }
-    .rt-grip { cursor: grab; color: var(--text-muted); font-size: 15px; padding: 0 3px; user-select: none; touch-action: none; }
-    .rt-grip:active { cursor: grabbing; }
+    /* While an add dialog is open, the tools menu greys out and drops behind the
+       modal (z-index 200) instead of floating over it. */
+    .rearrange-tools.tools-dimmed { opacity: 0.4; pointer-events: none; filter: grayscale(0.7); z-index: 100; box-shadow: none; }
     .rt-btn {
       width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border);
       background: var(--bg-secondary); color: var(--text-primary); font-size: 18px;
@@ -302,6 +318,17 @@
     }
     .rt-btn:hover { background: var(--bg-hover); transform: translateY(-2px); }
     .rt-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+    /* Save / Cancel actions live in the floating menu. */
+    .rt-sep { width: 1px; align-self: stretch; background: var(--border); margin: 3px 2px; }
+    .rt-btn.rt-cancel { border-color: var(--danger); color: var(--danger); }
+    .rt-btn.rt-cancel:hover { background: var(--danger-light); }
+    .rt-btn.rt-save { border-color: var(--success); color: var(--success); }
+    .rt-btn.rt-save:hover { background: var(--success-light); }
+    .rt-btn.rt-save.has-changes { background: var(--success); color: #fff; border-color: var(--success); animation: rt-pulse 1.6s ease-in-out infinite; }
+    @keyframes rt-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.45); } 50% { box-shadow: 0 0 0 5px rgba(34,197,94,0); } }
+    /* "Editing Dashboard" label — visible but non-clickable. */
+    .btn-topbar.editing { opacity: 1; background: var(--accent-light); border-color: var(--accent); color: var(--accent); cursor: default; }
+    .btn-topbar.editing:hover { background: var(--accent-light); }
     /* Hover description tooltip. */
     .rt-tip {
       position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
@@ -396,6 +423,25 @@
     }
     .icon-size-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
     .icon-size-btn.active { background: var(--accent); color: #fff; }
+    /* Single label-placement control (cycles ↓ below → ↑ above → ⊘ none),
+       shown next to S/M/L. */
+    .size-sep { width: 1px; align-self: stretch; background: var(--border); margin: 2px 2px; }
+    .text-pos-cycle {
+      width: 22px; height: 22px; padding: 0;
+      font: 700 13px/1 var(--font); cursor: pointer;
+      border: none; background: var(--bg-hover);
+      color: var(--text-secondary); border-radius: 999px;
+      display: inline-flex; align-items: center; justify-content: center;
+      transition: background .12s, color .12s, transform .08s;
+    }
+    .text-pos-cycle:hover:not(:disabled) { background: var(--accent); color: #fff; }
+    .text-pos-cycle:active:not(:disabled) { transform: scale(0.86); }
+    .text-pos-cycle:disabled { opacity: 0.4; cursor: default; }
+    /* Per-section label placement. Small icons are always icon-only (rule above). */
+    .bm-title { transition: opacity 0.15s; }
+    .folder-section[data-textpos="none"] .bm-title { display: none; }
+    .folder-section[data-textpos="none"] .bookmark-card { padding-bottom: 16px; }
+    .folder-section[data-textpos="above"] .bookmark-card { flex-direction: column-reverse; }
 
     /* Edit Mode: subtle grid overlay behind the sections to show snap targets.
        Vertical lines every 1/12 of the width; horizontal lines every cell (60px). */
@@ -686,6 +732,38 @@
     .preview-name { font-size: 14px; font-weight: 600; margin-bottom: 3px; }
     .preview-url  { font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
 
+    /* ── Add-item chooser ─────────────────────────────────────────────────── */
+    .add-choice {
+      display: flex; align-items: center; gap: 14px; width: 100%;
+      padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius);
+      background: var(--bg-secondary); cursor: pointer; text-align: left;
+      transition: border-color .12s, background .12s, transform .08s; font-family: var(--font);
+    }
+    .add-choice:hover { border-color: var(--accent); background: var(--bg-hover); }
+    .add-choice:active { transform: scale(0.99); }
+    .add-choice .ac-ico { font-size: 24px; line-height: 1; flex-shrink: 0; }
+    .add-choice .ac-txt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+    .add-choice .ac-txt b { font-size: 14px; color: var(--text-primary); }
+    .add-choice .ac-txt small { font-size: 12px; color: var(--text-muted); }
+    .add-choice .ac-arrow { color: var(--text-muted); font-size: 16px; flex-shrink: 0; }
+    .add-choice:hover .ac-arrow { color: var(--accent); }
+    /* ── Browser-bookmark picker ──────────────────────────────────────────── */
+    .add-bm-list { display: flex; flex-direction: column; gap: 4px; max-height: 42vh; overflow-y: auto;
+      border: 1px solid var(--border); border-radius: var(--radius); padding: 6px; }
+    .add-bm-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px;
+      cursor: pointer; transition: background .1s; }
+    .add-bm-row:hover { background: var(--bg-hover); }
+    .add-bm-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); flex-shrink: 0; cursor: pointer; }
+    .add-bm-row .abm-main { flex: 1; min-width: 0; }
+    .add-bm-row .abm-title { font-size: 13px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .add-bm-row .abm-url { font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .add-bm-empty { font-size: 12.5px; color: var(--text-muted); padding: 14px 8px; text-align: center; }
+    /* ── Manual item validation ───────────────────────────────────────────── */
+    .mi-req { color: var(--danger); }
+    .mi-error { font-size: 12.5px; color: var(--danger); margin: 0; background: var(--danger-light);
+      border-radius: 8px; padding: 8px 11px; }
+    .modal-input.invalid { border-color: var(--danger); }
+
     .modal-field { display: flex; flex-direction: column; gap: 5px; }
     .modal-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.07em; }
     .modal-input, .modal-textarea {
@@ -805,7 +883,7 @@
 <div class="topbar">
   <div class="topbar-left">
     <div class="dash-brand">
-      <span class="dash-brand-icon">🤖</span>
+      <span class="dash-brand-icon"><img src="../icons/robot.svg" alt="" style="width:26px;height:26px;object-fit:contain;display:block;"></span>
       <span class="dash-brand-text">
         <span class="dash-brand-name">Auto Dashboard AI</span>
         <span class="dash-brand-ver">v1.0.8</span>
@@ -822,9 +900,7 @@
   </div>
 
   <div class="topbar-right">
-    <button class="btn-topbar" id="rearrange-btn">⇄ Rearrange</button>
-    <button class="btn-topbar btn-topbar-save" id="rearrange-save-btn" style="display:none;">✓ Save</button>
-    <button class="btn-topbar" id="rearrange-cancel-btn" style="display:none;">✕ Cancel</button>
+    <button class="btn-topbar" id="rearrange-btn">✎ Edit Dashboard</button>
     <a href="../config/config.html" class="btn-topbar">⚙️ Settings</a>
   </div>
 </div>
@@ -859,11 +935,13 @@
 
 <!-- ── Rearrange-mode floating tools ─────────────────────────────────────────── -->
 <div id="rearrange-tools" class="rearrange-tools">
-  <span class="rt-grip" title="Drag to move">⠿</span>
-  <button class="rt-btn" id="rt-add-widget" data-tip="Add widgets — pick widgets from your enabled integrations to add to the dashboard.">➕</button>
-  <button class="rt-btn" id="rt-autoresize" data-tip="Auto-resize groups — shrink each group tightly around its icons to remove empty space inside it.">🗜️</button>
+  <button class="rt-btn" id="rt-add-widget" data-tip="Add to dashboard — add a bookmark, a live widget, or a manual item to any section.">➕</button>
+  <button class="rt-btn" id="rt-autoresize" data-tip="Auto-resize groups — shrink each group tightly around its icons to remove empty space inside it.">📐</button>
   <button class="rt-btn" id="rt-snap" data-tip="Snap groups together — close large gaps between groups, packing them neatly without overlapping.">🧲</button>
   <button class="rt-btn" id="rt-undo" data-tip="Undo the last auto-layout change." disabled>↩️</button>
+  <span class="rt-sep"></span>
+  <button class="rt-btn rt-cancel" id="rt-cancel" data-tip="Cancel — discard your changes and exit editing.">✕</button>
+  <button class="rt-btn rt-save" id="rt-save" data-tip="Save — keep your layout changes and exit editing.">✓</button>
   <div class="rt-tip" id="rt-tip"></div>
 </div>
 
@@ -888,6 +966,107 @@
         <button class="btn btn-secondary" id="widget-cancel">Cancel</button>
         <button class="btn btn-primary" id="widget-add" disabled>Add to board</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add-item chooser ──────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="add-item-modal">
+  <div class="modal-box" style="max-width:480px;">
+    <div class="modal-header">
+      <h3>Add to dashboard</h3>
+      <button class="modal-close-btn" id="add-item-close" title="Close">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;padding:18px 20px;">
+      <button class="add-choice" id="choice-bookmark" type="button">
+        <span class="ac-ico">🔖</span>
+        <span class="ac-txt"><b>Add Bookmark</b><small>Pick from your browser bookmarks</small></span>
+        <span class="ac-arrow">→</span>
+      </button>
+      <button class="add-choice" id="choice-widget" type="button">
+        <span class="ac-ico">🧩</span>
+        <span class="ac-txt"><b>Add Widget</b><small>Live data from a configured integration</small></span>
+        <span class="ac-arrow">→</span>
+      </button>
+      <button class="add-choice" id="choice-manual" type="button">
+        <span class="ac-ico">✏️</span>
+        <span class="ac-txt"><b>Add Manual Item</b><small>Create a link by hand</small></span>
+        <span class="ac-arrow">→</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add browser bookmarks ─────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="add-bookmark-modal">
+  <div class="modal-box" style="max-width:560px;width:92vw;">
+    <div class="modal-header">
+      <h3>Add Bookmarks</h3>
+      <button class="modal-close-btn" id="add-bm-close" title="Close">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;padding:16px 20px;">
+      <input class="modal-input" type="text" id="add-bm-search" placeholder="Search your bookmarks…" autocomplete="off">
+      <div id="add-bm-list" class="add-bm-list"></div>
+      <div class="modal-field">
+        <label class="modal-label" for="add-bm-section">Add to section</label>
+        <select class="modal-input" id="add-bm-section"></select>
+        <input class="modal-input" type="text" id="add-bm-section-new" placeholder="New section name" style="display:none;margin-top:6px;" maxlength="40">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <span id="add-bm-count" style="font-size:12px;color:var(--text-muted);margin-right:auto;">None selected</span>
+      <button class="btn btn-secondary" id="add-bm-cancel">Cancel</button>
+      <button class="btn btn-primary" id="add-bm-add" disabled>Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Manual item ───────────────────────────────────────────────────────────── -->
+<div class="modal-overlay" id="manual-item-modal">
+  <div class="modal-box" style="max-width:480px;width:92vw;">
+    <div class="modal-header">
+      <h3>Add Manual Item</h3>
+      <button class="modal-close-btn" id="mi-close" title="Close">✕</button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;padding:16px 20px;max-height:64vh;overflow-y:auto;">
+      <div class="modal-field">
+        <label class="modal-label" for="mi-name">Name <span class="mi-req">*</span></label>
+        <input class="modal-input" type="text" id="mi-name" maxlength="60" placeholder="My link">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label" for="mi-url">URL <span class="mi-req">*</span></label>
+        <input class="modal-input" type="url" id="mi-url" placeholder="https://example.com">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label" for="mi-desc">Description / Tooltip</label>
+        <input class="modal-input" type="text" id="mi-desc" maxlength="160" placeholder="Optional">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label" for="mi-icon">Icon URL</label>
+        <input class="modal-input" type="url" id="mi-icon" placeholder="https://example.com/icon.png (optional)">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label" for="mi-upload">…or upload an icon</label>
+        <input class="modal-input" type="file" id="mi-upload" accept="image/*">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label" for="mi-emoji">Emoji fallback</label>
+        <input class="modal-input" type="text" id="mi-emoji" maxlength="4" placeholder="🔗" style="width:80px;">
+      </div>
+      <div class="modal-field">
+        <label class="modal-label" for="mi-section">Add to section <span class="mi-req">*</span></label>
+        <select class="modal-input" id="mi-section"></select>
+        <input class="modal-input" type="text" id="mi-section-new" placeholder="New section name" style="display:none;margin-top:6px;" maxlength="40">
+      </div>
+      <label class="toggle-row" style="display:flex;align-items:center;gap:10px;cursor:pointer;">
+        <input type="checkbox" id="mi-newtab" checked>
+        <span class="modal-label" style="margin:0;">Open in new tab</span>
+      </label>
+      <p class="mi-error" id="mi-error" style="display:none;"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="mi-cancel">Cancel</button>
+      <button class="btn btn-primary" id="mi-save">Add item</button>
     </div>
   </div>
 </div>
@@ -993,16 +1172,6 @@
       </div>
 
       <div class="modal-field">
-        <div class="toggle-row">
-          <label class="modal-label" for="dash-edit-text-toggle" style="margin:0;">Show text below icons</label>
-          <label class="toggle-switch">
-            <input type="checkbox" id="dash-edit-text-toggle">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-      </div>
-
-      <div class="modal-field">
         <label class="modal-label">Default Icon Shape</label>
         <div class="shape-picker" id="dash-edit-shape-picker">
           <label class="shape-option" data-shape="square">
@@ -1044,6 +1213,8 @@
 <div class="bm-desc-tooltip" id="bm-desc-tooltip"></div>
 
 <script src="vendor/gridstack-all.js"></script>
+<script src="../widgets/theme-engine.js"></script>
+<script src="../widgets/endpoints.js"></script>
 <!-- Integration widget classes + their live mounts (used by Add Widgets) -->
 <script src="../widgets/tautulli-widget.js"></script>
 <script src="../widgets/uptime-kuma-widget.js"></script>
@@ -1065,6 +1236,7 @@
 <script src="../widgets/system-health-widget.js"></script>
 <script src="../widgets/proxmox-widget.js"></script>
 <script src="../widgets/list-carousel.js"></script>
+<script src="../widgets/tautulli-stats-widgets.js"></script>
 <script src="../widgets/portainer-widget.js"></script>
 <script src="../widgets/stocks-widget.js"></script>
 <script src="../widgets/pbs-widget.js"></script>

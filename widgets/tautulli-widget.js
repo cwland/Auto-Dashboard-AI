@@ -59,6 +59,29 @@
         img, width: w || 300, height: h || 450, fallback: 'poster',
       });
     },
+
+    // Generic JSON API call → returns response.data (throws on error).
+    async _call(base, apiKey, cmd, params, signal) {
+      const res = await fetch(this.buildUrl(base, apiKey, cmd, params || {}), { cache: 'no-store', signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let json;
+      try { json = await res.json(); } catch { throw new Error('Invalid response from Tautulli'); }
+      const r = json && json.response;
+      if (!r || r.result !== 'success') throw new Error((r && r.message) || 'Tautulli returned an error');
+      return r.data;
+    },
+    async getRecentlyAdded(base, apiKey, count, signal) {
+      const d = await this._call(base, apiKey, 'get_recently_added', { count: count || 12 }, signal);
+      return (d && d.recently_added) || [];
+    },
+    async getHomeStats(base, apiKey, opts, signal) {
+      return (await this._call(base, apiKey, 'get_home_stats', {
+        time_range: (opts && opts.timeRange) || 30, stats_count: (opts && opts.count) || 10,
+      }, signal)) || [];
+    },
+    async getLibraries(base, apiKey, signal) {
+      return (await this._call(base, apiKey, 'get_libraries', {}, signal)) || [];
+    },
   };
 
   // ─── Small formatting helpers ─────────────────────────────────────────────
@@ -850,15 +873,16 @@
           ? `<span class="tlw-avatar" style="background:${escAttr(s.avatarColor || '#555')}"><img alt="" src="${escAttr(s.avatarImg)}"></span>`
           : `<span class="tlw-avatar" style="background:${escAttr(s.avatarColor || '#555')}">${escHtml(s.avatarInitial || '?')}</span>`;
         const pct = Math.max(0, Math.min(100, Number(s.progressPct) || 0));
+        const platform = s.platformIcon ? `<img class="tlw-platform" data-pf alt="" src="${escAttr(s.platformIcon)}">` : '';
         return `<div class="tlw-row">
-          <div class="tlw-user">${avatar}<span class="tlw-uname" title="${escAttr(s.username)}">${escHtml(s.username)}</span></div>
-          <div class="tlw-main">
-            <div class="tlw-rtitle" title="${escAttr(s.footTitle)}"><span class="tlw-state" title="${escAttr(s.state || '')}">${escHtml(s.stateIcon || '▶')}</span>${escHtml(s.footTitle)}</div>
-            <div class="tlw-rsub">${s.platformIcon ? `<img class="tlw-platform" data-pf alt="" src="${escAttr(s.platformIcon)}">` : ''}${sub}</div>
-            <div class="tlw-pb">${kv('Player', s.player)}${kv('Bandwidth', s.bandwidth)}</div>
-            <div class="tlw-prog-wrap"><div class="tlw-prog" style="width:${pct}%"></div></div>
-            <div class="tlw-foot">${kv('ETA', s.eta)}<span class="tlw-time" title="${escAttr(s.progressText)}">${escHtml(s.progressText || '')}</span></div>
+          <div class="tlw-head">
+            <span class="tlw-state" title="${escAttr(s.state || '')}">${escHtml(s.stateIcon || '▶')}</span>
+            <span class="tlw-rtitle" title="${escAttr(s.footTitle)}">${escHtml(s.footTitle)}</span>
+            <div class="tlw-user">${avatar}<span class="tlw-uname" title="${escAttr(s.username)}">${escHtml(s.username)}</span></div>
           </div>
+          <div class="tlw-meta">${platform}${sub ? `<span class="tlw-sub">${sub}</span>` : ''}${kv('Player', s.player)}${kv('Bandwidth', s.bandwidth)}</div>
+          <div class="tlw-prog-wrap"><div class="tlw-prog" style="width:${pct}%"></div></div>
+          <div class="tlw-foot">${kv('ETA', s.eta)}${kv('Time', s.progressText)}</div>
         </div>`;
       }).join('');
       // Hide platform icons that fail to load (CSP-safe; can't use inline onerror).

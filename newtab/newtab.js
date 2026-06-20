@@ -44,7 +44,10 @@ function applyTheme(theme) {
 
 // Apply the theme as early as possible (before first paint) to avoid a flash
 // of the default palette, then loadData() re-applies once settings are read.
-chrome.storage.local.get('settings', ({ settings: s }) => applyTheme(s && s.theme));
+chrome.storage.local.get('settings', ({ settings: s }) => {
+  if (window.ThemeEngine) ThemeEngine.injectCustomThemeStyles(s && s.customThemes);
+  applyTheme(s && s.theme);
+});
 
 const state = {
   dashboards: [],
@@ -82,8 +85,8 @@ const searchInput      = document.getElementById('search-input');
 const clockEl          = document.getElementById('clock');
 const dateEl           = document.getElementById('date-display');
 const rearrangeBtn     = document.getElementById('rearrange-btn');
-const rearrangeSaveBtn = document.getElementById('rearrange-save-btn');
-const rearrangeCancel  = document.getElementById('rearrange-cancel-btn');
+const rearrangeSaveBtn = document.getElementById('rt-save');     // Save lives in the floating tools menu
+const rearrangeCancel  = document.getElementById('rt-cancel');   // Cancel lives in the floating tools menu
 const editModal        = document.getElementById('edit-modal');
 const dashEditModal    = document.getElementById('dash-edit-modal');
 const dashEditBtn      = document.getElementById('dash-edit-btn');
@@ -123,6 +126,11 @@ async function loadData() {
   state.defaultDashboardId = stored.defaultDashboardId || null;
   settings                 = stored.settings            || {};
 
+  // Ensure multi-endpoint instances exist (in-memory) so widget placements can
+  // resolve their endpoint even if this profile predates the migration.
+  if (window.Endpoints) Endpoints.migrate(settings);
+
+  if (window.ThemeEngine) ThemeEngine.injectCustomThemeStyles(settings.customThemes);
   applyTheme(settings.theme);
 
   // Allow ?dash=dash_xxx to preview a specific dashboard (honored even if hidden).
@@ -304,8 +312,9 @@ function renderDashboard(dashId) {
   const nameEl = document.getElementById('dash-name-display');
   if (nameEl) nameEl.textContent = dash.name;
 
-  // Show/hide title text under icons — dashboard-wide default (true unless explicitly off)
-  dashboardArea.classList.toggle('text-hidden', dash.showText === false);
+  // Label visibility/placement is now per-section (data-textpos); the old
+  // dashboard-wide .text-hidden flag is no longer applied. Existing dashboards
+  // migrate via storedTextPos(), which inherits the legacy dash.showText value.
 
   dashboardArea.innerHTML = '';
   const cmp = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
@@ -354,9 +363,11 @@ let mountedWidgets = [];   // live integration widget instances on the board
 let widgetObserver = null; // resizes widget groupings to fit their content
 let gridInteracting = false; // true while the user is dragging/resizing an item
 const GRID_COLS = 24;   // denser grid → finer snapping + sections can go small
-const GRID_CELL = 32;   // px per grid row
+const GRID_CELL = 8;    // px per grid row — fine vertical snapping for consistent
+                        // section heights (old 32px snapping left an inconsistent
+                        // bottom gap; legacy layouts auto-migrate via dash.gridCell)
 const GRID_MIN_W = 2;   // minimum section width (cols)
-const GRID_MIN_H = 3;   // minimum section height (rows)
+const GRID_MIN_H = 12;  // minimum section height (rows) ≈ 96px
 
 // Gridstack ships horizontal (left/width %) CSS only for a 12-column grid.
 // For any other column count we generate the matching rules once.
@@ -386,6 +397,30 @@ const DEFAULT_ICON_SIZE = 'medium';
 function storedIconSize(name) {
   const dash = getActiveDash();
   return (dash && dash.layout && dash.layout[name] && dash.layout[name].iconSize) || DEFAULT_ICON_SIZE;
+}
+
+// Per-section label placement: 'above' | 'below' | 'none'. Stored in the
+// section's layout entry. Sections without an explicit value inherit the
+// dashboard's old global "show text" behaviour (migration default).
+const TEXT_POSITIONS = ['above', 'below', 'none'];
+// One control cycles through these in order: below → above → none → below.
+const TEXTPOS_GLYPH = { below: '↓', above: '↑', none: '⊘' };
+const TEXTPOS_NEXT = { below: 'above', above: 'none', none: 'below' };
+function textPosTitle(pos, small) {
+  if (small) return 'Small icons are always text-free';
+  const where = pos === 'above' ? 'above icons' : pos === 'below' ? 'below icons' : 'hidden';
+  return `Label: ${where} — click to cycle (↓ below → ↑ above → ⊘ none)`;
+}
+function storedTextPos(name) {
+  const dash = getActiveDash();
+  const lay = dash && dash.layout && dash.layout[name];
+  if (lay && TEXT_POSITIONS.includes(lay.textPos)) return lay.textPos;
+  return (dash && dash.showText === false) ? 'none' : 'below';
+}
+// Advance a section's label placement to the next state in the cycle.
+function cycleSectionTextPos(name) {
+  if (storedIconSize(name) === 'small') return;   // Small is icon-only
+  setSectionTextPos(name, TEXTPOS_NEXT[storedTextPos(name)] || 'below');
 }
 
 // Reflect a section's icon size on its DOM + the selector's active button.
@@ -424,15 +459,22 @@ const CONTENT_PAD_X = 26;  // grid-stack-item-content left+right padding (+ hair
 // content's horizontal padding is added so a single icon column never overflows.
 function sectionMinW(name, iconSize, cellW) {
   const spec = ICON_SIZES[iconSize] || ICON_SIZES.medium;
-  const innerPx = Math.max(spec.cellPx, nameMinPx(name), 100); // 100 ≈ selector row
+  const innerPx = Math.max(spec.cellPx, nameMinPx(name), 116); // 116 ≈ S/M/L + cycle-button selector row
   // Clamp to the column count — a min-w larger than max-w would wedge Gridstack
   // (sections become un-draggable / un-resizable).
   return Math.min(GRID_COLS, Math.max(GRID_MIN_W, Math.ceil((innerPx + CONTENT_PAD_X) / (cellW || 1))));
 }
 
-// Measure actual overflow and grow a section until its icon grid has NO
-// scrollbars (vertical or horizontal). This is exact (unlike the row estimate),
-// so it catches cases the estimate misses — e.g. switching to Large icons.
+// Consistent breathing room between the last icon row and the section's bottom
+// edge — the same at every icon size and row count.
+const SECTION_BOTTOM_GAP = 16;
+
+// Size a section so its icon grid is fully visible AND leaves a consistent gap
+// below the last row. We measure the REAL gap (frame bottom − last card bottom)
+// rather than relying on per-row estimates, which undershoot for medium cards
+// and leave the bottom too tight. Grow-only, so a hand-dragged taller section is
+// preserved and reloads stay stable (a section already at/above the target gap
+// is left untouched).
 function fitSectionToContent(el) {
   if (!gridInstance || !el) return;
   const node = el.gridstackNode;
@@ -442,8 +484,25 @@ function fitSectionToContent(el) {
   if (!node || !content || !grid || !gridStackEl) return;
   const cellW = (gridStackEl.clientWidth / GRID_COLS) || 1;
   let w = node.w, h = node.h, changed = false;
-  const overflowY = Math.max(grid.scrollHeight - grid.clientHeight, content.scrollHeight - content.clientHeight);
-  if (overflowY > 0.5) { h += Math.ceil(overflowY / GRID_CELL); changed = true; }
+
+  const cards = grid.querySelectorAll('.bookmark-card');
+  if (cards.length) {
+    // Measure the REAL gap below the last row and nudge the height so it lands on
+    // the target — grow OR shrink. With the fine grid this snaps the bottom gap
+    // to within a few px at every icon size and row count, and stays stable on
+    // reload (a section already at the target is left untouched).
+    const frameBottom = content.getBoundingClientRect().bottom;
+    let lastBottom = 0;
+    cards.forEach((c) => { lastBottom = Math.max(lastBottom, c.getBoundingClientRect().bottom); });
+    const gapNow = frameBottom - lastBottom;
+    const deltaCells = Math.round((SECTION_BOTTOM_GAP - gapNow) / GRID_CELL);
+    if (deltaCells !== 0) { h = Math.max(GRID_MIN_H, node.h + deltaCells); changed = true; }
+  } else {
+    // No measurable cards yet — fall back to the overflow check.
+    const overflowY = Math.max(grid.scrollHeight - grid.clientHeight, content.scrollHeight - content.clientHeight);
+    if (overflowY > 12) { h += Math.ceil(overflowY / GRID_CELL); changed = true; }
+  }
+
   const overflowX = content.scrollWidth - content.clientWidth;
   if (overflowX > 0.5) { w = Math.min(GRID_COLS, w + Math.ceil(overflowX / cellW)); changed = true; }
   if (changed) gridInstance.update(el, { w, h });
@@ -459,15 +518,21 @@ function fitWidgetToContent(el) {
   if (!gridInstance || !el) return;
   if (gridInteracting) return;        // don't fight an in-progress drag/resize
   if (el.dataset.manualSize) return;  // respect a size the user set by hand
+  if (el.dataset.lcNoFit === '1') return;  // carousel OFF — keep the size; the list scrolls
   const node = el.gridstackNode;
   const body = el.querySelector('.widget-body');
   if (!node || !body) return;
-  // Natural widget height = its rendered root content (not the body box).
-  let contentH = 0;
+  // Measure the widget's NATURAL height. The body is flex:1 + overflow:auto, so a
+  // self-filling widget would otherwise be measured at the (possibly too-short)
+  // cell height and keep its scrollbar. Briefly drop the constraint so it reports
+  // its true content height, then restore (no paint happens in between).
+  const sFlex = body.style.flex, sOverflow = body.style.overflow, sHeight = body.style.height;
+  body.style.flex = '0 0 auto'; body.style.overflow = 'visible'; body.style.height = 'auto';
+  let contentH = body.scrollHeight;
   for (const child of body.children) contentH = Math.max(contentH, child.scrollHeight, child.offsetHeight);
-  if (!contentH) contentH = body.scrollHeight;
+  body.style.flex = sFlex; body.style.overflow = sOverflow; body.style.height = sHeight;
   if (!contentH) return;
-  const HEADER = 16, PAD = 16;   // no section title — just content padding + grip room
+  const HEADER = 16, PAD = 18;   // grip room + a little breathing space below
   const needH = Math.max(GRID_MIN_H, Math.ceil((HEADER + contentH + PAD) / GRID_CELL));
   if (needH === node.h) return;
   const wasStatic = !state.rearrangeMode;
@@ -598,6 +663,12 @@ function autoResizeGroupings() {
   document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(tightenSection);
   gridInstance.commit();
   syncGridAttrs();
+  // The tighten estimate can land short of the consistent bottom gap, so enforce
+  // it once the new sizes are laid out.
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach(fitSectionToContent);
+    syncGridAttrs();
+  });
   markRearrangeChanged();
   showToast('Groups auto-resized ✓');
 }
@@ -628,7 +699,7 @@ function setSectionLiveMin(el) {
 
 // Grow a section if it's smaller than the space its icons need (final safety
 // net on release / size change / initial render).
-function enforceSectionMin(el) {
+function enforceSectionMin(el, grow = true) {
   if (!gridInstance || !el) return;
   const node = el.gridstackNode;
   const m = sectionMinCells(el);
@@ -636,14 +707,18 @@ function enforceSectionMin(el) {
   el.setAttribute('gs-min-w', m.minW);
   el.setAttribute('gs-min-h', m.minH);
   node.minW = m.minW; node.minH = m.minH;
+  if (!grow) return;     // load path: set the floor, but never inflate a saved size
   let w = node.w, h = node.h, changed = false;
   if (w < m.minW) { w = m.minW; changed = true; }
   if (h < m.minH) { h = m.minH; changed = true; }
   if (changed) gridInstance.update(el, { w, h });
 }
 
+// On initial render the saved layout is authoritative — only set the min
+// attributes (for later edit-mode resistance); don't grow sections, or a slightly
+// taller re-measured minimum would inflate every group on each refresh.
 function enforceAllSectionMins() {
-  document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach(enforceSectionMin);
+  document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach((el) => enforceSectionMin(el, false));
 }
 
 // Edit-mode handler: change a section's icon size, re-fit, and flag unsaved.
@@ -655,15 +730,54 @@ function setSectionIconSize(name, size) {
   const el = document.querySelector(`.grid-stack > .grid-stack-item[data-folder="${CSS.escape(name)}"]`);
   if (el) {
     applyIconSize(el, size);
-    enforceSectionMin(el);
-    // Auto-grow the section so the new icon size never causes scrollbars, even
-    // if the window/section isn't resized.
+    updateTextPosButtons(el, name);   // Small forces "No Text"; M/L restores the choice
+    // Let the new icon size lay out, THEN size the section with the same
+    // deterministic fit that Save uses — so the live size matches the saved one
+    // and the group only grows as much as the icons actually need (no transient
+    // over-expansion that shoves other groups around). setSectionLiveMin just
+    // refreshes the min constraint; it does not force-grow.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setSectionLiveMin(el);
+      fitSectionToContent(el);
+      syncGridAttrs();
+    }));
+  }
+  markRearrangeChanged();
+}
+
+// Edit-mode handler: set a section's label placement (above / below / none).
+// Stored as a preference; Small size always renders icon-only regardless.
+function setSectionTextPos(name, pos) {
+  const dash = getActiveDash();
+  if (!dash || !TEXT_POSITIONS.includes(pos)) return;
+  if (storedIconSize(name) === 'small') return;   // Small is icon-only; ignore
+  if (!dash.layout[name]) dash.layout[name] = {};
+  dash.layout[name].textPos = pos;
+  const el = document.querySelector(`.grid-stack > .grid-stack-item[data-folder="${CSS.escape(name)}"]`);
+  if (el) {
+    const sec = el.querySelector('.folder-section');
+    if (sec) sec.dataset.textpos = pos;
+    updateTextPosButtons(el, name);
     requestAnimationFrame(() => { fitSectionToContent(el); syncGridAttrs(); });
   }
   markRearrangeChanged();
 }
 
-// Small S/M/L selector shown on each section while editing.
+// Reflect the cycle button's glyph + state. Small icons are always text-free, so
+// the control shows "no text" and is disabled.
+function updateTextPosButtons(el, name) {
+  const btn = el.querySelector('.text-pos-cycle');
+  if (!btn) return;
+  const small = storedIconSize(name) === 'small';
+  const pos = small ? 'none' : storedTextPos(name);
+  btn.dataset.pos = pos;
+  btn.textContent = TEXTPOS_GLYPH[pos];
+  btn.disabled = small;
+  btn.title = textPosTitle(pos, small);
+}
+
+// Small S/M/L size selector + Above/Below/None text-placement controls, shown on
+// each section while editing.
 function buildIconSizeSelector(name, current) {
   const wrap = document.createElement('div');
   wrap.className = 'icon-size-sel';
@@ -678,6 +792,24 @@ function buildIconSizeSelector(name, current) {
     b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); setSectionIconSize(name, sz); });
     wrap.appendChild(b);
   });
+
+  const sep = document.createElement('span');
+  sep.className = 'size-sep';
+  wrap.appendChild(sep);
+
+  // Single control that rotates through label placements on each click.
+  const small = current === 'small';
+  const pos = small ? 'none' : storedTextPos(name);
+  const tp = document.createElement('button');
+  tp.type = 'button';
+  tp.className = 'text-pos-cycle';
+  tp.dataset.pos = pos;
+  tp.textContent = TEXTPOS_GLYPH[pos];
+  tp.disabled = small;
+  tp.title = textPosTitle(pos, small);
+  tp.addEventListener('pointerdown', (e) => e.stopPropagation());
+  tp.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); cycleSectionTextPos(name); });
+  wrap.appendChild(tp);
   return wrap;
 }
 
@@ -749,7 +881,7 @@ function ensureDashLayout(dash, folderNames, groups) {
     const key = '@w:' + wdef.uid;
     widgetKeys.add(key);
     if (!layout[key] || !Number.isFinite(layout[key].w)) {
-      const w = 8, h = 8;   // default widget size (auto-fit adjusts height after render)
+      const w = 8, h = 32;   // default widget size (~256px; auto-fit adjusts height after render)
       if (cx + w > GRID_COLS) { cx = 0; cy += rowH; rowH = 0; }
       layout[key] = { x: cx, y: cy, w, h };
       cx += w; rowH = Math.max(rowH, h);
@@ -807,6 +939,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
     content.appendChild(buildIconSizeSelector(name, iconSize)); // S/M/L pill straddling the box top
     const section = buildFolderSection(name, groups[name]);
     section.dataset.iconsize = iconSize;
+    section.dataset.textpos = storedTextPos(name);
     content.appendChild(section);
     item.appendChild(content);
     gridEl.appendChild(item);
@@ -830,7 +963,9 @@ function renderDashboardGrid(dash, folderNames, groups) {
 
     const content = document.createElement('div');
     content.className = 'grid-stack-item-content';
-    content.appendChild(buildWidgetSection(wdef));
+    const wsec = buildWidgetSection(wdef);
+    content.appendChild(wsec);
+    attachWidgetToolsBubble(content, wsec, wdef);
     item.appendChild(content);
     gridEl.appendChild(item);
   });
@@ -932,7 +1067,7 @@ function buildBookmarkCard(bm) {
   const card = document.createElement('a');
   card.className = 'bookmark-card';
   card.href = bm.url;
-  card.target = '_blank';
+  card.target = bm.newTab === false ? '_self' : '_blank';   // per-item "open in new tab"
   card.rel = 'noopener noreferrer';
   card.dataset.bmId  = bm.id;
   card.dataset.shape = shape;
@@ -1085,7 +1220,8 @@ function setupRearrangeControls() {
   rearrangeCancel.addEventListener('click', () => exitRearrangeMode(true));
 
   // Floating auto-layout tools (shown only in rearrange mode via CSS).
-  document.getElementById('rt-add-widget')?.addEventListener('click', openWidgetModal);
+  document.getElementById('rt-add-widget')?.addEventListener('click', openAddItemChooser);
+  setupAddItemFlow();
   document.getElementById('rt-autoresize')?.addEventListener('click', autoResizeGroupings);
   document.getElementById('rt-snap')?.addEventListener('click', snapGroupingsTogether);
   document.getElementById('rt-undo')?.addEventListener('click', undoAutoLayout);
@@ -1137,6 +1273,10 @@ const WIDGET_CATALOG = [
 }));
 WIDGET_CATALOG.push(
   { wid: 'tautulli-list', intId: 'tautulli-list', name: 'Tautulli Streams', icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+  { wid: 'tautulli-recent', intId: 'tautulli-recent', name: 'Tautulli Recently Added', icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+  { wid: 'tautulli-watch', intId: 'tautulli-watch', name: 'Tautulli Most Watched', icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+  { wid: 'tautulli-libraries', intId: 'tautulli-libraries', name: 'Tautulli Libraries', icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
+  { wid: 'tautulli-top', intId: 'tautulli-top', name: 'Tautulli Top Users', icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
   { wid: 'weather-combined', intId: 'weather-combined', name: 'Weather (Combined)', icon: '', enabledKey: 'weatherEnabled', emoji: '🌦️' },
   { wid: 'weather-current',  intId: 'weather-current',  name: 'Current Weather', icon: '', enabledKey: 'weatherEnabled', emoji: '🌤️' },
   { wid: 'weather-hourly',   intId: 'weather-hourly',   name: 'Hourly Forecast', icon: '', enabledKey: 'weatherEnabled', emoji: '🕐' },
@@ -1150,7 +1290,11 @@ function widgetEnabled(wid) { const w = widgetDef(wid); return !!(w && settings[
 // be picked independently as Live or Sample.
 let widgetSel = new Set();
 let widgetTab = 'live';   // 'live' | 'sample'
-const selKey = (wid, sample) => `${sample ? 'sample' : 'live'}:${wid}`;
+// Live keys carry the endpoint id so the same widget can be added for several
+// configured endpoints: "live:<wid>:<endpointId>". Sample keys stay "sample:<wid>".
+const selKey = (wid, sample, endpointId) => sample ? `sample:${wid}` : `live:${wid}:${endpointId || ''}`;
+const baseIntOf = (intId) => (typeof dashboardWidgetBaseInt === 'function' ? dashboardWidgetBaseInt(intId) : intId);
+const hasSampleMount = (wid) => typeof mountSampleWidget === 'function' && window.SAMPLE_MOUNTS && SAMPLE_MOUNTS[wid];
 
 function updateWidgetAddState() {
   const n = widgetSel.size;
@@ -1179,8 +1323,8 @@ function serviceMetaFor(key, widgets) {
 
 // One selectable widget card. `sample` renders it as a greyed preview whose
 // name carries a "(Sample)" tag.
-function buildWidgetPick(w, sample) {
-  const key = selKey(w.wid, sample);
+function buildWidgetPick(w, sample, endpointId) {
+  const key = selKey(w.wid, sample, endpointId);
   const card = document.createElement('div');
   card.className = 'widget-pick' + (sample ? ' is-sample' : '');
   card.dataset.selkey = key;
@@ -1222,14 +1366,33 @@ function renderWidgetModalBody() {
     return;
   }
 
-  // Group by active service → configuration (description) → widgets.
+  // Group by base integration → (multi-endpoint) one configuration block per
+  // endpoint → widgets. Single-instance services (Weather/Stocks) and the
+  // Sample tab render a single block as before.
   const descs = settings.integrationDescriptions || {};
   const groups = new Map();
   source.forEach((w) => {
-    const key = widgetServiceKey(w);
+    const key = baseIntOf(w.intId);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(w);
   });
+
+  // Helper: a labelled configuration block holding the widget picks.
+  const buildInstance = (widgets, label, endpointId) => {
+    const inst = document.createElement('div');
+    inst.className = 'widget-instance';
+    if (label) {
+      const dlabel = document.createElement('div');
+      dlabel.className = 'wg-i-desc';
+      dlabel.textContent = label;
+      inst.appendChild(dlabel);
+    }
+    const grid = document.createElement('div');
+    grid.className = 'widget-grid';
+    widgets.forEach((w) => grid.appendChild(buildWidgetPick(w, sample, endpointId)));
+    inst.appendChild(grid);
+    return inst;
+  };
 
   const wrap = document.createElement('div');
   wrap.className = 'widget-groups';
@@ -1249,24 +1412,17 @@ function renderWidgetModalBody() {
       head.appendChild(svc);
       group.appendChild(head);
 
-      // Configuration instance. Show a description label only when it adds
-      // information — i.e. the sample tag, or a custom description that differs
-      // from the service name (avoids "Weather / Weather" style repetition).
-      const inst = document.createElement('div');
-      inst.className = 'widget-instance';
-      const descText = sample ? 'Sample (demo data)' : (descs[key] || '');
-      if (descText && (sample || descText !== meta.name)) {
-        const dlabel = document.createElement('div');
-        dlabel.className = 'wg-i-desc';
-        dlabel.textContent = descText;
-        inst.appendChild(dlabel);
+      if (!sample && window.Endpoints && Endpoints.isMulti(key)) {
+        // One configuration block per named endpoint.
+        const eps = Endpoints.list(settings, key);
+        eps.forEach((ep) => group.appendChild(buildInstance(widgets, ep.name || 'Endpoint', ep.id)));
+        if (!eps.length) group.appendChild(buildInstance(widgets, 'No endpoints configured', null));
+      } else {
+        // Single configuration (Sample tab, or Weather/Stocks).
+        const descText = sample ? 'Sample (demo data)' : (descs[key] || '');
+        const label = (descText && (sample || descText !== meta.name)) ? descText : '';
+        group.appendChild(buildInstance(widgets, label, null));
       }
-
-      const grid = document.createElement('div');
-      grid.className = 'widget-grid';
-      widgets.forEach((w) => grid.appendChild(buildWidgetPick(w, sample)));
-      inst.appendChild(grid);
-      group.appendChild(inst);
       wrap.appendChild(group);
     });
 
@@ -1283,13 +1439,231 @@ function setWidgetTab(tab) {
   renderWidgetModalBody();
 }
 
+// ─── Unified "Add to dashboard" flow ─────────────────────────────────────────
+// The toolbar button opens a chooser (Bookmark / Widget / Manual item); each
+// path ends by placing items in a chosen section and re-rendering in place.
+
+// Grey out + lower the floating tools menu while any add dialog is open, so it
+// doesn't float over the popup. Re-activates once every add dialog is closed.
+function refreshToolsDimmed() {
+  const anyOpen = ['add-item-modal', 'add-bookmark-modal', 'manual-item-modal', 'widget-modal']
+    .some((id) => document.getElementById(id)?.classList.contains('visible'));
+  document.getElementById('rearrange-tools')?.classList.toggle('tools-dimmed', anyOpen);
+}
+
+function openAddItemChooser() { document.getElementById('add-item-modal')?.classList.add('visible'); refreshToolsDimmed(); }
+function closeAddItemChooser() { document.getElementById('add-item-modal')?.classList.remove('visible'); refreshToolsDimmed(); }
+
+// Sections (folders) present on the active dashboard, in display order.
+function currentDashFolders() {
+  const dash = getActiveDash();
+  if (!dash) return [];
+  const present = new Set((dash.bookmarks || []).map((b) => b.folder).filter(Boolean));
+  const ordered = [];
+  (dash.sectionOrder || []).forEach((s) => { if (present.has(s) && !ordered.includes(s)) ordered.push(s); });
+  present.forEach((s) => { if (!ordered.includes(s)) ordered.push(s); });
+  return ordered;
+}
+// Fill a <select> with the dashboard's sections + a "New section…" option.
+function populateSectionSelect(sel, newInput) {
+  if (!sel) return;
+  const folders = currentDashFolders();
+  sel.innerHTML = '';
+  folders.forEach((f) => { const o = document.createElement('option'); o.value = f; o.textContent = f; sel.appendChild(o); });
+  const o = document.createElement('option'); o.value = '__new__'; o.textContent = '➕ New section…'; sel.appendChild(o);
+  if (!folders.length) sel.value = '__new__';
+  const toggle = () => { if (newInput) newInput.style.display = sel.value === '__new__' ? 'block' : 'none'; };
+  toggle();
+  sel.onchange = toggle;
+}
+function resolveSection(sel, newInput) {
+  if (sel && sel.value === '__new__') return (newInput && newInput.value.trim()) || 'New Section';
+  return sel ? sel.value : 'New Section';
+}
+
+function genBmId() { return 'bm_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+
+// Accept a bare host ("example.com") by assuming https; reject anything that
+// isn't a valid http(s) URL. Returns the normalized href or null.
+function normalizeUrl(raw) {
+  if (!raw) return null;
+  let s = String(raw).trim();
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(s)) s = 'https://' + s;
+  try { const u = new URL(s); if (u.protocol === 'http:' || u.protocol === 'https:') return u.href; } catch (_) {}
+  return null;
+}
+
+// Re-render the active dashboard while keeping the scroll position.
+function rerenderPreserveScroll() {
+  const y = dashboardArea ? dashboardArea.scrollTop : 0;
+  renderDashboard(state.activeDashboardId);
+  requestAnimationFrame(() => { if (dashboardArea) dashboardArea.scrollTop = y; });
+}
+
+// Place bookmark/manual items into a section and persist + re-render. New
+// sections are appended to the order; the section auto-grows to fit (fit logic).
+async function addItemsToDash(bms, folder) {
+  const dash = getActiveDash();
+  if (!dash || !bms.length) return 0;
+  if (!Array.isArray(dash.bookmarks)) dash.bookmarks = [];
+  if (!Array.isArray(dash.sectionOrder)) dash.sectionOrder = [];
+  bms.forEach((bm) => { bm.folder = folder; dash.bookmarks.push(bm); });
+  if (!dash.sectionOrder.includes(folder)) dash.sectionOrder.push(folder);
+  await chromeSet({ dashboards: state.dashboards });
+  rerenderPreserveScroll();
+  return bms.length;
+}
+
+// ── Manual item ──
+let miUploadData = null;
+function showMiError(msg) { const e = document.getElementById('mi-error'); if (e) { e.textContent = msg; e.style.display = 'block'; } }
+function hideMiError() { const e = document.getElementById('mi-error'); if (e) e.style.display = 'none'; }
+function openManualItemModal() {
+  ['mi-name', 'mi-url', 'mi-desc', 'mi-icon', 'mi-section-new'].forEach((id) => { const e = document.getElementById(id); if (e) { e.value = ''; e.classList.remove('invalid'); } });
+  document.getElementById('mi-emoji').value = '🔗';
+  document.getElementById('mi-newtab').checked = true;
+  const up = document.getElementById('mi-upload'); if (up) up.value = '';
+  miUploadData = null;
+  hideMiError();
+  populateSectionSelect(document.getElementById('mi-section'), document.getElementById('mi-section-new'));
+  document.getElementById('manual-item-modal').classList.add('visible');
+  refreshToolsDimmed();
+  document.getElementById('mi-name').focus();
+}
+function closeManualItemModal() { document.getElementById('manual-item-modal').classList.remove('visible'); refreshToolsDimmed(); }
+async function saveManualItem() {
+  const nameEl = document.getElementById('mi-name'), urlEl = document.getElementById('mi-url');
+  const sel = document.getElementById('mi-section'), newInput = document.getElementById('mi-section-new');
+  nameEl.classList.remove('invalid'); urlEl.classList.remove('invalid');
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.classList.add('invalid'); showMiError('Please enter a name.'); nameEl.focus(); return; }
+  const url = normalizeUrl(urlEl.value);
+  if (!url) { urlEl.classList.add('invalid'); showMiError('Please enter a valid URL, e.g. https://example.com'); urlEl.focus(); return; }
+  if (sel.value === '__new__' && !newInput.value.trim()) { showMiError('Please name the new section.'); newInput.focus(); return; }
+  const iconUrl = document.getElementById('mi-icon').value.trim();
+  const emoji = document.getElementById('mi-emoji').value.trim() || '🔗';
+  const bm = {
+    id: genBmId(), title: name, url,
+    description: document.getElementById('mi-desc').value.trim(),
+    resolved_icon: miUploadData || iconUrl || null,
+    icon_emoji: emoji,
+    emoji_is_custom: !iconUrl && !miUploadData,
+    newTab: document.getElementById('mi-newtab').checked,
+    shape: (getActiveDash() && getActiveDash().defaultShape) || 'rounded',
+  };
+  await addItemsToDash([bm], resolveSection(sel, newInput));
+  closeManualItemModal();
+  showToast('Item added ✓');
+}
+
+// ── Browser-bookmark picker ──
+let bmPickerAll = [];          // [{title,url}] or null if unavailable
+let bmPickerSel = new Set();   // selected urls
+async function loadBrowserBookmarks() {
+  if (!(typeof chrome !== 'undefined' && chrome.bookmarks && chrome.bookmarks.getTree)) return null;
+  try {
+    const [root] = await chrome.bookmarks.getTree();
+    const out = [];
+    (function walk(n) { if (!n) return; if (n.url) out.push({ title: n.title || n.url, url: n.url }); (n.children || []).forEach(walk); })(root);
+    const seen = new Set();
+    return out.filter((b) => { if (seen.has(b.url)) return false; seen.add(b.url); return true; });
+  } catch (_) { return null; }
+}
+function updateBmPickerCount() {
+  const n = bmPickerSel.size;
+  document.getElementById('add-bm-count').textContent = n ? `${n} selected` : 'None selected';
+  document.getElementById('add-bm-add').disabled = n === 0;
+}
+function renderBmPicker(q) {
+  const list = document.getElementById('add-bm-list');
+  if (!list) return;
+  if (bmPickerAll === null) { list.innerHTML = '<div class="add-bm-empty">Bookmark access isn’t available here.</div>'; return; }
+  const items = bmPickerAll.filter((b) => !q || b.title.toLowerCase().includes(q) || b.url.toLowerCase().includes(q)).slice(0, 500);
+  list.innerHTML = '';
+  if (!items.length) { list.innerHTML = '<div class="add-bm-empty">No bookmarks match.</div>'; return; }
+  items.forEach((b) => {
+    const row = document.createElement('label'); row.className = 'add-bm-row';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = bmPickerSel.has(b.url);
+    cb.addEventListener('change', () => { if (cb.checked) bmPickerSel.add(b.url); else bmPickerSel.delete(b.url); updateBmPickerCount(); });
+    const main = document.createElement('div'); main.className = 'abm-main';
+    const t = document.createElement('div'); t.className = 'abm-title'; t.textContent = b.title;
+    const u = document.createElement('div'); u.className = 'abm-url'; u.textContent = b.url;
+    main.append(t, u); row.append(cb, main); list.appendChild(row);
+  });
+}
+async function openAddBookmarkModal() {
+  bmPickerSel = new Set();
+  const search = document.getElementById('add-bm-search'); if (search) search.value = '';
+  populateSectionSelect(document.getElementById('add-bm-section'), document.getElementById('add-bm-section-new'));
+  document.getElementById('add-bm-list').innerHTML = '<div class="add-bm-empty">Loading bookmarks…</div>';
+  updateBmPickerCount();
+  document.getElementById('add-bookmark-modal').classList.add('visible');
+  refreshToolsDimmed();
+  bmPickerAll = await loadBrowserBookmarks();
+  renderBmPicker('');
+}
+function closeAddBookmarkModal() { document.getElementById('add-bookmark-modal').classList.remove('visible'); refreshToolsDimmed(); }
+async function addSelectedBrowserBookmarks() {
+  if (!bmPickerSel.size) return;
+  const sel = document.getElementById('add-bm-section'), newInput = document.getElementById('add-bm-section-new');
+  if (sel.value === '__new__' && !newInput.value.trim()) { newInput.focus(); return; }
+  const dash = getActiveDash();
+  const byUrl = new Map((bmPickerAll || []).map((b) => [b.url, b]));
+  const bms = [...bmPickerSel].map((url) => {
+    const b = byUrl.get(url) || { url, title: url };
+    return { id: genBmId(), title: b.title, url: b.url, description: '', resolved_icon: null, icon_emoji: '🔗', newTab: true, shape: (dash && dash.defaultShape) || 'rounded' };
+  });
+  const n = await addItemsToDash(bms, resolveSection(sel, newInput));
+  closeAddBookmarkModal();
+  showToast(`${n} bookmark${n === 1 ? '' : 's'} added ✓`);
+}
+
+function setupAddItemFlow() {
+  const closeChooser = () => closeAddItemChooser();
+  document.getElementById('add-item-close')?.addEventListener('click', closeChooser);
+  document.getElementById('add-item-modal')?.addEventListener('click', (e) => { if (e.target.id === 'add-item-modal') closeChooser(); });
+  document.getElementById('choice-bookmark')?.addEventListener('click', () => { closeChooser(); openAddBookmarkModal(); });
+  document.getElementById('choice-widget')?.addEventListener('click', () => { closeChooser(); openWidgetModal(); });
+  document.getElementById('choice-manual')?.addEventListener('click', () => { closeChooser(); openManualItemModal(); });
+
+  // Browser-bookmark picker
+  document.getElementById('add-bm-close')?.addEventListener('click', closeAddBookmarkModal);
+  document.getElementById('add-bm-cancel')?.addEventListener('click', closeAddBookmarkModal);
+  document.getElementById('add-bookmark-modal')?.addEventListener('click', (e) => { if (e.target.id === 'add-bookmark-modal') closeAddBookmarkModal(); });
+  document.getElementById('add-bm-add')?.addEventListener('click', addSelectedBrowserBookmarks);
+  document.getElementById('add-bm-search')?.addEventListener('input', (e) => renderBmPicker(e.target.value.toLowerCase().trim()));
+
+  // Manual item
+  document.getElementById('mi-close')?.addEventListener('click', closeManualItemModal);
+  document.getElementById('mi-cancel')?.addEventListener('click', closeManualItemModal);
+  document.getElementById('manual-item-modal')?.addEventListener('click', (e) => { if (e.target.id === 'manual-item-modal') closeManualItemModal(); });
+  document.getElementById('mi-save')?.addEventListener('click', saveManualItem);
+  document.getElementById('mi-upload')?.addEventListener('change', (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) { miUploadData = null; return; }
+    if (f.size > 512 * 1024) { showMiError('Icon image must be under 512 KB.'); e.target.value = ''; miUploadData = null; return; }
+    const r = new FileReader();
+    r.onload = () => { miUploadData = r.result; hideMiError(); };
+    r.readAsDataURL(f);
+  });
+
+  // Esc closes whichever add-flow modal is open.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    ['add-item-modal', 'add-bookmark-modal', 'manual-item-modal'].forEach((id) => document.getElementById(id)?.classList.remove('visible'));
+    refreshToolsDimmed();
+  });
+}
+
 function openWidgetModal() {
   widgetSel = new Set();
   setWidgetTab('live');   // always start on Live, fresh selection
   document.getElementById('widget-modal')?.classList.add('visible');
+  refreshToolsDimmed();
 }
 function closeWidgetModal() {
   document.getElementById('widget-modal')?.classList.remove('visible');
+  refreshToolsDimmed();
 }
 
 async function addSelectedWidgets() {
@@ -1297,20 +1671,85 @@ async function addSelectedWidgets() {
   if (!dash || !widgetSel.size) return;
   if (!Array.isArray(dash.widgets)) dash.widgets = [];
   const n = widgetSel.size;
+  const newDefs = [];
   widgetSel.forEach((key) => {
-    const sample = key.startsWith('sample:');
-    const wid = key.slice(key.indexOf(':') + 1);
+    const parts = key.split(':');
+    const sample = parts[0] === 'sample';
+    const wid = parts[1];
+    const endpointId = sample ? null : (parts[2] || null);
     const w = widgetDef(wid);
     if (!w) return;
     const uid = 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const entry = { uid, wid: w.wid, intId: w.intId, name: w.name };
     if (sample) entry.sample = true;
+    if (endpointId) {
+      entry.endpointId = endpointId;
+      // Title the placement with the endpoint name when the service has >1 endpoint.
+      const base = baseIntOf(w.intId);
+      if (window.Endpoints) {
+        const ep = Endpoints.get(settings, base, endpointId);
+        if (ep && Endpoints.count(settings, base) > 1) { entry.endpointName = ep.name; entry.name = `${w.name} — ${ep.name}`; }
+        else if (ep) { entry.endpointName = ep.name; }
+      }
+    }
     dash.widgets.push(entry);
+    newDefs.push(entry);
   });
-  await chromeSet({ dashboards: state.dashboards });
   closeWidgetModal();
-  renderDashboard(state.activeDashboardId);   // re-render with the new widget groupings
+  // Add each new widget to the grid IN PLACE so no other section/widget reflows
+  // or re-fits (a full re-render was expanding everything else).
+  newDefs.forEach((wdef) => addWidgetItemInPlace(wdef));
+  setupWidgetAutoFit();   // observe the new widgets for async/late content
+  await chromeSet({ dashboards: state.dashboards });
   showToast('Widget' + (n > 1 ? 's' : '') + ' added ✓');
+}
+
+// Persist a single widget's grid geometry (after placement / auto-fit) without
+// touching anything else.
+function persistWidgetPos(uid) {
+  const dash = getActiveDash();
+  const el = document.querySelector(`.grid-stack > .grid-stack-item[data-widget="${uid}"]`);
+  if (!dash || !el || !el.gridstackNode) return;
+  const n = el.gridstackNode;
+  dash.layout = dash.layout || {};
+  dash.layout['@w:' + uid] = Object.assign({}, dash.layout['@w:' + uid], { x: n.x, y: n.y, w: n.w, h: n.h });
+  chromeSet({ dashboards: state.dashboards });
+}
+
+// Build one widget grid item and drop it into the live grid via Gridstack
+// (auto-positioned into the first free spot), then size it to its content so it
+// shows with no scrollbar. Leaves every existing item untouched.
+function addWidgetItemInPlace(wdef) {
+  const gridEl = gridInstance && gridInstance.el;
+  if (!gridInstance || !gridEl) { renderDashboard(state.activeDashboardId); return; }
+  const item = document.createElement('div');
+  item.className = 'grid-stack-item';
+  item.dataset.widget = wdef.uid;
+  item.setAttribute('gs-w', 8);
+  item.setAttribute('gs-h', 40);           // generous default; auto-fit trims to content
+  item.setAttribute('gs-min-w', 3);
+  item.setAttribute('gs-min-h', GRID_MIN_H);
+  item.setAttribute('gs-max-w', GRID_COLS);
+  item.setAttribute('gs-auto-position', 'true');
+  const content = document.createElement('div');
+  content.className = 'grid-stack-item-content';
+  const wsec = buildWidgetSection(wdef);
+  content.appendChild(wsec);
+  attachWidgetToolsBubble(content, wsec, wdef);
+  item.appendChild(content);
+
+  const wasStatic = !state.rearrangeMode;
+  if (wasStatic) gridInstance.setStatic(false);
+  gridEl.appendChild(item);
+  gridInstance.makeWidget(item);
+  if (wasStatic) gridInstance.setStatic(true);
+
+  persistWidgetPos(wdef.uid);
+  // Size to content once the widget has mounted (sample data is synchronous;
+  // live widgets fill in later — the ResizeObserver from setupWidgetAutoFit
+  // catches those).
+  requestAnimationFrame(() => { fitWidgetToContent(item); persistWidgetPos(wdef.uid); });
+  setTimeout(() => { fitWidgetToContent(item); persistWidgetPos(wdef.uid); }, 400);
 }
 
 // Remove a widget's placement from the active dashboard (edit-mode delete).
@@ -1323,14 +1762,21 @@ async function removeWidgetGrouping(uid) {
   dash.widgets = dash.widgets.filter((x) => x.uid !== uid);
   if (dash.widgets.length === before) return;     // nothing removed
   if (dash.layout) delete dash.layout['@w:' + uid];
-  await chromeSet({ dashboards: state.dashboards });
-  // Preserve scroll — renderDashboard rebuilds the area (which would reset it).
-  const scrollY = dashboardArea ? dashboardArea.scrollTop : 0;
-  renderDashboard(state.activeDashboardId);        // rebuild (stays in edit mode)
-  if (dashboardArea) {
-    dashboardArea.scrollTop = scrollY;
-    requestAnimationFrame(() => { dashboardArea.scrollTop = scrollY; });
+
+  // Remove ONLY this item from the grid — never re-render the whole board, so
+  // every other section/widget stays exactly where and how it is (no re-fit).
+  const el = document.querySelector(`.grid-stack > .grid-stack-item[data-widget="${uid}"]`);
+  if (el) {
+    const sec = el.querySelector('.widget-section');
+    const inst = sec && sec._inst;
+    if (inst) {
+      try { (inst.destroy || inst.stop || function () {}).call(inst); } catch (_) {}
+      mountedWidgets = mountedWidgets.filter((x) => x !== inst);
+    }
+    if (gridInstance) gridInstance.removeWidget(el, true);   // removes node + DOM, no reflow (float)
+    else el.remove();
   }
+  await chromeSet({ dashboards: state.dashboards });
   showToast('Widget removed ✓');
 }
 
@@ -1359,6 +1805,19 @@ function applyCarouselOpts(wdef, opts) {
 
 // Build a widget grouping for the board (no S/M/L pill; shows a disabled notice
 // when the service is turned off).
+// Move a widget's config controls into a floating pill that straddles the top
+// border (edit mode), matching the section S/M/L selector. Sample widgets are
+// static, so they get no bubble (and their in-widget tools are hidden via CSS).
+function attachWidgetToolsBubble(content, sec, wdef) {
+  if (!content || !sec || (wdef && wdef.sample)) return;
+  const tools = sec.querySelectorAll('.lc-tools, .pc-tools');
+  if (!tools.length) return;
+  const bubble = document.createElement('div');
+  bubble.className = 'widget-tools-bubble';
+  tools.forEach((t) => bubble.appendChild(t));   // relocate the controls into the overlay
+  content.appendChild(bubble);
+}
+
 function buildWidgetSection(wdef) {
   const sec = document.createElement('div');
   sec.className = 'widget-section';
@@ -1397,6 +1856,7 @@ function buildWidgetSection(wdef) {
     let inst = (typeof mountSampleWidget === 'function') ? mountSampleWidget(wdef.wid, bodyEl) : null;
     if (inst) {
       mountedWidgets.push(inst);
+      sec._inst = inst;   // so a single delete can stop just this instance
     } else {
       bodyEl.innerHTML = '';
       const ph = document.createElement('div'); ph.className = 'widget-placeholder';
@@ -1410,6 +1870,9 @@ function buildWidgetSection(wdef) {
     return sec;
   }
 
+  // An enabled multi-endpoint service whose specific endpoint was deleted still
+  // passes this gate (enabledKey stays true) and reaches the live mount, which
+  // resolves the missing endpoint to a "configuration removed" notice.
   if (!widgetEnabled(wdef.wid)) {
     bodyEl.innerHTML =
       '<div class="widget-disabled"><div style="font-size:24px;">⚠️</div>' +
@@ -1462,17 +1925,24 @@ function buildWidgetSection(wdef) {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });
         };
-      } else if (wdef.intId === 'stocks' || wdef.intId === 'tautulli-list') {
+      } else if (wdef.intId === 'stocks' || wdef.intId === 'tautulli-list' || wdef.intId === 'tautulli-recent' || wdef.intId === 'tautulli-watch') {
         applyCarouselOpts(wdef, opts);
         opts.onConfigChange = (patch) => {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });
         };
       }
+      if (wdef.endpointId) {
+        opts.endpointId = wdef.endpointId;
+        // Label used by the "configuration removed" notice if this endpoint is gone.
+        const svcName = (w && w.name) || wdef.name;
+        opts.removedLabel = wdef.endpointName ? `${svcName} — ${wdef.endpointName}` : wdef.name;
+      }
       inst = mountDashboardWidget(wdef.intId, bodyEl, settings, opts);
     }
     if (inst) {
       mountedWidgets.push(inst);
+      sec._inst = inst;   // so a single delete can stop just this instance
     } else {
       bodyEl.innerHTML = '';
       const ph = document.createElement('div'); ph.className = 'widget-placeholder';
@@ -1492,40 +1962,9 @@ function buildWidgetSection(wdef) {
 function setupRearrangeToolsMenu() {
   const menu = document.getElementById('rearrange-tools');
   if (!menu) return;
-  const grip = menu.querySelector('.rt-grip');
   const tip = document.getElementById('rt-tip');
 
-  // Restore a previously dragged position.
-  try {
-    const p = JSON.parse(sessionStorage.getItem('adai_tools_pos') || 'null');
-    if (p && Number.isFinite(p.left) && Number.isFinite(p.top)) {
-      menu.style.left = p.left + 'px'; menu.style.top = p.top + 'px'; menu.style.right = 'auto';
-    }
-  } catch (_) { /* ignore */ }
-
-  // Drag by the grip.
-  if (grip) {
-    grip.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      const rect = menu.getBoundingClientRect();
-      const ox = e.clientX - rect.left, oy = e.clientY - rect.top;
-      menu.style.right = 'auto';
-      const move = (ev) => {
-        const left = Math.max(4, Math.min(window.innerWidth - rect.width - 4, ev.clientX - ox));
-        const top = Math.max(4, Math.min(window.innerHeight - rect.height - 4, ev.clientY - oy));
-        menu.style.left = left + 'px'; menu.style.top = top + 'px';
-      };
-      const up = () => {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-        const r = menu.getBoundingClientRect();
-        try { sessionStorage.setItem('adai_tools_pos', JSON.stringify({ left: r.left, top: r.top })); } catch (_) {}
-      };
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-    });
-  }
-
+  // The bar is fixed at top-center (CSS) and no longer draggable.
   // Hover description tooltips.
   menu.querySelectorAll('.rt-btn').forEach((b) => {
     b.addEventListener('mouseenter', () => {
@@ -1537,6 +1976,7 @@ function setupRearrangeToolsMenu() {
   });
 }
 
+
 // Snapshot of dash.layout taken when entering edit mode, used to revert on Cancel.
 let layoutSnapshot = null;
 
@@ -1544,12 +1984,15 @@ function enterRearrangeMode() {
   state.rearrangeMode     = true;
   state.rearrangeModified = false;
   document.body.classList.add('rearrange-mode');
-  // Swap the top "Rearrange" button for Save + Cancel.
-  rearrangeBtn.style.display = 'none';
-  rearrangeSaveBtn.style.display = '';
-  rearrangeCancel.style.display = '';
+  // The top button becomes a non-clickable "Editing Dashboard" label; Save and
+  // Cancel now live in the floating tools menu.
+  rearrangeBtn.textContent = '✎ Editing Dashboard';
+  rearrangeBtn.classList.add('editing');
+  rearrangeBtn.disabled = true;
   rearrangeSaveBtn.classList.remove('has-changes');
   searchInput.blur();
+
+  // (No shake — the tools bar opens cleanly with no animation/layout shift.)
 
   // Fresh undo state for the floating auto-layout tools.
   layoutUndo = null;
@@ -1576,10 +2019,10 @@ function exitRearrangeMode(discard = false) {
   state.rearrangeMode     = false;
   state.rearrangeModified = false;
   document.body.classList.remove('rearrange-mode');
-  // Restore the top "Rearrange" button; hide Save + Cancel.
-  rearrangeBtn.style.display = '';
-  rearrangeSaveBtn.style.display = 'none';
-  rearrangeCancel.style.display = 'none';
+  // Restore the clickable "Rearrange" button.
+  rearrangeBtn.textContent = '✎ Edit Dashboard';
+  rearrangeBtn.classList.remove('editing');
+  rearrangeBtn.disabled = false;
   rearrangeSaveBtn.classList.remove('has-changes');
 
   // Re-lock the grid.
@@ -1613,7 +2056,8 @@ function captureGridLayout(dash) {
       // Merge so we keep the chosen iconSize, captured from the live data attr.
       const sec = n.el.querySelector('.folder-section');
       const iconSize = (sec && sec.dataset.iconsize) || (layout[name] && layout[name].iconSize) || DEFAULT_ICON_SIZE;
-      layout[name] = Object.assign({}, layout[name], { x: n.x, y: n.y, w: n.w, h: n.h, iconSize });
+      const textPos = (sec && sec.dataset.textpos) || (layout[name] && layout[name].textPos);
+      layout[name] = Object.assign({}, layout[name], { x: n.x, y: n.y, w: n.w, h: n.h, iconSize }, textPos ? { textPos } : {});
     } else if (widgetUid) {
       const k = '@w:' + widgetUid;
       // Remember whether the user hand-sized this widget, so auto-fit doesn't
@@ -2083,7 +2527,6 @@ function openDashEditModal() {
   if (!dash) return;
 
   document.getElementById('dash-edit-name').value = dash.name || '';
-  document.getElementById('dash-edit-text-toggle').checked = dash.showText !== false;
   selectShapeOption('dash-edit-shape-picker', dash.defaultShape || 'rounded');
 
   dashEditModal.classList.add('visible');
@@ -2096,7 +2539,6 @@ async function saveDashEdit() {
 
   const newName = document.getElementById('dash-edit-name').value.trim();
   dash.name        = newName || dash.name;
-  dash.showText    = document.getElementById('dash-edit-text-toggle').checked;
   dash.defaultShape = getSelectedShape('dash-edit-shape-picker', dash.defaultShape || 'rounded');
 
   await chromeSet({ dashboards: state.dashboards });
@@ -2246,7 +2688,7 @@ function showNewTabDisabled() {
 function showEmptyState() {
   dashboardArea.innerHTML = `
     <div style="height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;text-align:center;color:var(--text-muted);padding:40px;">
-      <div style="font-size:56px;">🤖</div>
+      <div><img src="../icons/robot.svg" alt="" style="width:64px;height:64px;object-fit:contain;"></div>
       <div>
         <div style="font-size:22px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Welcome to Auto Dashboard AI</div>
         <div style="font-size:14px;color:var(--text-secondary);margin-bottom:20px;">Create your first dashboard from your bookmarks.</div>

@@ -101,10 +101,27 @@
     const gap = parseFloat(cs.rowGap || cs.gap || '0') || 0;
     const n = items.length;
     const sumH = items.reduce((s, el) => s + el.getBoundingClientRect().height, 0);
-    const overflowing = n > this.visibleCount;
     this._loopDist = 0;
 
-    // Everything fits — no window, no scroll mechanism needed.
+    // Carousel OFF → ignore the visible-item limit ENTIRELY. Every row stays
+    // rendered (no slicing/window); the widget's own scrollable body (flex:1 +
+    // overflow:auto) provides a native scrollbar. Auto-fit is suppressed so the
+    // widget container does NOT grow to fit them all.
+    if (!this.enabled) {
+      this.viewport.style.height = '';
+      this.viewport.style.overflow = 'visible';
+      this.viewport.style.cursor = '';
+      this.viewport.style.touchAction = '';
+      this.track.style.transform = '';
+      this.offset = 0;
+      this._setAutoFitSuppressed(true);
+      return;
+    }
+    this._setAutoFitSuppressed(false);
+
+    const overflowing = n > this.visibleCount;
+
+    // Carousel ON + everything fits — no window, no scroll mechanism needed.
     if (!overflowing) {
       this.viewport.style.height = '';
       this.viewport.style.overflow = '';
@@ -115,22 +132,10 @@
       return;
     }
 
-    // Viewport is a fixed window of exactly `visibleCount` items in both modes.
+    // Carousel ON + overflowing → fixed window of exactly `visibleCount` items,
+    // no scrollbar; drag + continuous auto-scroll with a seamless clone.
     const vis = Math.min(this.visibleCount, n);
     this.viewport.style.height = (vis * firstH + gap * (vis - 1)) + 'px';
-
-    if (!this.enabled) {
-      // Carousel OFF → native scrollbar; all items reachable, no auto-scroll.
-      this.viewport.style.overflow = 'auto';
-      this.viewport.style.cursor = '';
-      this.viewport.style.touchAction = '';
-      this.track.style.transform = '';
-      this.offset = 0;
-      return;
-    }
-
-    // Carousel ON → no scrollbar; drag + continuous auto-scroll with a seamless
-    // clone of the items following the originals.
     this.viewport.style.overflow = 'hidden';
     this.viewport.style.cursor = 'grab';
     this.viewport.style.touchAction = 'pan-x';
@@ -157,10 +162,21 @@
 
   ListCarousel.prototype._stop = function () { if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; } this._last = 0; };
 
+  // Flag the host grid item so the dashboard's widget auto-fit leaves it alone
+  // (used in OFF mode so the container doesn't grow to fit the full row list).
+  ListCarousel.prototype._setAutoFitSuppressed = function (on) {
+    const gi = (this.root && this.root.closest) ? this.root.closest('.grid-stack-item') : null;
+    if (!gi) return;
+    if (on) gi.dataset.lcNoFit = '1'; else delete gi.dataset.lcNoFit;
+  };
+
   // Apply config changes (enabled / visibleCount / speed) and re-layout.
   ListCarousel.prototype.update = function (patch) {
     if (!patch) return;
+    // `carousel` is the key buildControls/widgets persist; treat it as `enabled`
+    // so the Scroll on/off toggle actually starts/stops the auto-scroll.
     if (patch.enabled != null) this.enabled = !!patch.enabled;
+    if (patch.carousel != null) this.enabled = !!patch.carousel;
     if (patch.visibleCount != null) this.visibleCount = Math.max(1, parseInt(patch.visibleCount, 10) || this.visibleCount);
     if (patch.speed != null) this.speed = Math.max(2, parseInt(patch.speed, 10) || this.speed);
     this.layout();
@@ -181,6 +197,7 @@
 
   ListCarousel.prototype.destroy = function () {
     this.destroyed = true;
+    this._setAutoFitSuppressed(false);   // never leave the grid item flagged
     this._stop();
     if (this._holdTimer) { clearTimeout(this._holdTimer); this._holdTimer = null; }
     if (this.root) {
@@ -211,11 +228,23 @@
     };
     const label = (t) => { const s = document.createElement('span'); s.style.cssText = S.lbl; s.textContent = t; return s; };
 
-    // Scroll on/off
+    // Scroll on/off — a non-interactive "Scroll" label + a clickable ON/OFF
+    // action button. Only the button toggles; the label and anything else around
+    // it do nothing. The button shows the ACTION: while scrolling it reads OFF
+    // (click to stop); while stopped it reads ON (click to start).
     const g0 = document.createElement('span'); g0.style.cssText = S.grp;
+    g0.appendChild(label('Scroll'));
     const tog = document.createElement('button'); tog.type = 'button'; tog.style.cssText = S.tog;
-    const drawTog = () => { tog.textContent = 'Scroll ' + (cfg.carousel ? 'On' : 'Off'); };
-    tog.addEventListener('click', () => { cfg.carousel = !cfg.carousel; drawTog(); onChange({ carousel: cfg.carousel }); });
+    const drawTog = () => {
+      tog.textContent = cfg.carousel ? 'OFF' : 'ON';
+      tog.title = cfg.carousel ? 'Turn auto-scroll off' : 'Turn auto-scroll on';
+    };
+    tog.addEventListener('click', (e) => {
+      e.stopPropagation();                  // only this button changes state
+      cfg.carousel = !cfg.carousel;
+      drawTog();
+      onChange({ carousel: cfg.carousel });
+    });
     g0.appendChild(tog); drawTog(); toolsEl.appendChild(g0);
 
     const stepper = (lbl, key, min, max, step, suffix) => {
