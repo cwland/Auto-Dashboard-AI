@@ -746,6 +746,42 @@ function setSectionIconSize(name, size) {
   markRearrangeChanged();
 }
 
+// Whether a section shows host-reachability indicators (default off — no checks
+// run, no dots shown, until the user enables it).
+function storedHostStatus(name) {
+  const dash = getActiveDash();
+  return !!(dash && dash.layout && dash.layout[name] && dash.layout[name].hostStatus);
+}
+
+// Edit-mode handler: toggle a section's host-reachability monitoring. Persists
+// with the section layout and updates that section's cards live (no re-render).
+function setSectionHostStatus(name, on) {
+  const dash = getActiveDash();
+  if (!dash) return;
+  dash.layout = dash.layout || {};
+  if (!dash.layout[name]) dash.layout[name] = {};
+  dash.layout[name].hostStatus = !!on;
+  chromeSet({ dashboards: state.dashboards });   // persist immediately
+  const el = document.querySelector(`.grid-stack > .grid-stack-item[data-folder="${CSS.escape(name)}"]`);
+  if (el) {
+    el.querySelectorAll('.bookmark-card').forEach((card) => {
+      if (on) attachHostDot(card, card.getAttribute('href'));
+      else detachHostDot(card);
+    });
+    updateHostStatusToggle(el, name);
+  }
+  markRearrangeChanged();
+}
+
+// Reflect the section toolbar's host-status toggle (green = on, red = off).
+function updateHostStatusToggle(el, name) {
+  const btn = el.querySelector('.host-status-toggle');
+  if (!btn) return;
+  const on = storedHostStatus(name);
+  btn.classList.toggle('on', on);
+  btn.title = on ? 'Host Status Indicators On' : 'Host Status Indicators Off';
+}
+
 // Edit-mode handler: set a section's label placement (above / below / none).
 // Stored as a preference; Small size always renders icon-only regardless.
 function setSectionTextPos(name, pos) {
@@ -811,6 +847,23 @@ function buildIconSizeSelector(name, current) {
   tp.addEventListener('pointerdown', (e) => e.stopPropagation());
   tp.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); cycleSectionTextPos(name); });
   wrap.appendChild(tp);
+
+  const sep2 = document.createElement('span');
+  sep2.className = 'size-sep';
+  wrap.appendChild(sep2);
+
+  // Host-reachability toggle — a single circular button (green = on, red = off).
+  const hsOn = storedHostStatus(name);
+  const hs = document.createElement('button');
+  hs.type = 'button';
+  hs.className = 'host-status-toggle' + (hsOn ? ' on' : '');
+  hs.title = hsOn ? 'Host Status Indicators On' : 'Host Status Indicators Off';
+  hs.addEventListener('pointerdown', (e) => e.stopPropagation());
+  hs.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    setSectionHostStatus(name, !storedHostStatus(name));
+  });
+  wrap.appendChild(hs);
   return wrap;
 }
 
@@ -905,6 +958,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
   // Tear down any previous grid instance + live widgets before rebuilding
   // (stops their polling/timers).
   destroyIconGrids();
+  if (window.HostStatus) window.HostStatus.reset();   // drop stale card watchers (keep cache)
   if (gridInstance) { try { gridInstance.destroy(false); } catch (_) {} gridInstance = null; }
   mountedWidgets.forEach((w) => { try { (w.destroy || w.stop || function () {}).call(w); } catch (_) {} });
   mountedWidgets = [];
@@ -1349,10 +1403,41 @@ function buildBookmarkCard(bm) {
   title.textContent = bm.title || tryHostname(bm.url);
   card.appendChild(title);
 
+  // ── Host reachability dot (only when the section has it enabled) ──
+  if (bm.folder && storedHostStatus(bm.folder)) attachHostDot(card, bm.url);
+
   // ── Pointer drag (active only in rearrange mode) ──
   card.draggable = false;   // GridStack handles dragging now (no native <a> drag, no custom FLIP)
 
   return card;
+}
+
+// Add a small corner status dot to a card and subscribe it to HostStatus.
+// Green = reachable, red = unreachable, muted = still checking. Multiple cards
+// on the same URL share one underlying check (see widgets/host-status.js).
+function attachHostDot(card, url) {
+  if (!url || !window.HostStatus) return;
+  if (card.querySelector('.host-status-corner')) return;   // already present
+  const dot = document.createElement('span');
+  dot.className = 'host-status-corner loading';
+  dot.title = 'Checking…';
+  card.appendChild(dot);
+  card._hostUnwatch = window.HostStatus.watch(url, (r) => {
+    dot.classList.remove('loading');
+    const up = !!(r && r.ok);
+    dot.classList.toggle('up', up);
+    dot.classList.toggle('down', !up);
+    dot.title = up
+      ? ('Online' + (r && r.statusCode ? ' · ' + r.statusCode : ''))
+      : ((r && r.error) || 'Unreachable');
+  });
+}
+
+// Remove a card's status dot and stop its reachability watch.
+function detachHostDot(card) {
+  if (card._hostUnwatch) { card._hostUnwatch(); card._hostUnwatch = null; }
+  const dot = card.querySelector('.host-status-corner');
+  if (dot) dot.remove();
 }
 
 function tryHostname(url) {

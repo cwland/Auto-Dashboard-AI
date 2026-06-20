@@ -475,6 +475,39 @@
     .text-pos-cycle:hover:not(:disabled) { background: var(--accent); color: #fff; }
     .text-pos-cycle:active:not(:disabled) { transform: scale(0.86); }
     .text-pos-cycle:disabled { opacity: 0.4; cursor: default; }
+    /* Host-reachability section toggle: a solid circle, red = off, green = on. */
+    .host-status-toggle {
+      width: 18px; height: 18px; padding: 0; border-radius: 50%;
+      border: 1.5px solid rgba(0,0,0,.12); cursor: pointer; flex-shrink: 0;
+      background: #ef4444; transition: background .12s, box-shadow .12s, transform .08s;
+    }
+    .host-status-toggle.on { background: #22c55e; }
+    .host-status-toggle:hover { box-shadow: 0 0 0 3px rgba(0,0,0,.08); }
+    .host-status-toggle:active { transform: scale(0.86); }
+    /* Per-card corner reachability wedge — covers a small portion of one corner.
+       Position follows the label so it sits over the icon corner, not the text:
+       M/L with text below (or none) → top-left; text above → bottom-left;
+       Small icons → bottom-left. Driven by the section's data-iconsize /
+       data-textpos, so it repositions live when those change. Colour is carried
+       in --wedge so the position rules can reuse it. */
+    .host-status-corner {
+      position: absolute; width: 16px; height: 16px;
+      pointer-events: none; z-index: 6; --wedge: var(--text-muted);
+      top: 0; left: 0; bottom: auto; right: auto;
+      border-top-left-radius: var(--radius);
+      background: linear-gradient(to bottom right, var(--wedge) 50%, transparent 50%);
+      transition: background .2s;
+    }
+    .host-status-corner.loading { opacity: .5; }
+    .host-status-corner.up   { --wedge: #22c55e; }
+    .host-status-corner.down { --wedge: #ef4444; }
+    /* Text-above or Small → move the wedge to the bottom-left corner. */
+    .folder-section[data-textpos="above"] .host-status-corner,
+    .folder-section[data-iconsize="small"] .host-status-corner {
+      top: auto; bottom: 0; left: 0; right: auto;
+      border-top-right-radius: 0; border-bottom-left-radius: var(--radius);
+      background: linear-gradient(to top right, var(--wedge) 50%, transparent 50%);
+    }
     /* Per-section label placement. Small icons are always icon-only (rule above). */
     .bm-title { transition: opacity 0.15s; }
     .folder-section[data-textpos="none"] .bm-title { display: none; }
@@ -1279,6 +1312,7 @@
 <script src="../widgets/tracearr-widget.js"></script>
 <script src="../widgets/system-health-widget.js"></script>
 <script src="../widgets/proxmox-widget.js"></script>
+<script src="../widgets/host-status.js"></script>
 <script src="../widgets/list-carousel.js"></script>
 <script src="../widgets/tautulli-stats-widgets.js"></script>
 <script src="../widgets/portainer-widget.js"></script>

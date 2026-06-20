@@ -265,7 +265,7 @@
       inc.addEventListener('click', () => set(cfg[key] + step));
       g.append(label(lbl), dec, cnt, inc); draw(); toolsEl.appendChild(g);
     };
-    stepper('Show', 'visibleCount', 2, 12, 1, '');
+    stepper('Show', 'visibleCount', 1, 12, 1, '');
     stepper('Speed', 'speed', 5, 100, 5, '');
   };
 
