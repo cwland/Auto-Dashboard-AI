@@ -64,10 +64,12 @@
     homeassistant: { fields: ['homeassistantUrl', 'homeassistantToken', 'homeassistantEntities', 'homeassistantAllowToggle'], primary: 'homeassistantUrl', secrets: ['homeassistantToken'], enabledKey: 'homeassistantEnabled', validatedKey: 'homeassistantValidated' },
     nextcloud: { fields: ['nextcloudUrl', 'nextcloudUsername', 'nextcloudPassword'], primary: 'nextcloudUrl', secrets: ['nextcloudPassword'], enabledKey: 'nextcloudEnabled', validatedKey: 'nextcloudValidated' },
     opnsense: { fields: ['opnsenseUrl', 'opnsenseKey', 'opnsenseSecret'], primary: 'opnsenseUrl', secrets: ['opnsenseSecret'], enabledKey: 'opnsenseEnabled', validatedKey: 'opnsenseValidated' },
-    // Weather is multi-CITY: the OpenWeather API key (weatherApiKey) is shared
-    // and stays a global setting, so it is intentionally NOT in `fields` — only
-    // the per-city location/units/refresh are stored per endpoint.
-    weather: { fields: ['weatherLocation', 'weatherUnits', 'weatherRefreshMins'], primary: 'weatherLocation', secrets: [], enabledKey: 'weatherEnabled', validatedKey: 'weatherApiKeyValidated' },
+    // Weather is multi-CITY and provider-agnostic. The provider choice
+    // (weatherProvider) and the OpenWeather API key (weatherApiKey) are shared
+    // GLOBAL settings, so they are intentionally NOT in `fields`. Each city
+    // stores its resolved coordinates (weatherLat/weatherLon — used by both
+    // providers) plus its display name and per-city units/refresh.
+    weather: { fields: ['weatherLocation', 'weatherLat', 'weatherLon', 'weatherUnits', 'weatherRefreshMins'], primary: 'weatherLocation', secrets: [], enabledKey: 'weatherEnabled', validatedKey: 'weatherApiKeyValidated' },
   };
 
   // intIds excluded from multi-endpoint support.

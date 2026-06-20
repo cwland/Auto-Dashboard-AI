@@ -305,8 +305,11 @@ const DEFAULT_SETTINGS = {
   dateVisible: true,
   dateFormat: 'long',
   weatherEnabled: false,
+  weatherProvider: '',            // '' = derive ('openweathermap' if a key exists, else 'openmeteo'); set explicitly once chosen
   weatherApiKey: '',
   weatherLocation: '',
+  weatherLat: null,               // resolved via Open-Meteo geocoding (used by both providers)
+  weatherLon: null,
   weatherUnits: 'imperial',
   weatherRefreshMins: 60,
   tautulliEnabled: false,
@@ -1013,11 +1016,19 @@ function applySettingsToUI() {
     document.getElementById('weather-config').style.display = s.weatherEnabled ? 'block' : 'none';
   }
 
+  // Weather provider selection + show/hide the OWM key section
+  const wxProvider = s.weatherProvider || (s.weatherApiKey ? 'openweathermap' : 'openmeteo');
+  const wxProvEl = document.querySelector(`input[name="weather-provider"][value="${wxProvider}"]`);
+  if (wxProvEl) wxProvEl.checked = true;
+  const wxKeySec = document.getElementById('weather-owm-key-section');
+  if (wxKeySec) wxKeySec.style.display = wxProvider === 'openweathermap' ? '' : 'none';
+  document.querySelectorAll('.wx-prov').forEach((el) => { const i = el.querySelector('input'); el.classList.toggle('selected', !!(i && i.checked)); });
+
   // Weather API key
   const weatherKeyEl = document.getElementById('weather-api-key');
   if (weatherKeyEl) weatherKeyEl.value = s.weatherApiKey || '';
 
-  // Weather location
+  // Weather location (legacy element; no-op when absent)
   const weatherLocEl = document.getElementById('weather-location');
   if (weatherLocEl) weatherLocEl.value = s.weatherLocation || '';
 
@@ -1510,9 +1521,40 @@ function setupSettingsListeners() {
     weatherKeyEl.addEventListener('input', () => {
       state.currentSettings.weatherApiKey = weatherKeyEl.value.trim();
       state.weatherApiKeyValidated = false;
-      document.getElementById('weather-validation-result').style.display = 'none';
+      const vr = document.getElementById('weather-validation-result');
+      if (vr) vr.style.display = 'none';
       updateSaveBar();
       updateWeatherPreviewButton();
+      refreshIntegrationModalSave();
+    });
+  }
+
+  // Weather provider switch (confirmation; cities are preserved either way).
+  document.querySelectorAll('input[name="weather-provider"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      const next = radio.value;
+      const cur = weatherProvider();
+      if (next === cur) return;
+      const label = next === 'openmeteo' ? 'Open-Meteo (free, no API key)' : 'OpenWeatherMap (API key required)';
+      const ok = confirm(`Switch your weather provider to ${label}?\n\nYour saved cities are kept and every weather widget will use the new provider automatically.`);
+      if (!ok) {
+        const back = document.querySelector(`input[name="weather-provider"][value="${cur}"]`);
+        if (back) back.checked = true;
+        return;
+      }
+      state.currentSettings.weatherProvider = next;
+      setWeatherProviderUI();
+      backfillWeatherCoords();   // ensure cities have coords for the new provider
+      updateSaveBar();
+    });
+  });
+
+  // Weather: add one verified location at a time.
+  document.getElementById('weather-add-btn')?.addEventListener('click', addWeatherLocation);
+  const weatherLocInput = document.getElementById('weather-loc-input');
+  if (weatherLocInput) {
+    weatherLocInput.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Enter') { ev.preventDefault(); addWeatherLocation(); }
     });
   }
 
@@ -2208,8 +2250,11 @@ function hasUnsavedChanges() {
     c.dateVisible        !== s.dateVisible        ||
     c.dateFormat         !== s.dateFormat         ||
     c.weatherEnabled     !== s.weatherEnabled     ||
+    c.weatherProvider    !== s.weatherProvider    ||
     c.weatherApiKey      !== s.weatherApiKey      ||
     c.weatherLocation    !== s.weatherLocation    ||
+    c.weatherLat         !== s.weatherLat         ||
+    c.weatherLon         !== s.weatherLon         ||
     c.weatherUnits       !== s.weatherUnits       ||
     c.weatherRefreshMins !== s.weatherRefreshMins ||
     c.tautulliEnabled    !== s.tautulliEnabled    ||
@@ -2389,8 +2434,11 @@ async function saveSettings() {
     dateVisible:         state.currentSettings.dateVisible,
     dateFormat:          state.currentSettings.dateFormat,
     weatherEnabled:      state.currentSettings.weatherEnabled,
+    weatherProvider:     state.currentSettings.weatherProvider,
     weatherApiKey:       state.currentSettings.weatherApiKey,
     weatherLocation:     state.currentSettings.weatherLocation,
+    weatherLat:          state.currentSettings.weatherLat,
+    weatherLon:          state.currentSettings.weatherLon,
     weatherUnits:        state.currentSettings.weatherUnits,
     weatherRefreshMins:  state.currentSettings.weatherRefreshMins,
     tautulliEnabled:     state.currentSettings.tautulliEnabled,
@@ -2742,32 +2790,48 @@ function hideValidationResult() {
   validationRes.style.display = 'none';
 }
 
-async function validateWeatherKey() {
-  const key = document.getElementById('weather-api-key').value.trim();
-  const location = document.getElementById('weather-location').value.trim() || 'London';
-  const btn = document.getElementById('weather-validate-btn');
+// ── Weather: location-focused setup (multi-city) ───────────────────────────
+// The OpenWeather API key is configured ONCE and shared by every location.
+// Each location is stored as an endpoint in settings.instances.weather, with the
+// city name auto-used as the endpoint Name (the Name field is no longer shown).
 
-  if (!key) {
-    showWeatherValidationResult('error', 'Please enter an API key.');
-    return;
-  }
+function weatherEps() { return (window.Endpoints) ? Endpoints.list(state.currentSettings, 'weather') : []; }
+function weatherGlobalUnits() { return state.currentSettings.weatherUnits || 'imperial'; }
+function weatherGlobalRefresh() { return parseInt(state.currentSettings.weatherRefreshMins, 10) || 60; }
+function weatherProvider() { return state.currentSettings.weatherProvider || (state.currentSettings.weatherApiKey ? 'openweathermap' : 'openmeteo'); }
+
+// Mirror the first location onto the legacy flat keys so previews + any
+// not-yet-migrated readers stay coherent.
+function weatherMirrorFirstToFlat() {
+  const first = weatherEps()[0];
+  state.currentSettings.weatherUnits = weatherGlobalUnits();
+  state.currentSettings.weatherRefreshMins = weatherGlobalRefresh();
+  state.currentSettings.weatherLocation = first ? (first.fields.weatherLocation || '') : '';
+  state.currentSettings.weatherLat = first ? (first.fields.weatherLat ?? null) : null;
+  state.currentSettings.weatherLon = first ? (first.fields.weatherLon ?? null) : null;
+}
+
+// Validate just the API key (uses an existing location as the probe, else London).
+async function validateWeatherKey() {
+  const key = (document.getElementById('weather-api-key')?.value || '').trim();
+  const btn = document.getElementById('weather-validate-btn');
+  state.currentSettings.weatherApiKey = key;
+
+  if (!key) { showWeatherValidationResult('error', 'Please enter an API key.'); return; }
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>';
-
+  const probe = (weatherEps()[0] && weatherEps()[0].fields.weatherLocation) || 'London';
   try {
     const url = `https://api.openweathermap.org/data/2.5/weather` +
-      `?q=${encodeURIComponent(location)}&appid=${key}&units=imperial`;
+      `?q=${encodeURIComponent(probe)}&appid=${key}&units=imperial`;
     const res = await fetch(url);
     if (res.ok) {
-      const data = await res.json();
       state.weatherApiKeyValidated = true;
-      showWeatherValidationResult('success', `✓ Valid! Connected to weather data for ${data.name}.`);
-      saveBtn.disabled = false;
+      showWeatherValidationResult('success', '✓ API key is valid — add your locations below.');
     } else {
       const data = await res.json().catch(() => ({}));
-      const msg = data?.message || `Error ${res.status}`;
-      showWeatherValidationResult('error', `✗ ${msg}`);
+      showWeatherValidationResult('error', `✗ ${data?.message || ('Error ' + res.status)}`);
       state.weatherApiKeyValidated = false;
     }
   } catch (err) {
@@ -2778,7 +2842,206 @@ async function validateWeatherKey() {
     btn.innerHTML = 'Validate';
     updateSaveBar();
     updateWeatherPreviewButton();
+    refreshIntegrationModalSave();
   }
+}
+
+// OpenWeather expects a single location as "City,STATE,COUNTRY" where the state
+// code is only used for the US (ISO-3166 country codes). Commas separate those
+// parts of ONE place — they are NOT a multi-city separator. We accept full US
+// state names (e.g. "Paul, Idaho") and convert them to the 2-letter code OWM
+// wants, defaulting the country to US when a state is given on its own.
+const US_STATES = {
+  alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA',
+  colorado: 'CO', connecticut: 'CT', delaware: 'DE', florida: 'FL', georgia: 'GA',
+  hawaii: 'HI', idaho: 'ID', illinois: 'IL', indiana: 'IN', iowa: 'IA', kansas: 'KS',
+  kentucky: 'KY', louisiana: 'LA', maine: 'ME', maryland: 'MD', massachusetts: 'MA',
+  michigan: 'MI', minnesota: 'MN', mississippi: 'MS', missouri: 'MO', montana: 'MT',
+  nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+  'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND',
+  ohio: 'OH', oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA', 'rhode island': 'RI',
+  'south carolina': 'SC', 'south dakota': 'SD', tennessee: 'TN', texas: 'TX',
+  utah: 'UT', vermont: 'VT', virginia: 'VA', washington: 'WA', 'west virginia': 'WV',
+  wisconsin: 'WI', wyoming: 'WY', 'district of columbia': 'DC', 'washington dc': 'DC',
+};
+const US_STATE_CODES = new Set(Object.values(US_STATES));
+const US_CODE_TO_NAME = Object.fromEntries(Object.entries(US_STATES).map(([n, c]) => [c, n]));
+
+// Resolve a city to coordinates via Open-Meteo geocoding (keyless — used for BOTH
+// providers, per spec). Input is one place; optional comma parts (state/country)
+// narrow the match. Returns a display name + lat/lon.
+async function geocodeViaOpenMeteo(raw) {
+  const parts = String(raw || '').split(',').map((p) => p.trim()).filter(Boolean);
+  if (!parts.length) return { ok: false };
+  const name = parts[0];
+  const filters = parts.slice(1).map((f) => f.toLowerCase());
+  try {
+    const url = `https://geocoding-api.open-meteo.com/v1/search` +
+      `?name=${encodeURIComponent(name)}&count=10&language=en&format=json`;
+    const res = await fetch(url);
+    if (!res.ok) return { ok: false };
+    const j = await res.json();
+    const results = Array.isArray(j.results) ? j.results : [];
+    if (!results.length) return { ok: false };
+    const matchesFilter = (r, f) => {
+      const cand = [r.admin1, r.country, r.country_code].filter(Boolean).map((x) => String(x).toLowerCase());
+      if (cand.includes(f)) return true;
+      const full = US_CODE_TO_NAME[f.toUpperCase()];        // "id" → "idaho"
+      if (full && cand.includes(full)) return true;
+      const code = US_STATES[f];                            // "idaho" → "ID" (already covered by admin1, belt & braces)
+      if (code && cand.includes(code.toLowerCase())) return true;
+      return false;
+    };
+    const r = filters.length ? results.find((x) => filters.every((f) => matchesFilter(x, f))) : results[0];
+    if (!r) return { ok: false };
+    const display = [r.name, r.admin1, r.country_code].filter(Boolean).join(', ');
+    return { ok: true, name: display, lat: r.latitude, lon: r.longitude };
+  } catch (_) { return { ok: false }; }
+}
+
+function setWeatherLocStatus(html, type) {
+  const el = document.getElementById('weather-loc-status');
+  if (!el) return;
+  if (!html) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.className = 'banner banner-' + (type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info');
+  el.innerHTML = html;
+}
+
+// Show/hide the OWM key section + selected-card styling for the active provider.
+function setWeatherProviderUI() {
+  const provider = weatherProvider();
+  const r = document.querySelector(`input[name="weather-provider"][value="${provider}"]`);
+  if (r) r.checked = true;
+  const keySec = document.getElementById('weather-owm-key-section');
+  if (keySec) keySec.style.display = provider === 'openweathermap' ? '' : 'none';
+  document.querySelectorAll('.wx-prov').forEach((el) => {
+    const i = el.querySelector('input'); el.classList.toggle('selected', !!(i && i.checked));
+  });
+  updateWeatherPreviewButton();
+  refreshIntegrationModalSave();
+}
+
+function renderWeatherLocations() {
+  const list = document.getElementById('weather-loc-list');
+  if (!list) return;
+  const eps = weatherEps();
+  list.innerHTML = '';
+  if (!eps.length) {
+    const empty = document.createElement('div');
+    empty.className = 'weather-loc-empty';
+    empty.textContent = 'No locations yet — add one above.';
+    list.appendChild(empty);
+  } else {
+    eps.forEach((ep, i) => {
+      const row = document.createElement('div');
+      row.className = 'weather-loc-row';
+      const up = document.createElement('button');
+      up.className = 'weather-loc-act'; up.type = 'button'; up.title = 'Move up'; up.textContent = '▲';
+      up.disabled = i === 0;
+      up.addEventListener('click', () => moveWeatherLocation(ep.id, -1));
+      const down = document.createElement('button');
+      down.className = 'weather-loc-act'; down.type = 'button'; down.title = 'Move down'; down.textContent = '▼';
+      down.disabled = i === eps.length - 1;
+      down.addEventListener('click', () => moveWeatherLocation(ep.id, 1));
+      const nm = document.createElement('span');
+      nm.className = 'weather-loc-name';
+      nm.textContent = ep.name || ep.fields.weatherLocation || 'Location';
+      const badge = document.createElement('span');
+      badge.className = 'weather-loc-badge'; badge.textContent = '✓'; badge.title = 'Verified';
+      const edit = document.createElement('button');
+      edit.className = 'weather-loc-act'; edit.type = 'button'; edit.title = 'Edit'; edit.textContent = '✏️';
+      edit.addEventListener('click', () => editWeatherLocation(ep.id));
+      const del = document.createElement('button');
+      del.className = 'weather-loc-act'; del.type = 'button'; del.title = 'Remove'; del.textContent = '🗑️';
+      del.addEventListener('click', () => deleteWeatherLocation(ep.id));
+      row.append(up, down, nm, badge, edit, del);
+      list.appendChild(row);
+    });
+  }
+  weatherMirrorFirstToFlat();
+  refreshIntegrationModalSave();
+  updateWeatherPreviewButton();
+}
+
+// Add ONE location, resolved to coordinates via Open-Meteo geocoding (keyless;
+// works for both providers). The whole input is a single place — commas refine
+// it (City, State, Country). Invalid input is kept in the box for correction.
+async function addWeatherLocation() {
+  const input = document.getElementById('weather-loc-input');
+  const btn = document.getElementById('weather-add-btn');
+  const raw = (input?.value || '').trim();
+
+  if (!raw) { setWeatherLocStatus('Type a city — e.g. <b>Paul, ID</b> or <b>Paris, FR</b>.', 'error'); return; }
+
+  const oldTxt = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+  setWeatherLocStatus('Verifying…', 'info');
+
+  const r = await geocodeViaOpenMeteo(raw);
+
+  if (btn) { btn.disabled = false; btn.textContent = oldTxt; }
+
+  if (!r.ok) {
+    setWeatherLocStatus(`✗ Couldn't find <b>${escapeHtml(raw)}</b>. Try adding a state or country — e.g. <b>Paul, ID</b>.`, 'error');
+    return;
+  }
+  // Duplicate? (same resolved coordinates)
+  const dup = weatherEps().some((ep) => Number(ep.fields.weatherLat) === Number(r.lat) && Number(ep.fields.weatherLon) === Number(r.lon));
+  if (dup) { setWeatherLocStatus(`<b>${escapeHtml(r.name)}</b> is already in your list.`, 'info'); if (input) input.value = ''; return; }
+
+  // Name = the resolved city (auto-filled; no separate Name field).
+  Endpoints.add(state.currentSettings, 'weather', r.name, {
+    weatherLocation: r.name, weatherLat: r.lat, weatherLon: r.lon,
+    weatherUnits: weatherGlobalUnits(), weatherRefreshMins: weatherGlobalRefresh(),
+  });
+  const eps = weatherEps(); const ep = eps[eps.length - 1]; if (ep) ep.validated = true;
+  if (input) input.value = '';
+  setWeatherLocStatus(`✓ Added <b>${escapeHtml(r.name)}</b>.`, 'success');
+
+  renderWeatherLocations();
+  updateSaveBar();
+}
+
+function deleteWeatherLocation(id) {
+  Endpoints.remove(state.currentSettings, 'weather', id);
+  renderWeatherLocations();
+  updateSaveBar();
+}
+
+// Reorder a location (dir = -1 up / +1 down).
+function moveWeatherLocation(id, dir) {
+  const arr = state.currentSettings.instances && state.currentSettings.instances.weather;
+  if (!Array.isArray(arr)) return;
+  const i = arr.findIndex((e) => e.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  renderWeatherLocations();
+  updateSaveBar();
+}
+
+// "Edit" = drop the city back into the add box for a quick correction.
+function editWeatherLocation(id) {
+  const ep = weatherEps().find((e) => e.id === id);
+  if (!ep) return;
+  const input = document.getElementById('weather-loc-input');
+  if (input) { input.value = ep.fields.weatherLocation || ep.name || ''; input.focus(); }
+  Endpoints.remove(state.currentSettings, 'weather', id);
+  renderWeatherLocations();
+  updateSaveBar();
+}
+
+// Best-effort: fill in coordinates for any saved city that predates coord
+// storage (legacy OWM setups), so switching to Open-Meteo works seamlessly.
+async function backfillWeatherCoords() {
+  const eps = weatherEps().filter((ep) => ep.fields && (ep.fields.weatherLat == null || ep.fields.weatherLon == null) && (ep.fields.weatherLocation || '').trim());
+  if (!eps.length) return;
+  for (const ep of eps) {
+    const r = await geocodeViaOpenMeteo(ep.fields.weatherLocation);
+    if (r.ok) { ep.fields.weatherLat = r.lat; ep.fields.weatherLon = r.lon; ep.fields.weatherLocation = r.name; ep.name = r.name; }
+  }
+  renderWeatherLocations();
 }
 
 function showWeatherValidationResult(type, msg) {
@@ -2793,19 +3056,21 @@ function updateWeatherPreviewButton() {
   const btn = document.getElementById('weather-preview-btn');
   const hint = document.getElementById('weather-preview-hint');
   if (!btn) return;
-  const ready = state.weatherApiKeyValidated
-    && !!state.currentSettings.weatherApiKey
-    && !!state.currentSettings.weatherLocation;
+  const owm = weatherProvider() === 'openweathermap';
+  const keyOk = !owm || (state.weatherApiKeyValidated && !!state.currentSettings.weatherApiKey);
+  const ready = keyOk && weatherEps().length > 0;
   btn.disabled = !ready;
   if (hint) {
     hint.textContent = ready
-      ? 'Opens a live preview of all three weather widgets using your data.'
-      : 'Validate your API key and set a location to enable a live preview.';
+      ? 'Opens a live preview of all weather widgets using your data.'
+      : (owm ? 'Validate your API key and add a location to enable a live preview.'
+             : 'Add a location to enable a live preview.');
   }
 }
 
 function openWeatherPreview() {
-  if (!state.weatherApiKeyValidated) return;
+  if (weatherProvider() === 'openweathermap' && !state.weatherApiKeyValidated) return;
+  if (!weatherEps().length) return;
   const modal = document.getElementById('weather-preview-modal');
   const host  = document.getElementById('weather-preview-host');
   if (!modal || !host || typeof WeatherCurrentWidget === 'undefined') return;
@@ -2814,7 +3079,10 @@ function openWeatherPreview() {
   host.innerHTML = '';
 
   const cfg = {
+    provider: weatherProvider(),
     apiKey: state.currentSettings.weatherApiKey,
+    lat: state.currentSettings.weatherLat,
+    lon: state.currentSettings.weatherLon,
     location: state.currentSettings.weatherLocation,
     units: state.currentSettings.weatherUnits || 'imperial',
   };
@@ -5592,6 +5860,10 @@ async function wizGenerate() {
     defaultShape: getSelectedShape('wiz-shape-picker', 'rounded'),
     showText: document.getElementById('wiz-text-toggle')?.checked !== false,
     widgets: Array.isArray(wizard.data.widgets) ? wizard.data.widgets : [],
+    // One-time flag: the dashboard view compacts the freshly-placed sections to
+    // the top on first render (removing the gaps left by pre-render height
+    // estimates), persists the result, and clears this flag.
+    autoArrange: true,
   };
   applyIconSizesToLayout(dashboard, secs);
   state.dashboards.push(dashboard);
@@ -5755,7 +6027,7 @@ function showProgress(msg, pct) {
   // Restore the standard progress layout in case a previous success state mutated it
   const modal = document.querySelector('.progress-modal');
   modal.innerHTML = `
-    <div class="progress-icon"><img src="../icons/robot.svg" alt="" style="width:44px;height:44px;object-fit:contain;display:inline-block;"></div>
+    <div class="progress-icon"><img src="../icons/logo.png" alt="" style="width:44px;height:44px;object-fit:contain;display:inline-block;"></div>
     <h3>Generating Dashboard</h3>
     <p id="progress-message"></p>
     <div class="progress-bar-track">
@@ -5972,9 +6244,10 @@ function wizWidgetCard(w, sample, updateCount, endpointId, endpointName) {
   const matches = (x) => x.wid === w.wid && !!x.sample === sample && (x.endpointId || null) === epKey;
   const card = document.createElement('div');
   card.className = 'wiz-wp-card' + (sample ? ' is-sample' : '') + (wizard.data.widgets.some(matches) ? ' selected' : '');
+  const check = document.createElement('span'); check.className = 'wp-check'; check.textContent = '✓';
   const img = document.createElement('img'); img.alt = ''; img.src = intIconSrc(w.icon); img.onerror = () => { img.style.visibility = 'hidden'; };
   const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = w.name + (sample ? ' (Sample)' : '');
-  card.append(img, nm);
+  card.append(check, img, nm);
   card.addEventListener('click', () => {
     const i = wizard.data.widgets.findIndex(matches);
     if (i >= 0) { wizard.data.widgets.splice(i, 1); card.classList.remove('selected'); }
@@ -6045,6 +6318,7 @@ function renderWizWidgetPanel() {
   };
 
   const body = document.createElement('div');
+  body.className = 'wiz-wp-body';
   Array.from(groups.entries())
     .map(([k, ws]) => [k, ws, wizServiceMeta(k, ws)])
     .sort((a, b) => a[2].name.localeCompare(b[2].name))
@@ -6344,9 +6618,39 @@ function openIntegrationModal(id) {
   if (cfg && body) { body.appendChild(cfg); cfg.style.display = 'block'; }
 
   const descLabel = document.querySelector('.int-m-desc-label');
-  if (epIsMulti(e)) {
+  const descRow = document.getElementById('int-m-desc-row');
+  if (e.id === 'weather') {
+    // Location-focused setup: no endpoint tabs, no Name field. Locations are
+    // managed by a dedicated list; the city auto-fills each location's Name.
+    if (descRow) descRow.style.display = 'none';
+    const epsBar = document.getElementById('int-m-eps');
+    if (epsBar) epsBar.style.display = 'none';
+    // Drop any stray blank-location endpoints; auto-name each from its city.
+    if (state.currentSettings.instances && Array.isArray(state.currentSettings.instances.weather)) {
+      state.currentSettings.instances.weather = state.currentSettings.instances.weather
+        .filter((ep) => ep && ep.fields && (ep.fields.weatherLocation || '').trim());
+    }
+    // Auto-name from the location only when missing or still the generic default
+    // (keeps the nice geocoded "City, State, Country" names already set).
+    weatherEps().forEach((ep) => {
+      if (!ep.name || ep.name.toLowerCase() === 'weather') ep.name = ep.fields.weatherLocation;
+      ep.validated = true;
+    });
+    // Default the provider if unset (legacy installs): OWM if a key exists.
+    if (!state.currentSettings.weatherProvider) {
+      state.currentSettings.weatherProvider = state.currentSettings.weatherApiKey ? 'openweathermap' : 'openmeteo';
+    }
+    // A saved OWM key is treated as already valid (it worked when saved).
+    state.weatherApiKeyValidated = !!state.currentSettings.weatherApiKey;
+    applySettingsToUI();
+    if (cfg) cfg.style.display = 'block';
+    setWeatherProviderUI();
+    renderWeatherLocations();
+    backfillWeatherCoords();   // best-effort: fill coords for legacy cities
+  } else if (epIsMulti(e)) {
     // Multi-endpoint: the "description" field becomes the selected endpoint's
     // NAME, and a selector bar lets the user switch / add / delete endpoints.
+    if (descRow) descRow.style.display = '';
     if (descLabel) descLabel.textContent = 'Name';
     const descEl = document.getElementById('int-m-desc');
     if (descEl) descEl.placeholder = 'Name this endpoint (e.g. Living Room)';
@@ -6355,7 +6659,8 @@ function openIntegrationModal(id) {
     loadEndpointIntoForm(e, 0);   // sets the name field + repopulates the form
     renderEndpointTabs(e);
   } else {
-    // Single-instance (Weather / Stocks): keep the per-service description.
+    // Single-instance (Stocks): keep the per-service description.
+    if (descRow) descRow.style.display = '';
     if (descLabel) descLabel.textContent = 'Description';
     const epsBar = document.getElementById('int-m-eps');
     if (epsBar) epsBar.style.display = 'none';
@@ -6427,6 +6732,8 @@ function closeIntegrationModal() {
     }
     const descLabel = document.querySelector('.int-m-desc-label');
     if (descLabel) descLabel.textContent = 'Description';
+    const descRow = document.getElementById('int-m-desc-row');
+    if (descRow) descRow.style.display = '';   // weather hides it; restore for others
   }
 
   intCatalog.openId = null;
@@ -6440,6 +6747,26 @@ function refreshIntegrationModalSave() {
   const save = document.getElementById('int-m-save');
   const note = document.getElementById('int-m-note');
   if (!save) return;
+  if (e.id === 'weather') {
+    const eps = weatherEps();
+    const provider = weatherProvider();
+    let ready, noteText;
+    if (provider === 'openweathermap') {
+      const keyOk = !!(state.currentSettings.weatherApiKey && state.weatherApiKeyValidated);
+      ready = eps.length > 0 && keyOk;
+      noteText = !keyOk ? 'Validate your OpenWeatherMap API key to enable Save.'
+        : !eps.length ? 'Add at least one location.'
+          : `Ready — ${eps.length} location${eps.length > 1 ? 's' : ''}. Click Save.`;
+    } else {
+      ready = eps.length > 0;
+      noteText = !eps.length ? 'Add at least one location to enable Save.'
+        : `Ready — ${eps.length} location${eps.length > 1 ? 's' : ''}. Click Save.`;
+    }
+    save.disabled = !ready;
+    save.classList.toggle('is-ready', ready);
+    if (note) note.textContent = noteText;
+    return;
+  }
   const multi = epIsMulti(e);
   let ready, noteText;
   if (multi) {
@@ -6471,7 +6798,29 @@ function refreshIntegrationModalSave() {
 
 async function saveIntegrationFromModal() {
   const e = intEntry(intCatalog.openId);
-  if (!e || !intIsValidated(e)) return;
+  if (!e) return;
+  if (e.id === 'weather') {
+    const eps = weatherEps();
+    if (!eps.length) return;
+    if (weatherProvider() === 'openweathermap' && !state.weatherApiKeyValidated) return;
+    const units = weatherGlobalUnits();
+    const refresh = weatherGlobalRefresh();
+    eps.forEach((ep) => {
+      ep.fields = ep.fields || {};
+      ep.fields.weatherUnits = units;
+      ep.fields.weatherRefreshMins = refresh;
+      if (!ep.name) ep.name = ep.fields.weatherLocation;   // Name auto-fills from the city
+      ep.validated = true;
+    });
+    state.currentSettings.weatherEnabled = eps.length > 0;
+    state.currentSettings.weatherProvider = weatherProvider();   // persist the resolved choice
+    weatherMirrorFirstToFlat();
+    intSetDesc(e, eps[0].name || 'Weather');
+    await saveSettings();
+    closeIntegrationModal();
+    return;
+  }
+  if (!intIsValidated(e)) return;
   if (epIsMulti(e)) {
     syncFormToEndpoint(e, intCatalog.epIndex);
     const ep = epCurrent(e);

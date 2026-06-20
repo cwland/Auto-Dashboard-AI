@@ -64,13 +64,14 @@
 
     .header-brand .logo-icon {
       width: 34px; height: 34px;
-      background: transparent;
-      border-radius: 8px;
+      background: var(--accent-light);          /* themed circle — tint follows the active theme */
+      border: 1px solid var(--border);
+      border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      font-size: 22px; text-decoration: none; cursor: pointer;
-      transition: background 0.12s;
+      text-decoration: none; cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
     }
-    .header-brand a.logo-icon:hover { background: var(--bg-hover); }
+    .header-brand a.logo-icon:hover { border-color: var(--accent); }
 
     .header-brand .logo-name {
       font-size: 14px;
@@ -819,6 +820,27 @@
     .int-m-poll { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 20px; border-top:1px solid var(--border); background:var(--bg-card); }
     .int-m-poll-label { font-size:13px; font-weight:600; color:var(--text-secondary); }
     .int-m-poll .select { width:auto; min-width:150px; }
+    /* Weather location list (compact rows) */
+    .weather-loc-list { display:flex; flex-direction:column; gap:6px; }
+    .weather-loc-row { display:flex; align-items:center; gap:10px; padding:7px 11px; border:1px solid var(--border); border-radius:8px; background:var(--bg-card); }
+    .weather-loc-name { flex:1; font-size:13px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .weather-loc-badge { font-size:12px; font-weight:700; color:var(--success); flex:0 0 auto; }
+    .weather-loc-act { border:none; background:transparent; cursor:pointer; font-size:13px; line-height:1; padding:3px 5px; border-radius:6px; color:var(--text-muted); flex:0 0 auto; }
+    .weather-loc-act:hover { background:var(--bg-hover); color:var(--text-primary); }
+    .weather-loc-empty { font-size:12.5px; color:var(--text-muted); padding:4px 2px; }
+    .weather-loc-act:disabled { opacity:.3; cursor:default; }
+    /* Weather provider selector */
+    .wx-providers { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media (max-width:520px){ .wx-providers { grid-template-columns:1fr; } }
+    .wx-prov { display:flex; gap:10px; align-items:flex-start; padding:12px 13px; border:1.5px solid var(--border); border-radius:12px; background:var(--bg-secondary); cursor:pointer; transition:border-color .12s, background .12s; }
+    .wx-prov:hover { border-color:var(--accent); }
+    .wx-prov.selected { border-color:var(--accent); background:var(--accent-light); }
+    .wx-prov input { margin-top:3px; flex:0 0 auto; }
+    .wx-prov-body { display:flex; flex-direction:column; gap:3px; }
+    .wx-prov-name { font-size:13.5px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:7px; }
+    .wx-prov-desc { font-size:11.5px; color:var(--text-muted); line-height:1.35; }
+    .wx-tag { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; padding:1px 7px; border-radius:999px; background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); }
+    .wx-tag-free { background:var(--success-light); border-color:transparent; color:var(--success); }
 
     /* ── Dashboard Setup page (wizard step 1) ───────────────────────────── */
     .dash-setup { max-width: 720px; margin: 0 auto; padding: 8px 0 48px; }
@@ -887,8 +909,9 @@
     /* wizard step 4 — preview & edit */
     #wiz-step-4 { flex:1; min-height:0; flex-direction:column; }
     #wiz-preview { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:14px; padding:2px; }
-    .wiz-widget-panel { flex:0 0 auto; border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; background:var(--bg-card); }
-    .wiz-wp-head { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .wiz-widget-panel { flex:0 1 auto; display:flex; flex-direction:column; min-height:0; max-height:46vh; border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; background:var(--bg-card); }
+    .wiz-wp-head { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .wiz-wp-body { flex:1 1 auto; min-height:0; overflow-y:auto; margin-top:4px; padding-right:4px; }
     .wiz-wp-title { font-weight:700; font-size:14px; }
     .wiz-wp-title .muted { font-weight:500; font-size:12px; color:var(--text-muted); }
     .wiz-wp-tabs { display:inline-flex; background:var(--bg-secondary); border:1px solid var(--border); border-radius:8px; padding:2px; gap:2px; margin-left:auto; }
@@ -902,12 +925,14 @@
     .wiz-wp-gname { font-size:13px; font-weight:700; }
     .wiz-wp-desc { display:inline-flex; align-items:center; gap:5px; align-self:flex-start; font-size:11px; font-weight:600; color:var(--text-secondary); padding:2px 9px; border-radius:999px; background:var(--bg-secondary); border:1px solid var(--border); margin:8px 0 0; }
     .wiz-wp-desc::before { content:"▸"; color:var(--text-muted); font-size:10px; }
-    .wiz-wp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; margin-top:8px; }
-    .wiz-wp-card { display:flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--border); border-radius:8px; cursor:pointer; }
+    .wiz-wp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-top:8px; }
+    .wiz-wp-card { display:flex; flex-direction:column; gap:8px; align-items:center; text-align:center; padding:14px 10px; border:1.5px solid var(--border); border-radius:12px; background:var(--bg-secondary); cursor:pointer; position:relative; transition:border-color .12s, background .12s; }
     .wiz-wp-card:hover { border-color:var(--accent); }
     .wiz-wp-card.selected { border-color:var(--accent); background:var(--accent-light); }
-    .wiz-wp-card img { width:22px; height:22px; object-fit:contain; flex:0 0 auto; }
-    .wiz-wp-card .nm { font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .wiz-wp-card img { width:40px; height:40px; object-fit:contain; }
+    .wiz-wp-card .nm { font-size:12.5px; font-weight:600; color:var(--text-primary); line-height:1.3; }
+    .wiz-wp-card .wp-check { position:absolute; top:8px; right:8px; width:18px; height:18px; border-radius:50%; border:1.5px solid var(--border); background:var(--bg-card); display:flex; align-items:center; justify-content:center; font-size:11px; color:#fff; }
+    .wiz-wp-card.selected .wp-check { background:var(--accent); border-color:var(--accent); }
     .wiz-wp-card.is-sample { opacity:.62; border-style:dashed; }
     .wiz-wp-card.is-sample:hover { opacity:.85; }
     .wiz-wp-card.is-sample.selected { opacity:1; border-style:solid; }
@@ -962,7 +987,7 @@
   <!-- ── Page header ──────────────────────────────────────────────────────── -->
   <header class="page-header">
     <div class="header-brand">
-      <a class="logo-icon" href="../newtab/dashboard.html" title="Open your dashboard"><img src="../icons/robot.svg" alt="Auto Dashboard AI" style="width:26px;height:26px;object-fit:contain;display:block;"></a>
+      <a class="logo-icon" href="../newtab/dashboard.html" title="Open your dashboard"><img src="../icons/logo.png" alt="Auto Dashboard AI" style="width:24px;height:24px;object-fit:contain;display:block;"></a>
       <div>
         <div class="logo-name">Auto Dashboard AI</div>
         <div class="logo-ver" id="app-version">v1.0.15</div>
@@ -1000,7 +1025,7 @@
     <div class="doc-content">
 
       <div class="gs-hero">
-        <div class="gs-hero-icon"><img src="../icons/robot.svg" alt="" style="width:64px;height:64px;object-fit:contain;display:inline-block;"></div>
+        <div class="gs-hero-icon"><img src="../icons/logo.png" alt="" style="width:64px;height:64px;object-fit:contain;display:inline-block;"></div>
         <h1>Welcome to Auto Dashboard AI</h1>
         <p>Turn your bookmarks into a beautiful, AI-enriched dashboard that appears every time you open a new tab. Setup takes about two minutes.</p>
       </div>
@@ -1455,15 +1480,35 @@
         <div id="weather-config">
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
 
-            <p class="banner banner-info" style="margin-bottom:18px;">
-              Live local weather from <a href="https://openweathermap.org/" target="_blank" rel="noopener">OpenWeatherMap</a>.
-              Add a free API key and a location to enable the Current, Hourly, 5-Day, and Combined weather widgets.
-              The free <strong>Current Weather Data</strong> plan is all you need — optionally subscribe to
-              <strong>One Call API 3.0</strong> for true hourly data in the Combined widget.
+            <p class="banner banner-info" style="margin-bottom:16px;">
+              Choose a weather data source, then add your cities. Both providers power the same Current, Hourly, 5-Day, and Combined widgets.
             </p>
 
+            <!-- Provider selector (only one provider is active at a time) -->
             <div class="form-group">
-              <label class="label">OpenWeatherMap API Key</label>
+              <label class="label">Weather Provider</label>
+              <div class="wx-providers">
+                <label class="wx-prov">
+                  <input type="radio" name="weather-provider" value="openmeteo" id="wx-prov-openmeteo">
+                  <span class="wx-prov-body">
+                    <span class="wx-prov-name">Open-Meteo <span class="wx-tag wx-tag-free">Free</span></span>
+                    <span class="wx-prov-desc">No API key or account — just add cities and save.</span>
+                  </span>
+                </label>
+                <label class="wx-prov">
+                  <input type="radio" name="weather-provider" value="openweathermap" id="wx-prov-owm">
+                  <span class="wx-prov-body">
+                    <span class="wx-prov-name">OpenWeatherMap <span class="wx-tag">API key</span></span>
+                    <span class="wx-prov-desc">Requires a free API key. Room for premium widgets later.</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <!-- OWM API key — shown only when OpenWeatherMap is the active provider -->
+            <div class="form-group" id="weather-owm-key-section">
+              <label class="label">OpenWeatherMap API Key
+                <span style="font-weight:400;color:var(--text-muted);">· shared by all locations</span></label>
               <div class="api-key-row">
                 <input class="input input-mono" type="text" id="weather-api-key"
                   placeholder="Paste your OWM API key…" autocomplete="off">
@@ -1473,57 +1518,49 @@
               <div id="weather-validation-result" style="display:none;margin-top:8px;"></div>
               <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
                 Free key at <a href="https://openweathermap.org/api" target="_blank"
-                  style="color:var(--accent);">openweathermap.org/api</a> — the "Current Weather Data" free plan is all you need.
+                  style="color:var(--accent);">openweathermap.org/api</a> — one key powers every weather location.
               </p>
             </div>
 
-            <div class="form-group">
-              <label class="label" for="weather-location">Location</label>
-              <input class="input" type="text" id="weather-location"
-                placeholder="e.g. New York  or  Paris, FR">
-              <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">
-                City name, or "City, Country Code" for precision
-              </p>
-            </div>
-
-            <div class="form-group">
-              <label class="label">Temperature Units</label>
-              <div class="radio-group" style="flex-direction:row;gap:24px;">
-                <label class="radio-option">
-                  <input type="radio" name="weather-units" id="units-imperial" value="imperial">
-                  °F &amp; mph
-                </label>
-                <label class="radio-option">
-                  <input type="radio" name="weather-units" id="units-metric" value="metric">
-                  °C &amp; km/h
-                </label>
+            <!-- Units + refresh, inline to save space -->
+            <div class="form-group" style="display:flex;flex-wrap:wrap;gap:14px 28px;align-items:center;">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <span class="label" style="margin:0;">Units</span>
+                <label class="radio-option"><input type="radio" name="weather-units" id="units-imperial" value="imperial"> °F &amp; mph</label>
+                <label class="radio-option"><input type="radio" name="weather-units" id="units-metric" value="metric"> °C &amp; km/h</label>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <label class="label" for="weather-refresh-mins" style="margin:0;">Refresh</label>
+                <select class="select" id="weather-refresh-mins" style="width:150px;">
+                  <option value="10">Every 10 minutes</option>
+                  <option value="15">Every 15 minutes</option>
+                  <option value="20">Every 20 minutes</option>
+                  <option value="30">Every 30 minutes</option>
+                  <option value="45">Every 45 minutes</option>
+                  <option value="60" selected>Every 60 minutes</option>
+                </select>
               </div>
             </div>
 
-            <div class="form-group" style="margin-bottom:0;">
-              <label class="label" for="weather-refresh-mins">Refresh Interval</label>
-              <select class="select" id="weather-refresh-mins" style="width:160px;">
-                <option value="10">Every 10 minutes</option>
-                <option value="15">Every 15 minutes</option>
-                <option value="20">Every 20 minutes</option>
-                <option value="25">Every 25 minutes</option>
-                <option value="30">Every 30 minutes</option>
-                <option value="35">Every 35 minutes</option>
-                <option value="40">Every 40 minutes</option>
-                <option value="45">Every 45 minutes</option>
-                <option value="50">Every 50 minutes</option>
-                <option value="55">Every 55 minutes</option>
-                <option value="60" selected>Every 60 minutes</option>
-              </select>
+            <!-- Locations: add one at a time, verified before it's added -->
+            <div class="form-group">
+              <label class="label">Locations</label>
+              <div class="api-key-row">
+                <input class="input" type="text" id="weather-loc-input"
+                  placeholder="Add a city — e.g. Paul, ID  or  Paris, FR">
+                <button class="btn btn-secondary" id="weather-add-btn">Add Location</button>
+              </div>
+              <div id="weather-loc-status" style="display:none;margin-top:8px;"></div>
+              <div id="weather-loc-list" class="weather-loc-list" style="margin-top:10px;"></div>
               <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">
-                One shared fetch across all open tabs — data refreshes at the end of each interval.
+                Add one location at a time. For precision use <b>City, State</b> (US) or <b>City, Country</b> — e.g. "Paul, ID" or "Paris, FR". Each is resolved and verified before it's added, and your cities are kept if you switch providers.
               </p>
             </div>
 
             <div class="form-group" style="margin-bottom:0;">
               <button class="btn btn-primary" id="weather-preview-btn" disabled>Preview Widgets</button>
               <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="weather-preview-hint">
-                Validate your API key and set a location to enable a live preview.
+                Validate your API key and add a location to enable a live preview.
               </p>
             </div>
 
@@ -3028,7 +3065,7 @@
         <div class="int-m-eps-tabs" id="int-m-eps-tabs"></div>
         <button class="int-m-eps-del" id="int-m-eps-del" type="button" title="Delete this endpoint">🗑 Delete</button>
       </div>
-      <div class="int-m-desc-row">
+      <div class="int-m-desc-row" id="int-m-desc-row">
         <label class="int-m-desc-label" for="int-m-desc">Description</label>
         <input class="input" type="text" id="int-m-desc" maxlength="20" placeholder="Label this configuration (max 20)" autocomplete="off">
         <span class="int-m-desc-count" id="int-m-desc-count">0/20</span>
@@ -3559,7 +3596,7 @@
 <!-- Progress overlay -->
 <div id="progress-overlay">
   <div class="progress-modal">
-    <div class="progress-icon"><img src="../icons/robot.svg" alt="" style="width:44px;height:44px;object-fit:contain;display:inline-block;"></div>
+    <div class="progress-icon"><img src="../icons/logo.png" alt="" style="width:44px;height:44px;object-fit:contain;display:inline-block;"></div>
     <h3>Generating Dashboard</h3>
     <p id="progress-message">Sending bookmarks to AI for analysis...</p>
     <div class="progress-bar-track">

@@ -1077,6 +1077,13 @@ function renderDashboardGrid(dash, folderNames, groups) {
     if (!gridInstance) return;
     initIconGrids();
     syncGridAttrs();
+    // Freshly-created dashboard: section heights are now fit to their content,
+    // so snap everything up to the top (removing the gaps left by the pre-render
+    // height estimates), persist the compacted geometry, and clear the flag so
+    // this only ever happens once.
+    if (dash && dash.autoArrange) {
+      requestAnimationFrame(() => autoArrangeFreshDashboard(dash));
+    }
   });
   setupWidgetAutoFit();   // size widget groupings to show the whole widget
 
@@ -1087,6 +1094,32 @@ function renderDashboardGrid(dash, folderNames, groups) {
     gridInstance.enableResize(true);
     reassertGridLocks();   // global enable must not override per-item locks
   }
+}
+
+// One-time, on first render of a freshly-created dashboard: compact every
+// section/widget up to the top so there are no gaps between rows, then save the
+// resulting positions onto dash.layout (so future loads keep the tidy layout)
+// and clear the autoArrange flag.
+function autoArrangeFreshDashboard(dash) {
+  if (!dash || !dash.autoArrange || !gridInstance) return;
+  delete dash.autoArrange;
+  const wasStatic = !state.rearrangeMode;
+  if (wasStatic) gridInstance.setStatic(false);
+  try { gridInstance.compact('compact', true); } catch (_) { try { gridInstance.compact(); } catch (_) {} }
+  if (wasStatic) gridInstance.setStatic(true);
+  syncGridAttrs();
+  // Persist the compacted geometry so the gaps don't return on the next load.
+  if (gridInstance.engine && Array.isArray(gridInstance.engine.nodes)) {
+    const layout = (dash.layout && typeof dash.layout === 'object') ? dash.layout : (dash.layout = {});
+    gridInstance.engine.nodes.forEach((n) => {
+      const el = n.el; if (!el) return;
+      const key = el.dataset.folder ? el.dataset.folder
+        : (el.dataset.widget ? '@w:' + el.dataset.widget : null);
+      if (!key) return;
+      layout[key] = Object.assign({}, layout[key], { x: n.x, y: n.y, w: n.w, h: n.h });
+    });
+  }
+  chromeSet({ dashboards: state.dashboards });
 }
 
 // Re-apply per-item move/resize locks after a global enableMove/enableResize.
@@ -3027,7 +3060,7 @@ function showNewTabDisabled() {
 function showEmptyState() {
   dashboardArea.innerHTML = `
     <div style="height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:20px;text-align:center;color:var(--text-muted);padding:40px;">
-      <div><img src="../icons/robot.svg" alt="" style="width:64px;height:64px;object-fit:contain;"></div>
+      <div><img src="../icons/logo.png" alt="" style="width:64px;height:64px;object-fit:contain;"></div>
       <div>
         <div style="font-size:22px;font-weight:600;color:var(--text-primary);margin-bottom:8px;">Welcome to Auto Dashboard AI</div>
         <div style="font-size:14px;color:var(--text-secondary);margin-bottom:20px;">Create your first dashboard from your bookmarks.</div>

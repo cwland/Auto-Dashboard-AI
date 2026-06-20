@@ -35,28 +35,171 @@
   const hourLabel = (unixSec) => new Date(unixSec * 1000).toLocaleTimeString([], { hour: 'numeric' });
   const weekday = (unixSec) => new Date(unixSec * 1000).toLocaleDateString(undefined, { weekday: 'short' });
 
+  // ─── Open-Meteo WMO weather codes → emoji + text ───────────────────────────
+  function wmoEmoji(code, isDay) {
+    const c = +code;
+    if (c === 0) return isDay ? '☀️' : '🌙';
+    if (c === 1) return isDay ? '🌤️' : '🌙';
+    if (c === 2) return '⛅';
+    if (c === 3) return '☁️';
+    if (c === 45 || c === 48) return '🌫️';
+    if (c >= 51 && c <= 57) return '🌦️';
+    if (c >= 61 && c <= 67) return '🌧️';
+    if (c >= 71 && c <= 77) return '🌨️';
+    if (c >= 80 && c <= 82) return '🌧️';
+    if (c === 85 || c === 86) return '🌨️';
+    if (c >= 95) return '⛈️';
+    return '🌡️';
+  }
+  const WMO_TEXT = {
+    0: 'Clear sky', 1: 'Mainly clear', 2: 'Partly cloudy', 3: 'Overcast',
+    45: 'Fog', 48: 'Rime fog', 51: 'Light drizzle', 53: 'Drizzle', 55: 'Dense drizzle',
+    56: 'Freezing drizzle', 57: 'Freezing drizzle', 61: 'Light rain', 63: 'Rain', 65: 'Heavy rain',
+    66: 'Freezing rain', 67: 'Freezing rain', 71: 'Light snow', 73: 'Snow', 75: 'Heavy snow',
+    77: 'Snow grains', 80: 'Light showers', 81: 'Showers', 82: 'Violent showers',
+    85: 'Snow showers', 86: 'Snow showers', 95: 'Thunderstorm', 96: 'Thunderstorm, hail', 99: 'Thunderstorm, hail',
+  };
+  const wmoText = (code) => WMO_TEXT[+code] || '';
+  // Open-Meteo returns naive local-time ISO strings (timezone=auto); format the
+  // clock parts directly so the displayed time matches the city, not the browser.
+  const isoHM = (iso) => {
+    const m = String(iso || '').match(/T(\d{1,2}):(\d{2})/);
+    if (!m) return '--';
+    let h = +m[1]; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+    return `${h}:${m[2]} ${ap}`;
+  };
+  const isoHourLabel = (iso) => {
+    const m = String(iso || '').match(/T(\d{1,2}):/);
+    if (!m) return '';
+    let h = +m[1]; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12;
+    return `${h} ${ap}`;
+  };
+  const isoWeekday = (d) => {
+    const dt = new Date(String(d || '') + 'T12:00:00');
+    return isNaN(dt) ? '' : dt.toLocaleDateString(undefined, { weekday: 'short' });
+  };
+
   // ─── data ─────────────────────────────────────────────────────────────────
   const WeatherApi = {
     _cache: {},   // key → { ts, data }  (shared so 3 widgets don't all re-fetch)
     units(units) { return { temp: units === 'metric' ? '°C' : '°F', speed: units === 'metric' ? 'km/h' : 'mph' }; },
     speed(raw, units) { return units === 'metric' ? Math.round((raw || 0) * 3.6) : Math.round(raw || 0); },
 
-    async fetch(apiKey, location, units) {
-      const key = location + '|' + units;
-      const c = this._cache[key];
+    // ── Provider-agnostic entry points ─────────────────────────────────────
+    // cfg: { provider, apiKey, lat, lon, location, units }. Both providers
+    // resolve to the SAME normalized shape so every widget is identical.
+    async fetch(cfg) {
+      cfg = cfg || {};
+      const units = cfg.units || 'imperial';
+      return (cfg.provider === 'openmeteo') ? this._om(cfg, units) : this._owm(cfg, units, false);
+    },
+    async fetchHourly(cfg) {
+      cfg = cfg || {};
+      const units = cfg.units || 'imperial';
+      // Open-Meteo is already true-hourly; OWM needs the One Call path.
+      return (cfg.provider === 'openmeteo') ? this._om(cfg, units) : this._owm(cfg, units, true);
+    },
+
+    // ── Open-Meteo (free, keyless; fetched by coordinates) ──────────────────
+    async _om(cfg, units) {
+      const { lat, lon } = cfg;
+      if (lat == null || lon == null) throw new Error('No location coordinates');
+      const ck = 'OM|' + lat + ',' + lon + '|' + units;
+      const c = this._cache[ck];
       if (c && Date.now() - c.ts < 5 * 60 * 1000) return c.data;
-      const base = 'https://api.openweathermap.org/data/2.5/';
-      const q = `?q=${encodeURIComponent(location)}&appid=${apiKey}&units=${units}`;
-      const [curRes, fcRes] = await Promise.all([fetch(base + 'weather' + q), fetch(base + 'forecast' + q)]);
-      if (!curRes.ok) throw new Error(curRes.status === 401 ? 'Invalid API key' : `HTTP ${curRes.status}`);
-      const current = await curRes.json();
-      const forecast = fcRes.ok ? await fcRes.json() : { list: [], city: {} };
-      const data = this.normalize(current, forecast, units);
-      this._cache[key] = { ts: Date.now(), data };
+      const tu = units === 'metric' ? 'celsius' : 'fahrenheit';
+      const wu = units === 'metric' ? 'kmh' : 'mph';
+      const url = 'https://api.open-meteo.com/v1/forecast' +
+        `?latitude=${lat}&longitude=${lon}` +
+        '&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m' +
+        '&hourly=temperature_2m,weather_code,wind_speed_10m' +
+        '&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset' +
+        `&temperature_unit=${tu}&wind_speed_unit=${wu}&timezone=auto&forecast_days=7`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = this.normalizeOpenMeteo(await res.json(), units, cfg.location || '');
+      this._cache[ck] = { ts: Date.now(), data };
       return data;
     },
 
-    normalize(cur, fc, units) {
+    normalizeOpenMeteo(j, units, place) {
+      const cur = j.current || {};
+      const dl = j.daily || {};
+      const hr = j.hourly || {};
+      const isDay = cur.is_day !== 0;
+      const current = {
+        condition: wmoText(cur.weather_code),
+        emoji: wmoEmoji(cur.weather_code, isDay),
+        temp: Math.round(cur.temperature_2m ?? 0),
+        feels: Math.round(cur.apparent_temperature ?? cur.temperature_2m ?? 0),
+        high: Math.round((dl.temperature_2m_max && dl.temperature_2m_max[0]) ?? cur.temperature_2m ?? 0),
+        low: Math.round((dl.temperature_2m_min && dl.temperature_2m_min[0]) ?? cur.temperature_2m ?? 0),
+        wind: Math.round(cur.wind_speed_10m ?? 0),   // already mph/kmh per request
+        humidity: Math.round(cur.relative_humidity_2m ?? 0),
+        sunrise: isoHM(dl.sunrise && dl.sunrise[0]),
+        sunset: isoHM(dl.sunset && dl.sunset[0]),
+        place: place || '',
+      };
+      // Hourly: start at the current hour and go forward.
+      const times = hr.time || [];
+      const nowIso = cur.time || '';
+      let start = times.findIndex((t) => t >= nowIso);
+      if (start < 0) start = 0;
+      const hourly = [];
+      for (let i = start; i < times.length && hourly.length < 24; i++) {
+        hourly.push({
+          time: isoHourLabel(times[i]),
+          condition: wmoText(hr.weather_code && hr.weather_code[i]),
+          emoji: wmoEmoji(hr.weather_code && hr.weather_code[i], true),
+          temp: Math.round((hr.temperature_2m && hr.temperature_2m[i]) ?? 0),
+          wind: Math.round((hr.wind_speed_10m && hr.wind_speed_10m[i]) ?? 0),
+        });
+      }
+      const daily = (dl.time || []).map((d, i) => ({
+        day: isoWeekday(d),
+        emoji: wmoEmoji(dl.weather_code && dl.weather_code[i], true),
+        condition: wmoText(dl.weather_code && dl.weather_code[i]),
+        high: Math.round((dl.temperature_2m_max && dl.temperature_2m_max[i]) ?? 0),
+        low: Math.round((dl.temperature_2m_min && dl.temperature_2m_min[i]) ?? 0),
+        sunrise: isoHM(dl.sunrise && dl.sunrise[i]),
+        sunset: isoHM(dl.sunset && dl.sunset[i]),
+      }));
+      return { current, hourly, daily, units, sym: this.units(units) };
+    },
+
+    // ── OpenWeatherMap (API key; fetched by coords when available, else q=) ──
+    async _owm(cfg, units, trueHourly) {
+      const apiKey = cfg.apiKey;
+      const hasCoords = cfg.lat != null && cfg.lon != null;
+      const where = hasCoords ? `lat=${cfg.lat}&lon=${cfg.lon}` : `q=${encodeURIComponent(cfg.location || '')}`;
+      const ck = (trueHourly ? 'H|' : '') + 'OWM|' + where + '|' + units;
+      const c = this._cache[ck];
+      if (c && Date.now() - c.ts < 5 * 60 * 1000) return c.data;
+      const root = 'https://api.openweathermap.org/data/';
+      const q = `?${where}&appid=${apiKey}&units=${units}`;
+      const curRes = await fetch(root + '2.5/weather' + q);
+      if (!curRes.ok) throw new Error(curRes.status === 401 ? 'Invalid API key' : `HTTP ${curRes.status}`);
+      const cur = await curRes.json();
+      let data = null;
+      if (trueHourly) {
+        const lat = (cur.coord && cur.coord.lat) ?? cfg.lat;
+        const lon = (cur.coord && cur.coord.lon) ?? cfg.lon;
+        if (lat != null && lon != null) {
+          try {
+            const oc = await fetch(`${root}3.0/onecall?lat=${lat}&lon=${lon}&units=${units}&exclude=minutely,alerts&appid=${apiKey}`);
+            if (oc.ok) data = this.normalizeOneCall(cur, await oc.json(), units);
+          } catch (_) { /* fall back to 3-hour forecast */ }
+        }
+      }
+      if (!data) {
+        const fcRes = await fetch(root + '2.5/forecast' + q);
+        data = this.normalize(cur, fcRes.ok ? await fcRes.json() : { list: [], city: {} }, units, cfg.location || '');
+      }
+      this._cache[ck] = { ts: Date.now(), data };
+      return data;
+    },
+
+    normalize(cur, fc, units, place) {
       const w = (cur.weather && cur.weather[0]) || {};
       const sys = cur.sys || {};
       const city = fc.city || {};
@@ -71,7 +214,7 @@
         humidity: Math.round(cur.main?.humidity ?? 0),
         sunrise: sys.sunrise ? hhmm(sys.sunrise) : '--',
         sunset: sys.sunset ? hhmm(sys.sunset) : '--',
-        place: cur.name || location || '',
+        place: cur.name || place || '',
       };
       const list = Array.isArray(fc.list) ? fc.list : [];
       const hourly = list.map((it) => {
@@ -107,34 +250,6 @@
       return { current, hourly, daily, units, sym: this.units(units) };
     },
 
-    // True-hourly variant for the combined widget. Uses One Call API 3.0 (real
-    // 1-hour steps + per-day forecast) when the key is subscribed to it, and
-    // transparently falls back to the free 3-hour /forecast otherwise.
-    async fetchHourly(apiKey, location, units) {
-      const key = 'H|' + location + '|' + units;
-      const c = this._cache[key];
-      if (c && Date.now() - c.ts < 5 * 60 * 1000) return c.data;
-      const root = 'https://api.openweathermap.org/data/';
-      const q = `?q=${encodeURIComponent(location)}&appid=${apiKey}&units=${units}`;
-      const curRes = await fetch(root + '2.5/weather' + q);
-      if (!curRes.ok) throw new Error(curRes.status === 401 ? 'Invalid API key' : `HTTP ${curRes.status}`);
-      const cur = await curRes.json();
-      let data = null;
-      const lat = cur.coord && cur.coord.lat, lon = cur.coord && cur.coord.lon;
-      if (lat != null && lon != null) {
-        try {
-          const ocRes = await fetch(`${root}3.0/onecall?lat=${lat}&lon=${lon}&units=${units}&exclude=minutely,alerts&appid=${apiKey}`);
-          if (ocRes.ok) data = this.normalizeOneCall(cur, await ocRes.json(), units);
-        } catch (_) { /* fall through to 3-hour forecast */ }
-      }
-      if (!data) {
-        const fcRes = await fetch(root + '2.5/forecast' + q);
-        data = this.normalize(cur, fcRes.ok ? await fcRes.json() : { list: [], city: {} }, units);
-      }
-      this._cache[key] = { ts: Date.now(), data };
-      return data;
-    },
-
     normalizeOneCall(cur, oc, units) {
       const base = this.normalize(cur, { list: [], city: {} }, units);
       const hourly = (oc.hourly || []).map((it) => {
@@ -153,7 +268,7 @@
   class WeatherBase {
     constructor(container, config, title, icon) {
       this.el = container;
-      this.cfg = Object.assign({ apiKey: '', location: '', units: 'imperial', pollMs: 15 * 60 * 1000, dataProvider: null }, config || {});
+      this.cfg = Object.assign({ provider: 'openweathermap', apiKey: '', lat: null, lon: null, location: '', units: 'imperial', pollMs: 15 * 60 * 1000, dataProvider: null }, config || {});
       this.title = title; this.icon = icon;
       this.data = null; this.pollTimer = null; this.destroyed = false;
       this._buildSkeleton();
@@ -166,7 +281,7 @@
       if (this.destroyed) return;
       try {
         this.data = this.cfg.dataProvider ? await this.cfg.dataProvider()
-          : await WeatherApi.fetch(this.cfg.apiKey, this.cfg.location, this.cfg.units || 'imperial');
+          : await WeatherApi.fetch(this.cfg);
         this._clearError(); this._render();
       } catch (err) { this._showError(err && err.message); }
     }
@@ -312,7 +427,7 @@
       if (this.destroyed) return;
       try {
         this.data = this.cfg.dataProvider ? await this.cfg.dataProvider()
-          : await WeatherApi.fetchHourly(this.cfg.apiKey, this.cfg.location, this.cfg.units || 'imperial');
+          : await WeatherApi.fetchHourly(this.cfg);
         this._clearError(); this._render();
       } catch (err) { this._showError(err && err.message); }
     }

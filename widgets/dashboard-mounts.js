@@ -50,6 +50,21 @@
     return new DownloadClientWidget(host, withPoll(s, svc, cfg));
   }
 
+  // Provider-agnostic weather config. The provider + key are global; each city
+  // supplies its resolved coordinates (used by both providers). Falls back to a
+  // sensible provider when the setting is absent (legacy installs).
+  function wxBase(s, extra) {
+    const provider = s.weatherProvider || (s.weatherApiKey ? 'openweathermap' : 'openmeteo');
+    return Object.assign({
+      provider,
+      apiKey: s.weatherApiKey,
+      lat: (s.weatherLat != null && s.weatherLat !== '') ? Number(s.weatherLat) : null,
+      lon: (s.weatherLon != null && s.weatherLon !== '') ? Number(s.weatherLon) : null,
+      location: s.weatherLocation,
+      units: s.weatherUnits || 'imperial',
+    }, extra || {});
+  }
+
   const MOUNTS = {
     tautulli: (h, s, opts) => {
       const w = new TautulliWidget(h, withPoll(s, 'tautulli', {
@@ -127,20 +142,17 @@
     truenas: (h, s) => new SystemHealthWidget(h, withPoll(s, 'truenas', { service: 'truenas', baseUrl: s.truenasUrl, apiKey: s.truenasApiKey })),
 
     // ── Weather (three independent widgets) ─────────────────────────────────
-    'weather-current': (h, s) => new WeatherCurrentWidget(h, { apiKey: s.weatherApiKey, location: s.weatherLocation, units: s.weatherUnits || 'imperial' }),
-    'weather-hourly': (h, s, opts) => new WeatherHourlyWidget(h, {
-      apiKey: s.weatherApiKey, location: s.weatherLocation, units: s.weatherUnits || 'imperial',
+    'weather-current': (h, s) => new WeatherCurrentWidget(h, wxBase(s)),
+    'weather-hourly': (h, s, opts) => new WeatherHourlyWidget(h, wxBase(s, {
       hours: (opts && opts.hours) || 5, onHoursChange: opts && opts.onHoursChange,
-    }),
-    'weather-forecast': (h, s, opts) => new WeatherForecastWidget(h, {
-      apiKey: s.weatherApiKey, location: s.weatherLocation, units: s.weatherUnits || 'imperial',
+    })),
+    'weather-forecast': (h, s, opts) => new WeatherForecastWidget(h, wxBase(s, {
       days: (opts && opts.days) || 5, onDaysChange: opts && opts.onDaysChange,
-    }),
-    'weather-combined': (h, s, opts) => new WeatherCombinedWidget(h, {
-      apiKey: s.weatherApiKey, location: s.weatherLocation, units: s.weatherUnits || 'imperial',
+    })),
+    'weather-combined': (h, s, opts) => new WeatherCombinedWidget(h, wxBase(s, {
       hours: (opts && opts.hours) || 12, days: (opts && opts.days) || 5, speedMs: (opts && opts.speedMs) || 2000,
       onHoursChange: opts && opts.onHoursChange, onDaysChange: opts && opts.onDaysChange, onSpeedChange: opts && opts.onSpeedChange,
-    }),
+    })),
   };
 
   // Widget id → base integration id (for multi-endpoint resolution). Variant
