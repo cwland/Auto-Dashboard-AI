@@ -241,6 +241,89 @@
     node: PbsApi.mapNode({ cpu: 0.07, memory: { total: 16 * GB, used: 4.2 * GB }, uptime: 1300000 }),
     datastores: PbsApi.mapDatastores([{ store: 'main', used: 3.4 * 1024 * GB, total: 8 * 1024 * GB, avail: 4.6 * 1024 * GB }, { store: 'offsite', used: 6.9 * 1024 * GB, total: 8 * 1024 * GB, avail: 1.1 * 1024 * GB }]),
   }));
+
+  // ── Proxmox dashboards (health / logs / storage / guests / overview) ────────
+  // Demo data drives each widget via its dataProvider hook (no network).
+  const PXTB = 1024 * GB, R = Math.round;
+  M['proxmox-overview'] = (host) => {
+    if (typeof ProxmoxOverviewWidget === 'undefined') return null;
+    const w = new ProxmoxOverviewWidget(host, { dataProvider: () => Promise.resolve({
+      cpuPct: 7.2, memUsed: R(73.7 * GB), memTotal: 92 * GB, memPct: 80.2, running: 5, stopped: 1, total: 6, vmCount: 5, lxcCount: 1,
+    }) }); w.start(); return w;
+  };
+  M['proxmox-health'] = (host) => {
+    if (typeof ProxmoxHealthWidget === 'undefined') return null;
+    const w = new ProxmoxHealthWidget(host, { dataProvider: () => Promise.resolve({
+      overall: 'warning', summary: { total: 8, healthy: 6, warnings: 2, critical: 0, unavailable: 0 },
+      checks: [
+        { id: 'nodes', label: 'Nodes Online', status: 'ok', detail: '1/1 online' },
+        { id: 'cpu', label: 'CPU Usage', status: 'ok', detail: '7.2% max' },
+        { id: 'memory', label: 'Memory & Swap', status: 'warning', detail: '80.2% RAM max' },
+        { id: 'storage', label: 'Storage & Root FS', status: 'warning', detail: '88.0% max (ext4-data)' },
+        { id: 'services', label: 'PVE Services', status: 'ok', detail: 'All core services running' },
+        { id: 'disks', label: 'Disk SMART Health', status: 'ok', detail: '3 disk(s) healthy' },
+        { id: 'network', label: 'Network Interfaces', status: 'ok', detail: 'All active' },
+        { id: 'updates', label: 'Available Updates', status: 'ok', detail: '14 update(s) available' },
+      ], notice: '14 update(s) available',
+    }) }); w.start(); return w;
+  };
+  M['proxmox-storage'] = (host) => {
+    if (typeof ProxmoxStorageWidget === 'undefined') return null;
+    const w = new ProxmoxStorageWidget(host, { dataProvider: () => Promise.resolve({
+      storages: [
+        { name: 'BackupServer', type: 'pbs', node: 'pve1', shared: true, active: true, used: R(0.41 * PXTB), total: R(1.46 * PXTB), avail: R(1.04 * PXTB), pct: 28.36, scope: 'remote' },
+        { name: 'ext4-data', type: 'dir', node: 'pve1', shared: false, active: true, used: R(138 * GB), total: R(915 * GB), avail: R(777 * GB), pct: 15.12, scope: 'local' },
+        { name: 'local', type: 'dir', node: 'pve1', shared: false, active: true, used: R(30 * GB), total: 100 * GB, avail: 70 * GB, pct: 30, scope: 'local' },
+      ],
+      local: { used: R(168 * GB), total: R(1015 * GB) }, remote: { used: R(0.41 * PXTB), total: R(1.46 * PXTB) },
+      disks: { available: true, forbidden: false, count: 3, total: R(2.1 * PXTB), healthy: 3, byType: { nvme: 2, ssd: 1 } },
+      totalStorage: R(2.1 * PXTB), totalStorageFromDisks: true,
+    }) }); w.start(); return w;
+  };
+  M['proxmox-guests'] = (host) => {
+    if (typeof ProxmoxGuestsWidget === 'undefined') return null;
+    const g = (vmid, name, type, running, cpu, mem, maxmem, disk, maxdisk, uptime, ni, no, dr, dw, ip) =>
+      ({ vmid, name, type, kind: type === 'qemu' ? 'VM' : 'LXC', running, status: running ? 'running' : 'stopped', cpu, maxcpu: 4, mem, maxmem, disk, maxdisk, uptime, netin: ni, netout: no, diskread: dr, diskwrite: dw, node: 'pve1', ip: ip || '' });
+    const guests = [
+      g(100, 'docker-server', 'qemu', true, 0.05, R(33 * GB), R(34.7 * GB), 0, 220 * GB, 494400, 563 * GB, 580 * GB, 63 * GB, 584 * GB),
+      g(101, 'pihole.local', 'lxc', true, 0.01, R(0.2 * GB), R(0.5 * GB), 2 * GB, 8 * GB, 494640, 5 * GB, 3 * GB, GB, 2 * GB, '192.168.50.2'),
+      g(102, 'media', 'qemu', true, 0.12, R(12 * GB), 16 * GB, 0, 120 * GB, 200000, 40 * GB, 30 * GB, 20 * GB, 15 * GB),
+      g(103, 'win-vm', 'qemu', true, 0.03, R(8 * GB), 16 * GB, 0, 120 * GB, 100000, 10 * GB, 8 * GB, 5 * GB, 4 * GB),
+      g(104, 'test', 'qemu', true, 0.02, R(4 * GB), 8 * GB, 0, 32 * GB, 50000, 2 * GB, GB, GB, GB),
+      g(105, 'old-vm', 'qemu', false, 0, 0, 4 * GB, 0, 50 * GB, 0, 0, 0, 0, 0),
+    ];
+    const w = new ProxmoxGuestsWidget(host, { dataProvider: () => Promise.resolve({ guests, summary: {
+      total: 6, running: 5, stopped: 1, cpuPct: 4.2, memUsed: R(57.4 * GB), memTotal: 92 * GB, memPct: 62.4, allocatedRam: R(89.3 * GB), withinLimits: true, diskAllocated: 550 * GB,
+    } }) }); w.start(); return w;
+  };
+  function pxLogsDemo() {
+    const t = Date.now();
+    return [
+      { ts: t - 60000, host: 'pve1', unit: 'pveproxy', pid: '1234', message: 'worker 1234 started', level: 'info', node: 'pve1' },
+      { ts: t - 120000, host: 'pve1', unit: 'CRON', pid: '8939', message: '(root) CMD (run-parts /etc/cron.hourly)', level: 'info', node: 'pve1' },
+      { ts: t - 300000, host: 'pve1', unit: 'pvedaemon', pid: '900', message: 'connection timed out, retrying', level: 'warn', node: 'pve1' },
+      { ts: t - 600000, host: 'pve1', unit: 'kernel', pid: '', message: 'EXT4-fs error on device sdb1', level: 'error', node: 'pve1' },
+      { ts: t - 900000, host: 'pve1', unit: 'systemd', pid: '1', message: 'Started Daily apt download activities', level: 'info', node: 'pve1' },
+    ];
+  }
+  function pxBackupsDemo() {
+    const t = Date.now();
+    return [
+      { ts: t - 3600000, endtime: Math.floor((t - 3600000) / 1000) + 180, status: 'ok', statusText: 'OK', vmid: '100', user: 'root@pam', node: 'pve1' },
+      { ts: t - 7200000, endtime: Math.floor((t - 7200000) / 1000) + 95, status: 'ok', statusText: 'OK', vmid: '101', user: 'root@pam', node: 'pve1' },
+      { ts: t - 90000000, endtime: Math.floor((t - 90000000) / 1000) + 20, status: 'failed', statusText: 'job errors', vmid: '102', user: 'root@pam', node: 'pve1' },
+    ];
+  }
+  M['proxmox-logs'] = (host) => {
+    if (typeof ProxmoxLogsWidget === 'undefined') return null;
+    const w = new ProxmoxLogsWidget(host, { dataProvider: () => Promise.resolve({ entries: pxLogsDemo(), forbidden: false }) });
+    w.start(); return w;
+  };
+  M['proxmox-backups'] = (host) => {
+    if (typeof ProxmoxBackupsWidget === 'undefined') return null;
+    const w = new ProxmoxBackupsWidget(host, { dataProvider: () => Promise.resolve({ entries: pxBackupsDemo(), forbidden: false }) });
+    w.start(); return w;
+  };
   M.beszel = dp(typeof BeszelWidget !== 'undefined' ? BeszelWidget : undefined, () => BeszelApi.mapSystems([
     { id: '1', name: 'web-01', host: '10.0.0.5', status: 'up', info: { cpu: 14, mp: 38, dp: 52, u: 540000, m: 'Xeon', v: '0.9.1' } },
     { id: '2', name: 'db-01', host: '10.0.0.6', status: 'up', info: { cpu: 61, mp: 74, dp: 88, u: 1200000, v: '0.9.1' } },

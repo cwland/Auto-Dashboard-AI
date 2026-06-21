@@ -223,13 +223,59 @@ const SAMPLES = {
     [{ identifier: 'cpu', data: [[0, 15, 12, 8]] }, { identifier: 'memory', data: [[0, 40 * GB]] }, { identifier: 'cputemp', data: [[0, 45, 47]] }],
     [{ name: 'tank', allocated: 6 * 1024 * GB, size: 10 * 1024 * GB, healthy: true, status: 'ONLINE' }, { name: 'backup', allocated: 1 * 1024 * GB, size: 4 * 1024 * GB, healthy: false, status: 'DEGRADED' }],
     [{ data: [[0, 1240000, 320000]] }])) }).start(),
-  proxmox: (h) => new ProxmoxWidget(tile('Proxmox VE'), { dataProvider: () => Promise.resolve(ProxmoxApi.mapResources([
-    { type: 'node', id: 'node/pve1', node: 'pve1', status: 'online', cpu: 0.18, maxcpu: 16, mem: 18 * GB, maxmem: 64 * GB, uptime: 900000 },
-    { type: 'qemu', id: 'qemu/100', vmid: 100, name: 'web', status: 'running', cpu: 0.05, maxcpu: 4, mem: 2 * GB, maxmem: 4 * GB },
-    { type: 'qemu', id: 'qemu/101', vmid: 101, name: 'db', status: 'stopped', cpu: 0, maxcpu: 4, mem: 0, maxmem: 8 * GB },
-    { type: 'lxc', id: 'lxc/200', vmid: 200, name: 'pihole', status: 'running', cpu: 0.01, maxcpu: 1, mem: 0.2 * GB, maxmem: 0.5 * GB },
-    { type: 'storage', id: 'storage/pve1/local', storage: 'local', node: 'pve1', status: 'available', disk: 80 * GB, maxdisk: 100 * GB, shared: 0 },
-  ])) }).start(),
+  // Proxmox sample shows the full set of dashboards with demo data (no network).
+  proxmox: (h) => {
+    const R = Math.round, TB = 1024 * GB, t = Date.now();
+    new ProxmoxOverviewWidget(tile('Overview'), { dataProvider: () => Promise.resolve({
+      cpuPct: 7.2, memUsed: R(73.7 * GB), memTotal: 92 * GB, memPct: 80.2, running: 5, stopped: 1, total: 6, vmCount: 5, lxcCount: 1,
+    }) }).start();
+    new ProxmoxWidget(tile('Proxmox VE — Cluster'), { dataProvider: () => Promise.resolve(ProxmoxApi.mapResources([
+      { type: 'node', id: 'node/pve1', node: 'pve1', status: 'online', cpu: 0.072, maxcpu: 16, mem: R(73.7 * GB), maxmem: 92 * GB, uptime: 494400 },
+      { type: 'qemu', id: 'qemu/100', vmid: 100, name: 'docker-server', status: 'running', cpu: 0.05, maxcpu: 4, mem: R(33 * GB), maxmem: R(34.7 * GB) },
+      { type: 'lxc', id: 'lxc/101', vmid: 101, name: 'pihole', status: 'running', cpu: 0.01, maxcpu: 1, mem: R(0.2 * GB), maxmem: R(0.5 * GB) },
+      { type: 'storage', id: 'storage/pve1/ext4-data', storage: 'ext4-data', node: 'pve1', status: 'available', disk: R(138 * GB), maxdisk: R(915 * GB), shared: 0 },
+    ])) }).start();
+    new ProxmoxHealthWidget(tile('System Health Status'), { dataProvider: () => Promise.resolve({
+      overall: 'warning', summary: { total: 8, healthy: 6, warnings: 2, critical: 0, unavailable: 0 },
+      checks: [
+        { id: 'nodes', label: 'Nodes Online', status: 'ok', detail: '1/1 online' },
+        { id: 'cpu', label: 'CPU Usage', status: 'ok', detail: '7.2% max' },
+        { id: 'memory', label: 'Memory & Swap', status: 'warning', detail: '80.2% RAM max' },
+        { id: 'storage', label: 'Storage & Root FS', status: 'warning', detail: '88.0% max (ext4-data)' },
+        { id: 'services', label: 'PVE Services', status: 'ok', detail: 'All core services running' },
+        { id: 'disks', label: 'Disk SMART Health', status: 'ok', detail: '3 disk(s) healthy' },
+        { id: 'network', label: 'Network Interfaces', status: 'ok', detail: 'All active' },
+        { id: 'updates', label: 'Available Updates', status: 'ok', detail: '14 update(s) available' },
+      ], notice: '14 update(s) available',
+    }) }).start();
+    new ProxmoxLogsWidget(tile('System Logs'), { dataProvider: () => Promise.resolve({ entries: [
+      { ts: t - 60000, host: 'pve1', unit: 'pveproxy', pid: '1234', message: 'worker 1234 started', level: 'info', node: 'pve1' },
+      { ts: t - 120000, host: 'pve1', unit: 'CRON', pid: '8939', message: '(root) CMD (run-parts /etc/cron.hourly)', level: 'info', node: 'pve1' },
+      { ts: t - 300000, host: 'pve1', unit: 'pvedaemon', pid: '900', message: 'connection timed out, retrying', level: 'warn', node: 'pve1' },
+      { ts: t - 600000, host: 'pve1', unit: 'kernel', pid: '', message: 'EXT4-fs error on device sdb1', level: 'error', node: 'pve1' },
+    ], forbidden: false }) }).start();
+    new ProxmoxBackupsWidget(tile('Backup Logs'), { dataProvider: () => Promise.resolve({ entries: [
+      { ts: t - 3600000, endtime: Math.floor((t - 3600000) / 1000) + 180, status: 'ok', statusText: 'OK', vmid: '100', user: 'root@pam', node: 'pve1' },
+      { ts: t - 7200000, endtime: Math.floor((t - 7200000) / 1000) + 95, status: 'ok', statusText: 'OK', vmid: '101', user: 'root@pam', node: 'pve1' },
+    ], forbidden: false }) }).start();
+    new ProxmoxStorageWidget(tile('Storage'), { dataProvider: () => Promise.resolve({
+      storages: [
+        { name: 'BackupServer', type: 'pbs', node: 'pve1', shared: true, active: true, used: R(0.41 * TB), total: R(1.46 * TB), avail: R(1.04 * TB), pct: 28.36, scope: 'remote' },
+        { name: 'ext4-data', type: 'dir', node: 'pve1', shared: false, active: true, used: R(138 * GB), total: R(915 * GB), avail: R(777 * GB), pct: 15.12, scope: 'local' },
+      ],
+      local: { used: R(168 * GB), total: R(1015 * GB) }, remote: { used: R(0.41 * TB), total: R(1.46 * TB) },
+      disks: { available: true, forbidden: false, count: 3, total: R(2.1 * TB), healthy: 3, byType: { nvme: 2, ssd: 1 } },
+      totalStorage: R(2.1 * TB), totalStorageFromDisks: true,
+    }) }).start();
+    const g = (vmid, name, type, running, cpu, mem, maxmem, disk, maxdisk, uptime, ni, no, dr, dw, ip) =>
+      ({ vmid, name, type, kind: type === 'qemu' ? 'VM' : 'LXC', running, status: running ? 'running' : 'stopped', cpu, maxcpu: 4, mem, maxmem, disk, maxdisk, uptime, netin: ni, netout: no, diskread: dr, diskwrite: dw, node: 'pve1', ip: ip || '' });
+    new ProxmoxGuestsWidget(tile('VMs & LXCs'), { dataProvider: () => Promise.resolve({ guests: [
+      g(100, 'docker-server', 'qemu', true, 0.05, R(33 * GB), R(34.7 * GB), 0, 220 * GB, 494400, 563 * GB, 580 * GB, 63 * GB, 584 * GB),
+      g(101, 'pihole.local', 'lxc', true, 0.01, R(0.2 * GB), R(0.5 * GB), 2 * GB, 8 * GB, 494640, 5 * GB, 3 * GB, GB, 2 * GB, '192.168.50.2'),
+      g(102, 'media', 'qemu', true, 0.12, R(12 * GB), 16 * GB, 0, 120 * GB, 200000, 40 * GB, 30 * GB, 20 * GB, 15 * GB),
+      g(105, 'old-vm', 'qemu', false, 0, 0, 4 * GB, 0, 50 * GB, 0, 0, 0, 0, 0),
+    ], summary: { total: 6, running: 5, stopped: 1, cpuPct: 4.2, memUsed: R(57.4 * GB), memTotal: 92 * GB, memPct: 62.4, allocatedRam: R(89.3 * GB), withinLimits: true, diskAllocated: 550 * GB } }) }).start();
+  },
   pbs: (h) => new PbsWidget(tile('Proxmox Backup Server'), { dataProvider: () => Promise.resolve({
     node: PbsApi.mapNode({ cpu: 0.07, memory: { total: 16 * GB, used: 4.2 * GB }, uptime: 1300000 }),
     datastores: PbsApi.mapDatastores([{ store: 'main', used: 3.4 * 1024 * GB, total: 8 * 1024 * GB, avail: 4.6 * 1024 * GB }, { store: 'offsite', used: 6.9 * 1024 * GB, total: 8 * 1024 * GB, avail: 1.1 * 1024 * GB }]),

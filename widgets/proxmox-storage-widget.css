@@ -1,0 +1,48 @@
+/* Auto Dashboard AI — Proxmox VE Storage widget. Scoped under .proxmox-storage-widget.
+   Themed via host CSS vars (light/dark). */
+.proxmox-storage-widget {
+  --pxs-fill: #3b82f6; --pxs-used: #3b82f6; --pxs-avail: var(--success, #22c55e);
+  display: flex; flex-direction: column; gap: 14px; width: 100%; min-width: 0;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.proxmox-storage-widget .pxs-header { display: flex; align-items: center; gap: 10px; }
+.proxmox-storage-widget .pxs-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.proxmox-storage-widget .pxs-error { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.proxmox-storage-widget .pxs-body { display: flex; flex-direction: column; gap: 14px; }
+
+/* Summary tiles */
+.proxmox-storage-widget .pxs-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 720px) { .proxmox-storage-widget .pxs-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 360px) { .proxmox-storage-widget .pxs-grid { grid-template-columns: 1fr; } }
+.proxmox-storage-widget .pxs-tile { display: flex; flex-direction: column; gap: 5px; padding: 16px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+.proxmox-storage-widget .pxs-tile-top { display: flex; align-items: center; justify-content: space-between; color: var(--text-muted); }
+.proxmox-storage-widget .pxs-tile-lbl { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.proxmox-storage-widget .pxs-tile-val { font-size: 26px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.proxmox-storage-widget .pxs-tile-sub { font-size: 12px; color: var(--text-muted); }
+.proxmox-storage-widget .pxs-c-pct { color: var(--pxs-used); font-weight: 600; }
+.proxmox-storage-widget .pxs-c-tot { color: var(--success, #22c55e); font-weight: 600; }
+.proxmox-storage-widget .pxs-c-type { color: #8b5cf6; font-weight: 600; }
+.proxmox-storage-widget .pxs-c-used { color: var(--pxs-used); }
+.proxmox-storage-widget .pxs-c-avail { color: var(--pxs-avail); }
+
+/* Proxmox Storage section */
+.proxmox-storage-widget .pxs-section { border: 1px solid var(--border); border-radius: var(--radius, 10px); background: var(--bg-secondary); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.proxmox-storage-widget .pxs-sec-head { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; }
+.proxmox-storage-widget .pxs-stors { display: flex; flex-direction: column; gap: 10px; }
+.proxmox-storage-widget .pxs-stor { border: 1px solid var(--border); border-radius: var(--radius, 10px); padding: 14px; display: flex; flex-direction: column; gap: 10px; background: var(--bg-card, var(--bg-primary)); }
+.proxmox-storage-widget .pxs-stor-head { display: flex; align-items: center; gap: 9px; }
+.proxmox-storage-widget .pxs-stor-ico { color: var(--text-muted); display: inline-flex; }
+.proxmox-storage-widget .pxs-stor-name { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proxmox-storage-widget .pxs-badge { font-size: 10.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; color: #8b5cf6; border: 1px solid rgba(139,92,246,0.4); text-transform: lowercase; }
+.proxmox-storage-widget .pxs-stor-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.proxmox-storage-widget .pxs-state { font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+.proxmox-storage-widget .pxs-state.pxs-active { color: var(--success, #22c55e); border: 1px solid rgba(34,197,94,0.4); }
+.proxmox-storage-widget .pxs-state.pxs-inactive { color: var(--text-muted); border: 1px solid var(--border); }
+.proxmox-storage-widget .pxs-stor-pct { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.proxmox-storage-widget .pxs-bar { height: 8px; border-radius: 999px; background: var(--bg-hover); overflow: hidden; }
+.proxmox-storage-widget .pxs-bar-fill { height: 100%; background: var(--pxs-fill); border-radius: 999px; }
+.proxmox-storage-widget .pxs-stor-foot { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.proxmox-storage-widget .pxs-stor-foot > div { display: flex; flex-direction: column; gap: 2px; }
+.proxmox-storage-widget .pxs-foot-lbl { font-size: 11.5px; color: var(--text-muted); }
+.proxmox-storage-widget .pxs-foot-val { font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.proxmox-storage-widget .pxs-empty { font-size: 13px; color: var(--text-muted); text-align: center; padding: 18px; border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

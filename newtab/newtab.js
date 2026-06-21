@@ -1609,6 +1609,12 @@ WIDGET_CATALOG.push(
   { wid: 'weather-forecast', intId: 'weather-forecast', name: '5-Day Forecast',  icon: '', enabledKey: 'weatherEnabled', emoji: '📅' },
   { wid: 'countdown',      intId: 'countdown',      name: 'Countdown',      icon: '', enabledKey: 'countdownEnabled', emoji: '⏳' },
   { wid: 'countdown-list', intId: 'countdown-list', name: 'Countdown List', icon: '', enabledKey: 'countdownEnabled', emoji: '⏳' },
+  { wid: 'proxmox-health', intId: 'proxmox-health', name: 'Proxmox Health', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+  { wid: 'proxmox-logs', intId: 'proxmox-logs', name: 'Proxmox System Logs', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+  { wid: 'proxmox-backups', intId: 'proxmox-backups', name: 'Proxmox Backup Logs', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+  { wid: 'proxmox-storage', intId: 'proxmox-storage', name: 'Proxmox Storage', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+  { wid: 'proxmox-guests', intId: 'proxmox-guests', name: 'Proxmox VMs & LXCs', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+  { wid: 'proxmox-overview', intId: 'proxmox-overview', name: 'Proxmox Overview', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
 );
 
 function widgetDef(wid) { return WIDGET_CATALOG.find((w) => w.wid === wid); }
@@ -2495,6 +2501,15 @@ function buildWidgetSection(wdef) {
       } else if (wdef.intId === 'countdown') {
         // Single countdown: per-widget display-unit visibility + a Configure card.
         if (wdef.config && wdef.config.units) opts.units = wdef.config.units;
+        opts.onConfigChange = (patch) => {
+          wdef.config = Object.assign({}, wdef.config, patch);
+          chromeSet({ dashboards: state.dashboards });
+        };
+      } else if (wdef.intId === 'proxmox-logs' || wdef.intId === 'proxmox-backups') {
+        // Carousel list + per-widget Configure card (scroll/show/speed, Refresh
+        // interval, Days window, and — for System Logs — Level/Service filters).
+        applyCarouselOpts(wdef, opts);
+        ['refreshMins', 'days', 'level', 'service'].forEach((k) => { if (wdef.config && wdef.config[k] != null) opts[k] = wdef.config[k]; });
         opts.onConfigChange = (patch) => {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });

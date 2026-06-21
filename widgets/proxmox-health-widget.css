@@ -1,0 +1,55 @@
+/* Auto Dashboard AI — Proxmox VE System Health Status widget.
+   Scoped under .proxmox-health-widget. Themed via host CSS vars (light/dark).
+   OK/Warning/Critical colors reuse --success / --warning / --danger. */
+.proxmox-health-widget {
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+
+/* Status palette */
+.proxmox-health-widget .pxh-ok { color: var(--success, #22c55e); }
+.proxmox-health-widget .pxh-warning { color: var(--warning, #f59e0b); }
+.proxmox-health-widget .pxh-critical { color: var(--danger, #ef4444); }
+
+/* Header */
+.proxmox-health-widget .pxh-header { display: flex; align-items: center; gap: 10px; }
+.proxmox-health-widget .pxh-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.proxmox-health-widget .pxh-overall {
+  margin-left: auto; font-size: 11px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 3px 10px; border-radius: 999px; text-transform: uppercase;
+}
+.proxmox-health-widget .pxh-overall.pxh-ok { background: rgba(34,197,94,0.14); color: var(--success, #22c55e); border: 1px solid rgba(34,197,94,0.30); }
+.proxmox-health-widget .pxh-overall.pxh-warning { background: rgba(245,158,11,0.14); color: var(--warning, #f59e0b); border: 1px solid rgba(245,158,11,0.30); }
+.proxmox-health-widget .pxh-overall.pxh-critical { background: rgba(239,68,68,0.14); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.30); }
+.proxmox-health-widget .pxh-error { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+
+.proxmox-health-widget .pxh-body { display: flex; flex-direction: column; gap: 12px; }
+
+/* Summary tiles */
+.proxmox-health-widget .pxh-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 360px) { .proxmox-health-widget .pxh-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.proxmox-health-widget .pxh-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; padding: 13px 6px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+.proxmox-health-widget .pxh-tile-val { font-size: 22px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.proxmox-health-widget .pxh-tile-lbl { font-size: 10px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+
+/* Notice line */
+.proxmox-health-widget .pxh-notice { font-size: 12.5px; color: var(--text-secondary); padding: 9px 12px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+
+/* Check rows */
+.proxmox-health-widget .pxh-rows { display: flex; flex-direction: column; gap: 8px; }
+.proxmox-health-widget .pxh-row { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+.proxmox-health-widget .pxh-row-ico { display: inline-flex; }
+.proxmox-health-widget .pxh-row.pxh-ok .pxh-row-ico { color: var(--success, #22c55e); }
+.proxmox-health-widget .pxh-row.pxh-warning .pxh-row-ico { color: var(--warning, #f59e0b); }
+.proxmox-health-widget .pxh-row.pxh-critical .pxh-row-ico { color: var(--danger, #ef4444); }
+.proxmox-health-widget .pxh-row.pxh-unavailable .pxh-row-ico { color: var(--text-muted); }
+.proxmox-health-widget .pxh-row-main { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.proxmox-health-widget .pxh-row-label { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proxmox-health-widget .pxh-row-detail { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proxmox-health-widget .pxh-pill { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.proxmox-health-widget .pxh-pill-ok { color: var(--success, #22c55e); border: 1px solid rgba(34,197,94,0.45); }
+.proxmox-health-widget .pxh-pill-warning { color: var(--warning, #f59e0b); border: 1px solid rgba(245,158,11,0.45); }
+.proxmox-health-widget .pxh-pill-critical { color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.45); }
+.proxmox-health-widget .pxh-pill-unavailable { color: var(--text-muted); border: 1px solid var(--border); }
+
+.proxmox-health-widget .pxh-empty { font-size: 13px; color: var(--text-muted); text-align: center; padding: 20px; border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

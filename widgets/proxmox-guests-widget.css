@@ -1,0 +1,70 @@
+/* Auto Dashboard AI — Proxmox VE VMs & LXCs widget. Scoped under .proxmox-guests-widget.
+   Themed via host CSS vars (light/dark). */
+.proxmox-guests-widget {
+  --pxg-blue: #3b82f6; --pxg-up: #3b82f6; --pxg-down: var(--success, #22c55e);
+  display: flex; flex-direction: column; gap: 14px; width: 100%; min-width: 0;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.proxmox-guests-widget .pxg-header { display: flex; align-items: center; gap: 10px; }
+.proxmox-guests-widget .pxg-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.proxmox-guests-widget .pxg-error { margin-left: auto; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.proxmox-guests-widget .pxg-body { display: flex; flex-direction: column; gap: 14px; }
+
+/* Summary tiles */
+.proxmox-guests-widget .pxg-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 760px) { .proxmox-guests-widget .pxg-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 360px) { .proxmox-guests-widget .pxg-grid { grid-template-columns: 1fr; } }
+.proxmox-guests-widget .pxg-tile { display: flex; flex-direction: column; gap: 6px; padding: 16px; border-radius: var(--radius, 10px); background: var(--bg-secondary); border: 1px solid var(--border); }
+.proxmox-guests-widget .pxg-tile-top { display: flex; align-items: center; justify-content: space-between; color: var(--text-muted); }
+.proxmox-guests-widget .pxg-tile-lbl { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+.proxmox-guests-widget .pxg-tile-val { font-size: 28px; font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.proxmox-guests-widget .pxg-tile-val2 { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.proxmox-guests-widget .pxg-tile-sub { font-size: 12px; color: var(--text-muted); }
+.proxmox-guests-widget .pxg-c-pct { color: var(--warning, #f59e0b); font-weight: 600; }
+.proxmox-guests-widget .pxg-tile-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.proxmox-guests-widget .pxg-cnt { font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 999px; }
+.proxmox-guests-widget .pxg-cnt-run { color: var(--success, #22c55e); border: 1px solid rgba(34,197,94,0.4); }
+.proxmox-guests-widget .pxg-cnt-stop { color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.4); }
+.proxmox-guests-widget .pxg-tile-bar { margin-top: 2px; }
+.proxmox-guests-widget .pxg-tile-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.proxmox-guests-widget .pxg-limit { font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.proxmox-guests-widget .pxg-limit.pxg-ok { color: var(--success, #22c55e); border: 1px solid rgba(34,197,94,0.4); }
+.proxmox-guests-widget .pxg-limit.pxg-over { color: var(--warning, #f59e0b); border: 1px solid rgba(245,158,11,0.45); }
+
+/* Bars */
+.proxmox-guests-widget .pxg-bar { height: 6px; border-radius: 999px; background: var(--bg-hover); overflow: hidden; }
+.proxmox-guests-widget .pxg-bar-fill { height: 100%; background: var(--pxg-blue); border-radius: 999px; }
+.proxmox-guests-widget .pxg-bar-fill.pxg-mid { background: var(--warning, #f59e0b); }
+.proxmox-guests-widget .pxg-bar-fill.pxg-hi { background: var(--danger, #ef4444); }
+
+/* Guests section */
+.proxmox-guests-widget .pxg-section { border: 1px solid var(--border); border-radius: var(--radius, 10px); background: var(--bg-secondary); padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.proxmox-guests-widget .pxg-sec-head { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 800; }
+.proxmox-guests-widget .pxg-guests { display: flex; flex-direction: column; gap: 10px; }
+.proxmox-guests-widget .pxg-guest { border: 1px solid var(--border); border-radius: var(--radius, 10px); padding: 14px; display: flex; flex-direction: column; gap: 12px; background: var(--bg-card, var(--bg-primary)); }
+.proxmox-guests-widget .pxg-guest-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.proxmox-guests-widget .pxg-state { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 800; letter-spacing: 0.03em; padding: 3px 9px; border-radius: 999px; }
+.proxmox-guests-widget .pxg-state.pxg-running { color: var(--success, #22c55e); border: 1px solid rgba(34,197,94,0.4); }
+.proxmox-guests-widget .pxg-state.pxg-stopped { color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.4); }
+.proxmox-guests-widget .pxg-kind { font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 999px; display: inline-flex; align-items: center; gap: 4px; }
+.proxmox-guests-widget .pxg-kind-qemu { color: #8b5cf6; border: 1px solid rgba(139,92,246,0.45); }
+.proxmox-guests-widget .pxg-kind-lxc { color: #3b82f6; border: 1px solid rgba(59,130,246,0.45); }
+.proxmox-guests-widget .pxg-name { font-size: 15px; font-weight: 800; }
+.proxmox-guests-widget .pxg-id { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+.proxmox-guests-widget .pxg-guest-right { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+.proxmox-guests-widget .pxg-ip { font-size: 12.5px; color: var(--success, #22c55e); font-variant-numeric: tabular-nums; }
+.proxmox-guests-widget .pxg-uptime { font-size: 12.5px; color: var(--text-muted); }
+
+/* Columns wrap based on the widget's OWN width (not the viewport), so a narrow
+   widget gets fewer columns instead of cramming five and overflowing. */
+.proxmox-guests-widget .pxg-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 12px 14px; }
+.proxmox-guests-widget .pxg-metric { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.proxmox-guests-widget .pxg-m-lbl { font-size: 11.5px; color: var(--text-muted); }
+.proxmox-guests-widget .pxg-m-val { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; line-height: 1.35; min-width: 0; }
+.proxmox-guests-widget .pxg-c-hi { color: var(--danger, #ef4444); }
+/* Stack the I/O down/up onto their own lines so long byte values don't overflow
+   into the neighbouring metric column. */
+.proxmox-guests-widget .pxg-io-down, .proxmox-guests-widget .pxg-io-up { display: block; white-space: nowrap; font-size: 11px; }
+.proxmox-guests-widget .pxg-io-down { color: var(--pxg-down); }
+.proxmox-guests-widget .pxg-io-up { color: var(--pxg-up); }
+.proxmox-guests-widget .pxg-empty { font-size: 13px; color: var(--text-muted); text-align: center; padding: 18px; border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

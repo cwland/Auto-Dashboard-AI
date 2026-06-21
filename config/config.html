@@ -26,6 +26,11 @@
   <link rel="stylesheet" href="../widgets/tracearr-widget.css">
   <link rel="stylesheet" href="../widgets/system-health-widget.css">
   <link rel="stylesheet" href="../widgets/proxmox-widget.css">
+  <link rel="stylesheet" href="../widgets/proxmox-health-widget.css">
+  <link rel="stylesheet" href="../widgets/proxmox-logs-widget.css">
+  <link rel="stylesheet" href="../widgets/proxmox-storage-widget.css">
+  <link rel="stylesheet" href="../widgets/proxmox-guests-widget.css">
+  <link rel="stylesheet" href="../widgets/proxmox-overview-widget.css">
   <link rel="stylesheet" href="../widgets/pbs-widget.css">
   <link rel="stylesheet" href="../widgets/beszel-widget.css">
   <link rel="stylesheet" href="../widgets/ical-widget.css">
@@ -3267,7 +3272,7 @@
   <div class="modal-overlay" id="unraid-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🟧 Unraid Widget Preview</h3><button class="modal-close-btn" id="unraid-preview-close">✕</button></div><div class="modal-body"><div id="unraid-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="unraid-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="openmediavault-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🔵 OpenMediaVault Widget Preview</h3><button class="modal-close-btn" id="openmediavault-preview-close">✕</button></div><div class="modal-body"><div id="openmediavault-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="openmediavault-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="truenas-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🟦 TrueNAS Widget Preview</h3><button class="modal-close-btn" id="truenas-preview-close">✕</button></div><div class="modal-body"><div id="truenas-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="truenas-preview-done">Close</button></div></div></div>
-  <div class="modal-overlay" id="proxmox-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🖥 Proxmox Widget Preview</h3><button class="modal-close-btn" id="proxmox-preview-close">✕</button></div><div class="modal-body"><div id="proxmox-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="proxmox-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="proxmox-preview-modal"><style>#proxmox-preview-modal .lc-tools,#proxmox-preview-modal .pxl-tools{display:none !important;}</style><div class="modal-box modal-wide"><div class="modal-header"><h3>🖥 Proxmox Widget Preview</h3><button class="modal-close-btn" id="proxmox-preview-close">✕</button></div><div class="modal-body"><div id="proxmox-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="proxmox-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="portainer-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🐳 Portainer Widget Preview</h3><button class="modal-close-btn" id="portainer-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Live container data from your Portainer environments. Start / Stop / Restart actions are live in this preview.</p><div id="portainer-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="portainer-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="stocks-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>📈 Stocks Widget Preview</h3><button class="modal-close-btn" id="stocks-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Live quotes for your tickers from the public market-data source.</p><div id="stocks-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="stocks-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="countdown-preview-modal"><style>#countdown-preview-modal .lc-tools,#countdown-preview-modal .cd-tools{display:none !important;}</style><div class="modal-box modal-wide"><div class="modal-header"><h3>⏳ Countdown Preview</h3><button class="modal-close-btn" id="countdown-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">A live preview of both countdown widgets — the single timer and the list — using your configured countdowns.</p><div id="countdown-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="countdown-preview-done">Close</button></div></div></div>
@@ -3852,6 +3857,11 @@
 <script src="../widgets/tracearr-widget.js"></script>
 <script src="../widgets/system-health-widget.js"></script>
 <script src="../widgets/proxmox-widget.js"></script>
+<script src="../widgets/proxmox-health-widget.js"></script>
+<script src="../widgets/proxmox-logs-widget.js"></script>
+<script src="../widgets/proxmox-storage-widget.js"></script>
+<script src="../widgets/proxmox-guests-widget.js"></script>
+<script src="../widgets/proxmox-overview-widget.js"></script>
 <script src="../widgets/pbs-widget.js"></script>
 <script src="../widgets/beszel-widget.js"></script>
 <script src="../widgets/ical-widget.js"></script>

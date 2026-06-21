@@ -27,6 +27,14 @@
     return o;
   }
 
+  // Per-widget options for the Proxmox log/backup list widgets (on top of carousel).
+  function proxmoxLogOpts(opts) {
+    const o = {};
+    if (!opts) return o;
+    ['refreshMins', 'days', 'level', 'service'].forEach((k) => { if (opts[k] != null) o[k] = opts[k]; });
+    return o;
+  }
+
   function arr(host, s, svc) {
     const cfg = {
       service: svc, baseUrl: s[svc + 'Url'], apiKey: s[svc + 'ApiKey'],
@@ -138,6 +146,12 @@
     prowlarr: (h, s) => new ProwlarrWidget(h, withPoll(s, 'prowlarr', { baseUrl: s.prowlarrUrl, apiKey: s.prowlarrApiKey })),
     tracearr: (h, s) => new TracearrWidget(h, withPoll(s, 'tracearr', { baseUrl: s.tracearrUrl, apiKey: s.tracearrApiKey })),
     proxmox: (h, s) => new ProxmoxWidget(h, withPoll(s, 'proxmox', { baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey })),
+    'proxmox-health': (h, s) => new ProxmoxHealthWidget(h, withPoll(s, 'proxmox', { baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey })),
+    'proxmox-logs': (h, s, opts) => new ProxmoxLogsWidget(h, Object.assign({ baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey }, carouselOpts(opts), proxmoxLogOpts(opts))),
+    'proxmox-backups': (h, s, opts) => new ProxmoxBackupsWidget(h, Object.assign({ baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey }, carouselOpts(opts), proxmoxLogOpts(opts))),
+    'proxmox-storage': (h, s) => new ProxmoxStorageWidget(h, withPoll(s, 'proxmox', { baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey })),
+    'proxmox-guests': (h, s) => new ProxmoxGuestsWidget(h, withPoll(s, 'proxmox', { baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey })),
+    'proxmox-overview': (h, s) => new ProxmoxOverviewWidget(h, withPoll(s, 'proxmox', { baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey })),
     pbs: (h, s) => new PbsWidget(h, withPoll(s, 'pbs', { baseUrl: s.pbsUrl, username: s.pbsUsername, realm: s.pbsRealm, tokenId: s.pbsTokenId, apiKey: s.pbsApiKey, node: s.pbsNode || 'localhost' })),
     beszel: (h, s) => new BeszelWidget(h, withPoll(s, 'beszel', { baseUrl: s.beszelUrl, username: s.beszelUsername, password: s.beszelPassword })),
     ical: (h, s) => new IcalWidget(h, withPoll(s, 'ical', { url: s.icalUrl, title: s.icalName || 'Calendar', view: s.icalView || 'upcoming' })),
@@ -171,6 +185,12 @@
     'tautulli-libraries': 'tautulli', 'tautulli-top': 'tautulli',
     'weather-current': 'weather', 'weather-hourly': 'weather', 'weather-forecast': 'weather', 'weather-combined': 'weather',
     'countdown-list': 'countdown',
+    'proxmox-health': 'proxmox',
+    'proxmox-logs': 'proxmox',
+    'proxmox-storage': 'proxmox',
+    'proxmox-guests': 'proxmox',
+    'proxmox-overview': 'proxmox',
+    'proxmox-backups': 'proxmox',
   };
   function baseIntOf(intId) { return WIDGET_BASE_INT[intId] || intId; }
   global.dashboardWidgetBaseInt = baseIntOf;

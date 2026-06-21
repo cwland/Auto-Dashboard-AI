@@ -4333,8 +4333,76 @@ async function validateProxmox() {
   finally { setValidateBusy('proxmox', false); updateProxmoxPreviewButton(); updateSaveBar(); }
 }
 function updateProxmoxPreviewButton() { const s = state.currentSettings; setExtraPreviewBtn('proxmox', state.proxmoxValidated && !!s.proxmoxUrl && !!s.proxmoxApiKey, 'Opens a live preview of your cluster.'); }
-function openProxmoxPreview() { const s = state.currentSettings; openExtraPreview('proxmox', typeof ProxmoxWidget !== 'undefined' ? ProxmoxWidget : undefined, () => Object.assign({ baseUrl: s.proxmoxUrl }, proxmoxTokenOpts())); }
-function closeProxmoxPreview() { closeExtraPreview('proxmox'); }
+// Proxmox preview shows both Proxmox widgets live: the cluster summary and the
+// System Health Status dashboard, side by side as two cards.
+function openProxmoxPreview() {
+  if (!state.proxmoxValidated) return;
+  const s = state.currentSettings;
+  const modal = document.getElementById('proxmox-preview-modal');
+  const host = document.getElementById('proxmox-preview-host');
+  if (!modal || !host) return;
+  destroyProxmoxPreviewWidgets();
+  host.innerHTML = '';
+  const cfg = () => withPoll('proxmox', Object.assign({ baseUrl: s.proxmoxUrl }, proxmoxTokenOpts()));
+
+  const grid = document.createElement('div');
+  // Stacked full-width — each widget gets the full modal width so it renders
+  // correctly (side-by-side was too cramped with several widgets).
+  grid.style.cssText = 'display:flex;flex-direction:column;gap:16px;';
+  const mkCard = (label) => {
+    const card = document.createElement('div');
+    const cap = document.createElement('div');
+    cap.textContent = label;
+    cap.style.cssText = 'font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:8px;';
+    const tile = document.createElement('div');
+    tile.style.cssText = 'border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--bg-card,rgba(255,255,255,0.03));';
+    card.append(cap, tile);
+    return { card, host: tile };
+  };
+  state.proxmoxPreviewWidgets = [];
+  if (typeof ProxmoxOverviewWidget !== 'undefined') {
+    const c = mkCard('Overview'); grid.appendChild(c.card);
+    const w = new ProxmoxOverviewWidget(c.host, cfg()); w.start(); state.proxmoxPreviewWidgets.push(w);
+  }
+  if (typeof ProxmoxWidget !== 'undefined') {
+    const c = mkCard('Proxmox VE'); grid.appendChild(c.card);
+    const w = new ProxmoxWidget(c.host, cfg()); w.start(); state.proxmoxPreviewWidgets.push(w);
+  }
+  if (typeof ProxmoxHealthWidget !== 'undefined') {
+    const c = mkCard('System Health Status'); grid.appendChild(c.card);
+    const w = new ProxmoxHealthWidget(c.host, cfg()); w.start(); state.proxmoxPreviewWidgets.push(w);
+  }
+  if (typeof ProxmoxLogsWidget !== 'undefined') {
+    const c = mkCard('System Logs'); grid.appendChild(c.card);
+    const w = new ProxmoxLogsWidget(c.host, cfg()); w.start(); state.proxmoxPreviewWidgets.push(w);
+  }
+  if (typeof ProxmoxBackupsWidget !== 'undefined') {
+    const c = mkCard('Backup Logs'); grid.appendChild(c.card);
+    const w = new ProxmoxBackupsWidget(c.host, cfg()); w.start(); state.proxmoxPreviewWidgets.push(w);
+  }
+  if (typeof ProxmoxStorageWidget !== 'undefined') {
+    const c = mkCard('Storage'); grid.appendChild(c.card);
+    const w = new ProxmoxStorageWidget(c.host, cfg()); w.start(); state.proxmoxPreviewWidgets.push(w);
+  }
+  if (typeof ProxmoxGuestsWidget !== 'undefined') {
+    const c = mkCard('VMs & LXCs'); grid.appendChild(c.card);
+    const w = new ProxmoxGuestsWidget(c.host, cfg()); w.start(); state.proxmoxPreviewWidgets.push(w);
+  }
+  host.appendChild(grid);
+  modal.classList.add('visible');
+}
+function destroyProxmoxPreviewWidgets() {
+  if (Array.isArray(state.proxmoxPreviewWidgets)) {
+    state.proxmoxPreviewWidgets.forEach((w) => { try { w.destroy(); } catch (_) {} });
+  }
+  state.proxmoxPreviewWidgets = [];
+  if (state.proxmoxPreviewWidget) { try { state.proxmoxPreviewWidget.destroy(); } catch (_) {} state.proxmoxPreviewWidget = null; }
+}
+function closeProxmoxPreview() {
+  const modal = document.getElementById('proxmox-preview-modal');
+  if (modal) modal.classList.remove('visible');
+  destroyProxmoxPreviewWidgets();
+}
 
 // ── Portainer ──
 async function validatePortainer() {

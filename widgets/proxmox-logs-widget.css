@@ -1,0 +1,35 @@
+/* Auto Dashboard AI — Proxmox VE System Logs / Backup Logs widgets.
+   Scoped under .proxmox-loglist-widget. Carousel-scrolling lists; all options
+   live in the per-widget Configure card. Themed via host CSS vars. */
+.proxmox-loglist-widget {
+  display: flex; flex-direction: column; gap: 10px; width: 100%; min-width: 0; height: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.proxmox-loglist-widget .pxl-header { display: flex; align-items: center; gap: 10px; }
+.proxmox-loglist-widget .pxl-title { font-size: 15px; font-weight: 800; letter-spacing: 0.01em; }
+.proxmox-loglist-widget .pxl-tools { margin-left: auto; }
+
+.proxmox-loglist-widget .pxl-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.proxmox-loglist-widget .pxl-viewport { overflow: hidden; }
+.proxmox-loglist-widget .pxl-track { display: flex; flex-direction: column; gap: 8px; will-change: transform; }
+
+/* Rows */
+.proxmox-loglist-widget .pxl-row { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius, 10px); background: var(--bg-secondary); }
+.proxmox-loglist-widget .pxl-badge { font-size: 10.5px; font-weight: 800; letter-spacing: 0.04em; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+.proxmox-loglist-widget .pxl-lvl-info { color: #3b82f6; border: 1px solid rgba(59,130,246,0.45); }
+.proxmox-loglist-widget .pxl-lvl-warn { color: var(--warning, #f59e0b); border: 1px solid rgba(245,158,11,0.45); }
+.proxmox-loglist-widget .pxl-lvl-error { color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.45); }
+.proxmox-loglist-widget .pxl-bk-ok { color: var(--success, #22c55e); border: 1px solid rgba(34,197,94,0.45); }
+.proxmox-loglist-widget .pxl-bk-failed { color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.45); }
+.proxmox-loglist-widget .pxl-bk-running { color: #3b82f6; border: 1px solid rgba(59,130,246,0.45); }
+.proxmox-loglist-widget .pxl-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.proxmox-loglist-widget .pxl-unit { font-size: 13.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proxmox-loglist-widget .pxl-msg { font-size: 13px; color: var(--text-primary); word-break: break-word; }
+.proxmox-loglist-widget .pxl-meta { font-size: 11.5px; color: var(--text-muted); }
+.proxmox-loglist-widget .pxl-ts { font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+.proxmox-loglist-widget .pxl-state { font-size: 13px; color: var(--text-muted); text-align: center; padding: 28px 12px; border: 1px dashed var(--border); border-radius: var(--radius, 10px); }
+.proxmox-loglist-widget .pxl-state-err { color: var(--danger, #ef4444); border-style: solid; border-color: rgba(239,68,68,0.35); }
+
+/* Service <select> inside the Configure card */
+.pxl-cfg-select { font: inherit; font-size: 13px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); max-width: 60%; }
