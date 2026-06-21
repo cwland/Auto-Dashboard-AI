@@ -462,16 +462,18 @@
     _buildTools() {
       const tools = this.el.querySelector('.tw-tools');
       if (!tools) return;
+      // Compact value + stacked ▲/▼ spinner.
       const stepper = (label, get, set, min, max, fmtVal) => {
         const grp = document.createElement('div'); grp.className = 'tw-toolgrp';
         const lab = document.createElement('span'); lab.className = 'tw-tlabel'; lab.textContent = label;
-        const dec = document.createElement('button'); dec.className = 'tw-step'; dec.type = 'button'; dec.textContent = '−';
         const cnt = document.createElement('span'); cnt.className = 'tw-tcount';
-        const inc = document.createElement('button'); inc.className = 'tw-step'; inc.type = 'button'; inc.textContent = '+';
+        const spin = document.createElement('span'); spin.className = 'tw-spin';
+        const inc = document.createElement('button'); inc.className = 'tw-step'; inc.type = 'button'; inc.textContent = '▲'; inc.title = 'Increase ' + label;
+        const dec = document.createElement('button'); dec.className = 'tw-step'; dec.type = 'button'; dec.textContent = '▼'; dec.title = 'Decrease ' + label;
         const draw = () => { cnt.textContent = fmtVal(get()); };
         dec.addEventListener('click', () => { set(Math.max(min, get() - 1)); draw(); });
         inc.addEventListener('click', () => { set(Math.min(max, get() + 1)); draw(); });
-        grp.append(lab, dec, cnt, inc); tools.appendChild(grp); draw();
+        spin.append(inc, dec); grp.append(lab, cnt, spin); tools.appendChild(grp); draw();
       };
       // Carousel enable/disable toggle.
       const tgrp = document.createElement('div'); tgrp.className = 'tw-toolgrp';
@@ -781,7 +783,7 @@
       this.destroyed = false;
       this._buildSkeleton();
       if (typeof ListCarousel !== 'undefined') {
-        this.carousel = new ListCarousel({ root: this.el, viewport: this.viewport, track: this.track, enabled: this.cfg.carousel, visibleCount: this.cfg.visibleCount, speed: this.cfg.speed });
+        this.carousel = new ListCarousel({ root: this.el, viewport: this.viewport, track: this.track, enabled: this.cfg.carousel, visibleCount: this.cfg.visibleCount, speed: this.cfg.speed, mode: this.cfg.mode, pauseMs: this.cfg.pauseMs });
         ListCarousel.buildControls(this.lcToolsEl, this.cfg, (patch) => {
           this.carousel.update(patch);
           if (this.cfg.onConfigChange) this.cfg.onConfigChange(patch);

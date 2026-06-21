@@ -295,6 +295,11 @@ const DEFAULT_SETTINGS = {
   theme: 'auto',     // 'auto' = follow OS light/dark; otherwise a named theme
   newTabOverride: false,  // show the dashboard on new tabs (off by default)
   openOnStartup: false,   // open the dashboard when the browser launches (off by default)
+  syncBookmarks: false,   // mirror dashboard links into a "Dashboard AI" bookmark-bar folder
+  gistSync: false,        // back up settings + dashboards to a private GitHub Gist
+  gistToken: '',          // fine-grained GitHub token (gists scope) for Gist backup
+  gistAutoSync: false,    // auto-load a newer Gist backup (one-way pull; push stays manual)
+  backupPassphrase: '',   // optional — encrypts the Gist backup before upload
   searchEnabled: true,    // show the dashboard search bar (on by default)
   dashboardSwitcher: 'dropdown',  // 'dropdown' | 'tabs' | 'sidebar'
   pollSecs: {},      // { integrationId: refreshIntervalSeconds } — per-widget override
@@ -999,6 +1004,17 @@ function applySettingsToUI() {
   if (ntToggle) ntToggle.checked = s.newTabOverride === true;
   const startToggle = document.getElementById('open-on-startup-toggle');
   if (startToggle) startToggle.checked = s.openOnStartup === true;
+  const syncBmToggle = document.getElementById('sync-bookmarks-toggle');
+  if (syncBmToggle) syncBmToggle.checked = s.syncBookmarks === true;
+  const gistToggle = document.getElementById('gist-sync-toggle');
+  if (gistToggle) gistToggle.checked = s.gistSync === true;
+  const gistAutoEl = document.getElementById('gist-autosync-toggle');
+  if (gistAutoEl) gistAutoEl.checked = s.gistAutoSync === true;
+  const gistTokenEl = document.getElementById('gist-token');
+  if (gistTokenEl) gistTokenEl.value = s.gistToken || '';
+  const passEl = document.getElementById('backup-passphrase');
+  if (passEl) passEl.value = s.backupPassphrase || '';
+  if (typeof updateGistControls === 'function') updateGistControls();
   const searchToggle = document.getElementById('search-enabled-toggle');
   if (searchToggle) searchToggle.checked = s.searchEnabled !== false;
   const switcherStyle = s.dashboardSwitcher || 'dropdown';
@@ -1485,6 +1501,63 @@ function setupSettingsListeners() {
   if (startToggle) startToggle.addEventListener('change', () => {
     state.currentSettings.openOnStartup = startToggle.checked; updateSaveBar();
   });
+  const syncBmToggle = document.getElementById('sync-bookmarks-toggle');
+  if (syncBmToggle) syncBmToggle.addEventListener('change', () => {
+    state.currentSettings.syncBookmarks = syncBmToggle.checked; updateSaveBar();
+  });
+  const gistToggle = document.getElementById('gist-sync-toggle');
+  if (gistToggle) gistToggle.addEventListener('change', () => {
+    state.currentSettings.gistSync = gistToggle.checked; updateSaveBar(); updateGistControls();
+  });
+  const gistAutoEl = document.getElementById('gist-autosync-toggle');
+  if (gistAutoEl) gistAutoEl.addEventListener('change', () => {
+    state.currentSettings.gistAutoSync = gistAutoEl.checked; updateSaveBar();
+  });
+  const gistTokenEl = document.getElementById('gist-token');
+  if (gistTokenEl) gistTokenEl.addEventListener('input', () => {
+    state.currentSettings.gistToken = gistTokenEl.value.trim(); updateSaveBar(); updateGistControls();
+  });
+  const passEl = document.getElementById('backup-passphrase');
+  if (passEl) passEl.addEventListener('input', () => {
+    state.currentSettings.backupPassphrase = passEl.value; updateSaveBar(); updateGistControls();
+  });
+  setupEyeballToggle('gist-token', 'gist-token-toggle');
+  setupEyeballToggle('backup-passphrase', 'backup-passphrase-toggle');
+  const gistTestBtn = document.getElementById('gist-test-btn');
+  if (gistTestBtn) gistTestBtn.addEventListener('click', gistTestToken);
+  const gistBackupBtn = document.getElementById('gist-backup-btn');
+  if (gistBackupBtn) gistBackupBtn.addEventListener('click', async () => {
+    // Embed icons first so the backup always includes them.
+    const orig = gistBackupBtn.textContent;
+    gistBackupBtn.disabled = true; gistBackupBtn.textContent = 'Embedding icons…';
+    try { await embedDashboardIcons(); } catch (_) {}
+    gistBackupBtn.disabled = false; gistBackupBtn.textContent = orig;
+    gistAction('gistBackup', gistBackupBtn, 'Backing up…');
+  });
+  const gistRestoreBtn = document.getElementById('gist-restore-btn');
+  if (gistRestoreBtn) gistRestoreBtn.addEventListener('click', () => {
+    if (!confirm('Restore will REPLACE your current settings and dashboards with the GitHub Gist backup. Continue?')) return;
+    gistAction('gistRestore', gistRestoreBtn, 'Restoring…');
+  });
+  refreshGistStatus();
+  const exportBtn = document.getElementById('export-config-btn');
+  if (exportBtn) exportBtn.addEventListener('click', async () => {
+    const orig = exportBtn.textContent;
+    exportBtn.disabled = true; exportBtn.textContent = 'Embedding icons…';
+    try { await embedDashboardIcons(); } catch (_) {}
+    exportBtn.disabled = false; exportBtn.textContent = orig;
+    exportConfig();
+  });
+  const importBtn = document.getElementById('import-config-btn');
+  const importFile = document.getElementById('import-config-file');
+  if (importBtn && importFile) {
+    importBtn.addEventListener('click', () => importFile.click());
+    importFile.addEventListener('change', () => {
+      const f = importFile.files && importFile.files[0];
+      importFile.value = '';            // allow re-importing the same file
+      if (f) importConfig(f);
+    });
+  }
   const searchToggle = document.getElementById('search-enabled-toggle');
   if (searchToggle) searchToggle.addEventListener('change', () => {
     state.currentSettings.searchEnabled = searchToggle.checked; updateSaveBar();
@@ -2386,6 +2459,11 @@ function hasSettingsTabChanges() {
          c.theme !== s.theme ||
          !!c.newTabOverride !== !!s.newTabOverride ||
          !!c.openOnStartup !== !!s.openOnStartup ||
+         !!c.syncBookmarks !== !!s.syncBookmarks ||
+         !!c.gistSync !== !!s.gistSync ||
+         !!c.gistAutoSync !== !!s.gistAutoSync ||
+         (c.gistToken || '') !== (s.gistToken || '') ||
+         (c.backupPassphrase || '') !== (s.backupPassphrase || '') ||
          (c.searchEnabled !== false) !== (s.searchEnabled !== false) ||
          (c.dashboardSwitcher || 'dropdown') !== (s.dashboardSwitcher || 'dropdown') ||
          j(c.pollSecs) !== j(s.pollSecs) ||
@@ -2406,6 +2484,13 @@ function updateSaveBar() {
     if (state.currentSettings.apiKey === state.savedSettings.apiKey) {
       saveBtn.disabled = false;
     }
+    // Gist backup requires an encryption passphrase before it can be saved.
+    if (state.currentSettings.gistSync && !state.currentSettings.backupPassphrase) {
+      saveBtn.disabled = true;
+      saveBtn.title = 'Set an encryption passphrase to enable Gist backup';
+    } else {
+      saveBtn.title = '';
+    }
   } else {
     saveBar.classList.remove('visible');
     pendingBanner.style.display = 'none';
@@ -2425,6 +2510,11 @@ async function saveSettings() {
     theme:               state.currentSettings.theme,
     newTabOverride:      state.currentSettings.newTabOverride,
     openOnStartup:       state.currentSettings.openOnStartup,
+    syncBookmarks:       state.currentSettings.syncBookmarks,
+    gistSync:            state.currentSettings.gistSync,
+    gistAutoSync:        state.currentSettings.gistAutoSync,
+    gistToken:           state.currentSettings.gistToken,
+    backupPassphrase:    state.currentSettings.backupPassphrase,
     searchEnabled:       state.currentSettings.searchEnabled,
     dashboardSwitcher:   state.currentSettings.dashboardSwitcher,
     pollSecs:            state.currentSettings.pollSecs,
@@ -2566,6 +2656,9 @@ async function saveSettings() {
   state.savedSettings = { ...settings };
   updateSaveBar();
   showToast('Settings saved ✓');
+  // Reflect newly-saved backup settings without a page reload (enables the
+  // Gist buttons and refreshes the status lines).
+  if (typeof refreshGistStatus === 'function') refreshGistStatus();
 }
 
 function discardChanges() {
@@ -5104,7 +5197,14 @@ async function resolveIcons(bookmarks, concurrency = 8, onProgress = () => {}) {
   async function worker(bm) {
     const r = await resolveIconUrl(bm);
     if (r) {
-      bm.resolved_icon = r.url;
+      // Bake the resolved icon into a self-contained data: URI so it survives a
+      // backup/restore on any browser — the chrome _favicon cache URL (and other
+      // live URLs) are otherwise local references that go blank elsewhere.
+      let url = r.url;
+      if (url && !url.startsWith('data:')) {
+        try { url = await downloadIconAsDataUri(url); } catch (_) { /* keep the URL as a fallback */ }
+      }
+      bm.resolved_icon = url;
       bm.icon_source = r.source;
     } else {
       bm.resolved_icon = GENERIC_ICON_URL;
@@ -5142,6 +5242,154 @@ async function saveDashboards() {
     dashboards: state.dashboards,
     defaultDashboardId: state.defaultDashboardId,
   });
+}
+
+// ── Cloud backup helpers (talk to the service worker) ───────────────────────
+function sendBg(msg) {
+  return new Promise((resolve) => {
+    try { chrome.runtime.sendMessage(msg, (resp) => { resolve(chrome.runtime.lastError ? null : resp); }); }
+    catch (_) { resolve(null); }
+  });
+}
+
+// ── GitHub Gist backup (talks to the service worker) ─────────────────────────
+function updateGistControls() {
+  const s = state.currentSettings || {};
+  const on = !!s.gistSync;
+  const hasPass = !!s.backupPassphrase;
+  const hasToken = !!s.gistToken;
+  const setDisabled = (id, d) => { const el = document.getElementById(id); if (el) el.disabled = d; };
+  // Token + passphrase can only be edited when the backup service is enabled.
+  setDisabled('backup-passphrase', !on);
+  setDisabled('backup-passphrase-toggle', !on);
+  setDisabled('gist-token', !on);
+  setDisabled('gist-token-toggle', !on);
+  // A passphrase is required before you can test the token.
+  setDisabled('gist-test-btn', !(on && hasPass));
+  // Back up / restore need the service on, a token, and a passphrase.
+  setDisabled('gist-backup-btn', !(on && hasToken && hasPass));
+  setDisabled('gist-restore-btn', !(on && hasToken && hasPass));
+  // Auto-sync needs the same prerequisites as a backup.
+  setDisabled('gist-autosync-toggle', !(on && hasToken && hasPass));
+}
+async function refreshGistStatus() {
+  const line = document.getElementById('gist-status');
+  updateGistControls();
+  if (!line) return;
+  const resp = await sendBg({ type: 'gistStatus' });
+  if (!resp) { line.textContent = ''; line.style.display = 'none'; return; }
+  let txt;
+  if (resp.error && resp.error.code === 'schema') {
+    txt = 'A newer version of the extension created the Gist backup. Update this browser to resume.';
+  } else if (resp.error && resp.error.code === 'passphrase') {
+    txt = 'This backup is encrypted. Enter the matching passphrase below and click Save to unlock it.';
+  } else if (!resp.enabled) {
+    txt = 'Turn this on, add a token + passphrase, and click Save to enable Gist backup.';
+  } else if (!resp.hasToken) {
+    txt = 'Paste a GitHub token (gists scope) and click Save.';
+  } else if (!resp.hasPassphrase || (resp.error && resp.error.code === 'noPassphrase')) {
+    txt = 'An encryption passphrase is required. Set one below and click Save to enable Gist backup.';
+  } else if (resp.error && resp.error.code === 'auth') {
+    txt = 'GitHub rejected the token. Click Test, and check it has the "gists" scope and is not expired.';
+  } else {
+    txt = 'GitHub Gist backup is active.';
+    if (resp.lastBackupAt) txt += ' Last backup: ' + new Date(resp.lastBackupAt).toLocaleString() + '.';
+  }
+  line.textContent = txt;
+  line.style.display = '';
+}
+async function gistAction(type, btn, busyLabel) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = busyLabel;
+  const resp = await sendBg({ type });
+  btn.textContent = orig; btn.disabled = false;
+  if (type === 'gistRestore' && resp && resp.ok) { location.reload(); return; }
+  if (resp && !resp.ok) {
+    const reason = resp.reason;
+    if (reason === 'disabled') alert('Turn on "Back up to GitHub Gist", add a token + passphrase, and click Save first.');
+    else if (reason === 'noPassphrase') alert('An encryption passphrase is required for Gist backup. Set one in the field below and click Save first.');
+    else if (reason === 'none') alert('No backup found in your gists yet. Use "Back up to Gist" to create one.');
+    else if (reason === 'schema') alert('The Gist backup was created by a newer version of the extension. Update this browser first.');
+    else if (reason === 'passphrase') alert('This backup is encrypted. Enter the matching passphrase in the field below and click Save, then try again.');
+    else if (reason === 'auth') alert('GitHub rejected the request. Make sure your token is saved and has Gist access, then click Test.');
+  }
+  refreshGistStatus();
+}
+function showGistValidationResult(type, msg) {
+  const el = document.getElementById('gist-validation-result');
+  if (!el) return;
+  el.style.display = 'block';
+  el.className = `banner banner-${type === 'success' ? 'success' : 'danger'}`;
+  el.textContent = msg;
+}
+// Test the token currently in the field (may be unsaved), like the API Validate button.
+async function gistTestToken() {
+  const input = document.getElementById('gist-token');
+  const btn = document.getElementById('gist-test-btn');
+  const token = (input && input.value || '').trim();
+  if (!state.currentSettings.backupPassphrase) { showGistValidationResult('error', 'Set an encryption passphrase first.'); return; }
+  if (!token) { showGistValidationResult('error', 'Please paste a GitHub token first.'); return; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+  const resp = await sendBg({ type: 'gistTest', token });
+  if (btn) { btn.disabled = false; btn.innerHTML = 'Test'; }
+  if (resp && resp.ok) {
+    showGistValidationResult('success', '✓ Token works' + (resp.login ? ` — signed in as ${resp.login}` : '') + '. Gist access confirmed.');
+  } else {
+    const r = resp && resp.reason;
+    if (r === 'empty') showGistValidationResult('error', 'Please paste a GitHub token first.');
+    else if (r === 'unauthorized') showGistValidationResult('error', '✗ Token is invalid or expired.');
+    else if (r === 'noGistScope') showGistValidationResult('error', '✗ Signed in, but this token doesn’t have permission to access Gists.');
+    else if (r === 'network') showGistValidationResult('error', '✗ Network error: ' + (resp.msg || 'could not reach GitHub.'));
+    else showGistValidationResult('error', '✗ Could not validate the token' + (resp && resp.status ? ` (HTTP ${resp.status})` : '') + '.');
+  }
+}
+
+// ── Export / Import (universal cross-browser backup) ─────────────────────────
+// Writes the full configuration to a JSON file the user can carry to any browser.
+// The file holds settings (incl. any API keys), dashboards (with embedded icons),
+// and the default-dashboard pointer.
+function exportConfig() {
+  const version = (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || '';
+  const payload = {
+    app: 'Auto Dashboard AI',
+    type: 'config-backup',
+    version,
+    exportedAt: new Date().toISOString(),
+    settings: state.currentSettings,
+    dashboards: state.dashboards,
+    defaultDashboardId: state.defaultDashboardId,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `auto-dashboard-config-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function importConfig(file) {
+  let text;
+  try { text = await file.text(); } catch (_) { alert('Could not read that file.'); return; }
+  let data;
+  try { data = JSON.parse(text); } catch (_) { alert('That file is not valid JSON.'); return; }
+  const hasSettings = data && typeof data.settings === 'object' && data.settings;
+  const hasDashboards = data && Array.isArray(data.dashboards);
+  if (!hasSettings && !hasDashboards) {
+    alert('This does not look like an Auto Dashboard AI configuration file.');
+    return;
+  }
+  if (!confirm('Import will REPLACE your current settings and dashboards with the contents of this file. This cannot be undone.\n\nContinue?')) return;
+  const writeObj = {};
+  if (hasSettings) writeObj.settings = normalizeAISettings({ ...DEFAULT_SETTINGS, ...data.settings });
+  if (hasDashboards) writeObj.dashboards = data.dashboards;
+  if (typeof data.defaultDashboardId === 'string' || data.defaultDashboardId === null) {
+    writeObj.defaultDashboardId = data.defaultDashboardId;
+  }
+  await chromeStorageSet(writeObj);
+  location.reload();   // re-read everything from storage so the UI reflects the import
 }
 
 function renderDashboardList() {
@@ -5646,6 +5894,36 @@ async function downloadIconAsDataUri(url) {
     r.onerror = () => reject(new Error('read failed'));
     r.readAsDataURL(blob);
   });
+}
+
+// Convert every dashboard icon that's still a live/local URL into a self-contained
+// data: URI, so icons are included in backups and survive a restore on any browser.
+// Already-embedded (data:) icons and the built-in generic are skipped. Returns
+// { total, embedded, failed }.
+async function embedDashboardIcons(onProgress = () => {}) {
+  const targets = [];
+  (state.dashboards || []).forEach((d) => (d.bookmarks || []).forEach((b) => {
+    if (b && b.url && typeof b.resolved_icon === 'string' && b.resolved_icon
+        && !b.resolved_icon.startsWith('data:')
+        && b.resolved_icon !== GENERIC_ICON_URL) {
+      targets.push(b);
+    }
+  }));
+  const total = targets.length;
+  let done = 0, embedded = 0, failed = 0;
+  const CONC = 6;
+  for (let i = 0; i < targets.length; i += CONC) {
+    await Promise.all(targets.slice(i, i + CONC).map(async (b) => {
+      try {
+        const data = await downloadIconAsDataUri(b.resolved_icon);
+        if (data && data.startsWith('data:')) { b.resolved_icon = data; embedded++; }
+        else failed++;
+      } catch (_) { failed++; }   // leave the existing URL in place
+      onProgress(++done, total);
+    }));
+  }
+  if (embedded) await saveDashboards();
+  return { total, embedded, failed };
 }
 
 // ── Edit an existing dashboard via the preview/edit screen ──

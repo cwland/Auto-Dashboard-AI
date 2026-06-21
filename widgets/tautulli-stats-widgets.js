@@ -42,7 +42,7 @@
     }
     _initCarousel() {
       if (typeof ListCarousel === 'undefined' || !this.viewport || !this.track) return;
-      this.carousel = new ListCarousel({ root: this.el, viewport: this.viewport, track: this.track, enabled: this.cfg.carousel, visibleCount: this.cfg.visibleCount, speed: this.cfg.speed });
+      this.carousel = new ListCarousel({ root: this.el, viewport: this.viewport, track: this.track, enabled: this.cfg.carousel, visibleCount: this.cfg.visibleCount, speed: this.cfg.speed, mode: this.cfg.mode, pauseMs: this.cfg.pauseMs });
       if (this.lcToolsEl) ListCarousel.buildControls(this.lcToolsEl, this.cfg, (patch) => {
         this.carousel.update(patch);
         if (this.cfg.onConfigChange) this.cfg.onConfigChange(patch);

@@ -41,7 +41,10 @@
   cursor: pointer; font: 700 12px/1 var(--font, sans-serif); padding: 0;
 }
 .portainer-widget .pc-step:hover { color: var(--accent, #6366f1); border-color: var(--accent, #6366f1); }
-.portainer-widget .pc-tcount { font-size: 10px; color: var(--text-muted); min-width: 26px; text-align: center; }
+.portainer-widget .pc-tcount { font-size: 10px; color: var(--text-muted); min-width: 16px; text-align: center; }
+/* Compact stacked ▲/▼ spinner (replaces the −/+ buttons). */
+.portainer-widget .pc-spin { display: inline-flex; flex-direction: column; gap: 1px; }
+.portainer-widget .pc-spin .pc-step { width: 16px; height: 9px; font: 700 7px/1 sans-serif; border-radius: 3px; }
 
 .portainer-widget .lc-tools { display: flex; align-items: center; gap: 10px; }
 

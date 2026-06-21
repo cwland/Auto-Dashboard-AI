@@ -30,9 +30,16 @@
     this.visibleCount = Math.max(1, parseInt(opts.visibleCount, 10) || 5);
     this.speed = Math.max(5, parseInt(opts.speed, 10) || 25);   // px / second
     this.resumeDelayMs = opts.resumeDelayMs != null ? opts.resumeDelayMs : 8000;
+    // Scroll mode: 'continuous' (steady) or 'pause' (advance one record, then
+    // hold at the lock point for pauseMs before advancing to the next).
+    this.mode = opts.mode === 'pause' ? 'pause' : 'continuous';
+    this.pauseMs = Math.max(500, Math.min(10000, parseInt(opts.pauseMs, 10) || 1000));
 
     this.offset = 0;           // current scroll offset (px), preserved across re-renders
     this._loopDist = 0;
+    this._bounds = null;       // per-record cumulative lock positions (pause mode)
+    this._bIdx = 1;            // index of the boundary currently being approached
+    this._pausing = false; this._pauseUntil = 0;
     this._raf = null; this._last = 0;
     this.hovering = false; this.actionHold = false; this._holdTimer = null;
     this.destroyed = false;
@@ -58,6 +65,9 @@
     this._dragPid = null; this._didDrag = false; this._suppressClick = false;
     this._onDown = (e) => {
       if (this._loopDist <= 0) return;
+      // A scrollable list handles its own drag — stop it bubbling so the grid's
+      // whole-widget drag (edit mode) doesn't also fire on the list area.
+      e.stopPropagation();
       this._dragPid = e.pointerId; this._dragY = e.clientY; this._dragOff = this.offset; this._didDrag = false;
       this.viewport.style.cursor = 'grabbing';
     };
@@ -144,6 +154,17 @@
     if (this._loopDist <= 0) return;
     this.offset = ((this.offset % this._loopDist) + this._loopDist) % this._loopDist;
     this.track.style.transform = `translateY(${-this.offset}px)`;
+
+    // Pause mode: cumulative lock positions (one per record top). _bounds[i] is
+    // the offset at which record i sits at the top of the viewport; _bounds[n]
+    // equals _loopDist (the seamless wrap point).
+    this._bounds = [0];
+    let acc = 0;
+    items.forEach((el) => { acc += el.getBoundingClientRect().height + gap; this._bounds.push(acc); });
+    let idx = this._bounds.findIndex((b) => b > this.offset + 0.5);
+    this._bIdx = (idx < 0) ? 1 : idx;
+    this._pausing = true; this._pauseUntil = 0;   // settle at the current lock, then advance
+
     this._last = 0;
     this._raf = requestAnimationFrame(this._tick);
   };
@@ -153,11 +174,36 @@
     if (!this._last) this._last = ts;
     const dt = ts - this._last; this._last = ts;
     if (!this._paused() && this._loopDist > 0) {
-      this.offset += this.speed * dt / 1000;
-      if (this.offset >= this._loopDist) this.offset -= this._loopDist;
-      this.track.style.transform = `translateY(${-this.offset}px)`;
+      if (this.mode === 'pause' && this._bounds && this._bounds.length > 1) {
+        this._tickPause(ts, dt);
+      } else {
+        this.offset += this.speed * dt / 1000;
+        if (this.offset >= this._loopDist) this.offset -= this._loopDist;
+        this.track.style.transform = `translateY(${-this.offset}px)`;
+      }
     }
     this._raf = requestAnimationFrame(this._tick);
+  };
+
+  // Pause mode: glide to the next record's lock point, hold for pauseMs, repeat.
+  ListCarousel.prototype._tickPause = function (ts, dt) {
+    if (this._pausing) {
+      if (!this._pauseUntil) this._pauseUntil = ts + this.pauseMs;
+      if (ts >= this._pauseUntil) { this._pausing = false; this._pauseUntil = 0; }
+      return;   // perfectly stationary during the pause
+    }
+    const target = this._bounds[this._bIdx];
+    this.offset += this.speed * dt / 1000;
+    if (this.offset >= target) {
+      this.offset = target;            // exact, consistent stop at the lock point
+      this._pausing = true; this._pauseUntil = 0;
+      this._bIdx++;
+      if (this.offset >= this._loopDist - 0.5) {  // reached the wrap point → seamless reset
+        this.offset -= this._loopDist;
+        this._bIdx = 1;
+      }
+    }
+    this.track.style.transform = `translateY(${-this.offset}px)`;
   };
 
   ListCarousel.prototype._stop = function () { if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; } this._last = 0; };
@@ -186,6 +232,8 @@
     if (patch.carousel != null) this.enabled = !!patch.carousel;
     if (patch.visibleCount != null) this.visibleCount = Math.max(1, parseInt(patch.visibleCount, 10) || this.visibleCount);
     if (patch.speed != null) this.speed = Math.max(5, parseInt(patch.speed, 10) || this.speed);
+    if (patch.mode != null) this.mode = patch.mode === 'pause' ? 'pause' : 'continuous';
+    if (patch.pauseMs != null) this.pauseMs = Math.max(500, Math.min(10000, parseInt(patch.pauseMs, 10) || this.pauseMs));
     this.layout();
   };
 
@@ -219,54 +267,70 @@
     global.removeEventListener('pointerup', this._onUp);
   };
 
-  // Build the standard carousel controls (Scroll on/off, Show count, Speed) into
-  // `toolsEl`. `cfg` is mutated in place; `onChange(patch)` fires on each change.
-  // Styling is inline + theme-aware; visibility is gated by `.lc-tools` CSS.
+  // A labelled slider row for the config window. get()/set(v) read+write the
+  // value; fmt(v) optionally formats the readout. Returns a .cfg-row element.
+  ListCarousel.sliderRow = function (label, get, min, max, step, set, fmt) {
+    const row = document.createElement('div'); row.className = 'cfg-row';
+    const top = document.createElement('div'); top.className = 'cfg-row-top';
+    const lab = document.createElement('span'); lab.className = 'cfg-label'; lab.textContent = label;
+    const val = document.createElement('span'); val.className = 'cfg-value';
+    const rng = document.createElement('input'); rng.type = 'range';
+    rng.min = min; rng.max = max; rng.step = step; rng.value = get();
+    const draw = () => { val.textContent = fmt ? fmt(Number(rng.value)) : String(rng.value); };
+    rng.addEventListener('input', () => { set(Number(rng.value)); draw(); });
+    top.append(lab, val); row.append(top, rng); draw();
+    return row;
+  };
+
+  // An on/off toggle-switch row. Returns a .cfg-row element.
+  ListCarousel.toggleRow = function (label, get, set) {
+    const row = document.createElement('div'); row.className = 'cfg-row cfg-row-inline';
+    const lab = document.createElement('span'); lab.className = 'cfg-label'; lab.textContent = label;
+    const sw = document.createElement('button'); sw.type = 'button'; sw.className = 'cfg-switch';
+    const knob = document.createElement('span'); knob.className = 'cfg-knob'; sw.appendChild(knob);
+    const draw = () => { sw.classList.toggle('on', !!get()); sw.setAttribute('aria-pressed', String(!!get())); };
+    sw.addEventListener('click', (e) => { e.preventDefault(); set(!get()); draw(); });
+    row.append(lab, sw); draw();
+    return row;
+  };
+
+  // A segmented control row (mutually-exclusive options). Returns a .cfg-row.
+  ListCarousel.segmentRow = function (label, get, options, set) {
+    const row = document.createElement('div'); row.className = 'cfg-row cfg-row-inline';
+    const lab = document.createElement('span'); lab.className = 'cfg-label'; lab.textContent = label;
+    const seg = document.createElement('div'); seg.className = 'cfg-seg';
+    const draw = () => { seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === String(get()))); };
+    options.forEach(([v, t]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.dataset.v = v; b.textContent = t;
+      b.addEventListener('click', (e) => { e.preventDefault(); set(v); draw(); });
+      seg.appendChild(b);
+    });
+    row.append(lab, seg); draw();
+    return row;
+  };
+
+  // Build the standard carousel controls (Auto-scroll, Scroll mode, Pause, Show,
+  // Speed) into `toolsEl`. `cfg` is mutated in place; `onChange(patch)` fires on
+  // each change. Rendered as slider/toggle/segment rows for the config window.
   ListCarousel.buildControls = function (toolsEl, cfg, onChange) {
     if (!toolsEl) return;
     toolsEl.classList.add('lc-tools');
     toolsEl.innerHTML = '';
-    const S = {
-      grp: 'display:inline-flex;align-items:center;gap:3px;',
-      lbl: 'font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);',
-      btn: 'width:18px;height:18px;border-radius:5px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;font:700 12px/1 sans-serif;padding:0;',
-      cnt: 'font-size:10px;color:var(--text-muted);min-width:26px;text-align:center;',
-      tog: 'font-size:9.5px;font-weight:700;border-radius:5px;border:1px solid var(--border);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;padding:3px 8px;',
-    };
-    const label = (t) => { const s = document.createElement('span'); s.style.cssText = S.lbl; s.textContent = t; return s; };
+    toolsEl.appendChild(ListCarousel.toggleRow('Auto-scroll', () => !!cfg.carousel, (on) => { cfg.carousel = on; onChange({ carousel: on }); }));
 
-    // Scroll on/off — a non-interactive "Scroll" label + a clickable ON/OFF
-    // action button. Only the button toggles; the label and anything else around
-    // it do nothing. The button shows the ACTION: while scrolling it reads OFF
-    // (click to stop); while stopped it reads ON (click to start).
-    const g0 = document.createElement('span'); g0.style.cssText = S.grp;
-    g0.appendChild(label('Scroll'));
-    const tog = document.createElement('button'); tog.type = 'button'; tog.style.cssText = S.tog;
-    const drawTog = () => {
-      tog.textContent = cfg.carousel ? 'OFF' : 'ON';
-      tog.title = cfg.carousel ? 'Turn auto-scroll off' : 'Turn auto-scroll on';
-    };
-    tog.addEventListener('click', (e) => {
-      e.stopPropagation();                  // only this button changes state
-      cfg.carousel = !cfg.carousel;
-      drawTog();
-      onChange({ carousel: cfg.carousel });
-    });
-    g0.appendChild(tog); drawTog(); toolsEl.appendChild(g0);
+    // Scroll mode + (conditional) pause duration.
+    let pauseRow;
+    toolsEl.appendChild(ListCarousel.segmentRow('Scroll mode',
+      () => (cfg.mode === 'pause' ? 'pause' : 'continuous'),
+      [['continuous', 'Continuous'], ['pause', 'Pause']],
+      (v) => { cfg.mode = v; onChange({ mode: v }); if (pauseRow) pauseRow.style.display = v === 'pause' ? '' : 'none'; }));
+    pauseRow = ListCarousel.sliderRow('Pause', () => (cfg.pauseMs || 1000) / 1000, 0.5, 10, 0.5,
+      (v) => { cfg.pauseMs = Math.round(v * 1000); onChange({ pauseMs: cfg.pauseMs }); }, (v) => v.toFixed(1) + 's');
+    pauseRow.style.display = cfg.mode === 'pause' ? '' : 'none';
+    toolsEl.appendChild(pauseRow);
 
-    const stepper = (lbl, key, min, max, step, suffix) => {
-      const g = document.createElement('span'); g.style.cssText = S.grp;
-      const dec = document.createElement('button'); dec.type = 'button'; dec.style.cssText = S.btn; dec.textContent = '−';
-      const cnt = document.createElement('span'); cnt.style.cssText = S.cnt;
-      const inc = document.createElement('button'); inc.type = 'button'; inc.style.cssText = S.btn; inc.textContent = '+';
-      const draw = () => { cnt.textContent = cfg[key] + (suffix || ''); };
-      const set = (v) => { cfg[key] = Math.max(min, Math.min(max, v)); draw(); const p = {}; p[key] = cfg[key]; onChange(p); };
-      dec.addEventListener('click', () => set(cfg[key] - step));
-      inc.addEventListener('click', () => set(cfg[key] + step));
-      g.append(label(lbl), dec, cnt, inc); draw(); toolsEl.appendChild(g);
-    };
-    stepper('Show', 'visibleCount', 1, 12, 1, '');
-    stepper('Speed', 'speed', 5, 100, 5, '');
+    toolsEl.appendChild(ListCarousel.sliderRow('Show', () => cfg.visibleCount, 1, 12, 1, (v) => { cfg.visibleCount = v; onChange({ visibleCount: v }); }));
+    toolsEl.appendChild(ListCarousel.sliderRow('Speed', () => cfg.speed, 5, 100, 5, (v) => { cfg.speed = v; onChange({ speed: v }); }));
   };
 
   global.ListCarousel = ListCarousel;

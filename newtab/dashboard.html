@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard</title>
   <link rel="stylesheet" href="../styles/common.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7/css/materialdesignicons.min.css">
   <link rel="stylesheet" href="vendor/gridstack.min.css">
   <!-- Integration widget styles (for live widgets added to the board) -->
   <link rel="stylesheet" href="../widgets/tautulli-widget.css">
@@ -135,7 +136,60 @@
     /* ── Dashboard area ───────────────────────────────────────────────────── */
     /* Layout row holding the optional left sidebar + the dashboard area. */
     .main-row { flex: 1; min-height: 0; display: flex; }
-    .dashboard-area { flex: 1; overflow-y: auto; padding: 24px; min-width: 0; }
+    .dashboard-area { flex: 1; overflow-y: auto; padding: 24px; min-width: 0; position: relative; }
+
+    /* ── Widget configuration: Configure button + draggable window ───────────── */
+    .widget-configure { display: none; }
+    body.rearrange-mode .grid-stack .widget-configure {
+      position: absolute; top: 0; left: 50%; transform: translate(-50%, -50%); z-index: 9;
+      display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+      padding: 4px 12px; border-radius: 999px;
+      background: var(--accent); border: 1px solid var(--accent); color: #fff;
+      font: 600 12px/1 var(--font, sans-serif); cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.28);
+    }
+    body.rearrange-mode .grid-stack .widget-configure:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+    .widget-config-store { display: none; }
+
+    .config-window {
+      position: absolute; z-index: 41; width: 280px; min-width: 240px; min-height: 150px; max-width: calc(100% - 16px);
+      display: flex; flex-direction: column; resize: both; overflow: hidden;
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: var(--radius-lg, 12px); box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+    }
+    .config-window .cw-head { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--border); background: var(--bg-card); flex: 0 0 auto; cursor: grab; touch-action: none; }
+    .config-window .cw-grip { color: var(--text-muted); font-size: 13px; }
+    .config-window .cw-title { flex: 1; font-size: 13px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .config-window .cw-close { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+    .config-window .cw-close:hover { color: #fff; background: var(--danger, #ef4444); border-color: var(--danger, #ef4444); }
+    .config-window .cw-body { padding: 14px; display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto; overflow-y: auto; }
+    .config-window .cw-body .lc-tools,
+    .config-window .cw-body .ww-tools,
+    .config-window .cw-body .pc-tools,
+    .config-window .cw-body .tw-tools { display: flex !important; flex-direction: column; gap: 14px; align-items: stretch; margin: 0; }
+
+    .cfg-row { display: flex; flex-direction: column; gap: 6px; }
+    .cfg-row.cfg-row-inline { flex-direction: row; align-items: center; justify-content: space-between; }
+    .cfg-row-top { display: flex; align-items: baseline; justify-content: space-between; }
+    .cfg-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+    .cfg-value { font-size: 12px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+    .cfg-row input[type="range"] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+    .cfg-switch { position: relative; width: 38px; height: 22px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-card); cursor: pointer; padding: 0; flex: 0 0 auto; }
+    .cfg-switch .cfg-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--text-muted); transition: left .12s, background .12s; }
+    .cfg-switch.on { background: var(--accent); border-color: var(--accent); }
+    .cfg-switch.on .cfg-knob { left: 18px; background: #fff; }
+    .cfg-seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; flex: 0 0 auto; }
+    .cfg-seg button { border: none; background: var(--bg-card); color: var(--text-secondary); font: 600 11px/1 var(--font, sans-serif); padding: 5px 11px; cursor: pointer; }
+    .cfg-seg button + button { border-left: 1px solid var(--border); }
+    .cfg-seg button.on { background: var(--accent); color: #fff; }
+
+    /* Lockdown: dim + block every other widget; the active one stays bright + live. */
+    body.config-open .grid-stack-item:not(.config-active) > .grid-stack-item-content { opacity: 0.45; pointer-events: none; }
+    body.config-open .grid-stack-item.config-active > .grid-stack-item-content { pointer-events: none; }
+    /* Only the launching widget keeps its resize handles (it stays resizable, not movable). */
+    body.config-open .grid-stack-item:not(.config-active) > [class*="ui-resizable"] { display: none !important; }
+    body.config-open .grid-stack-item.config-active [class*="ui-resizable"] { pointer-events: auto !important; }
+    body.config-open .rearrange-tools { pointer-events: none; opacity: 0.5; }
 
     /* Branding (top-left of the main bar). */
     .dash-brand { display: flex; align-items: center; gap: 9px; }
@@ -242,30 +296,35 @@
       border: 1px solid var(--border); border-radius: 999px; padding: 5px 13px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.28);
     }
-    /* Delete control — edit/rearrange mode only, upper-right corner. */
-    /* Lock / unlock toggle — top-right corner of every section & widget (edit mode). */
+    /* Lock / unlock toggle — straddles the TOP-LEFT corner of every section &
+       widget (edit mode), centered right on the border corner (part in/part out). */
     .grid-lock { display: none; }
     body.rearrange-mode .grid-stack .grid-lock {
-      position: absolute; top: 4px; right: 4px; z-index: 7;
+      position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 9;
       display: inline-flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; padding: 0; border-radius: 50%;
-      border: 1px solid var(--border); background: var(--bg-secondary);
+      border: 1px solid var(--border); background: transparent;
       color: var(--text-secondary); cursor: pointer; font-size: 10px; line-height: 1;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.28);
     }
     body.rearrange-mode .grid-stack .grid-lock:hover { border-color: var(--accent); color: var(--accent); }
-    body.rearrange-mode .grid-stack .grid-lock.is-locked { background: var(--accent); border-color: var(--accent); color: #fff; }
+    /* Locked = red fill, icon stays visible. Unlocked = transparent (above). */
+    body.rearrange-mode .grid-stack .grid-lock.is-locked { background: var(--danger, #ef4444); border-color: var(--danger, #ef4444); color: #fff; }
+    body.rearrange-mode .grid-stack .grid-lock.is-locked:hover { background: var(--danger, #ef4444); border-color: var(--danger, #ef4444); color: #fff; }
     /* A locked item shows it's pinned: dim its move handle. */
     .grid-stack-item.locked .folder-header { cursor: default; }
     .grid-stack-item.locked .widget-drag { opacity: 0.3; cursor: default; }
 
+    /* Delete control — straddles the TOP-RIGHT corner (edit mode). */
     .widget-del { display: none; }
     body.rearrange-mode .grid-stack .widget-del {
-      position: absolute; top: 4px; right: 30px; z-index: 6;
+      position: absolute; top: 0; right: 0; transform: translate(50%, -50%); z-index: 9;
       display: inline-flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; padding: 0; border-radius: 50%;
       border: 1px solid var(--border); background: var(--bg-secondary);
       color: var(--text-secondary); cursor: pointer;
       font: 700 11px/1 system-ui, sans-serif;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.28);
     }
     body.rearrange-mode .grid-stack .widget-del:hover {
       color: #fff; background: var(--danger, #ef4444); border-color: var(--danger, #ef4444);
@@ -530,7 +589,14 @@
       border-color: var(--accent);
       box-shadow: 0 2px 10px rgba(0,0,0,0.10);
     }
-    body.rearrange-mode .grid-stack .folder-header { cursor: move; }
+    /* Whole widget / section header is the move handle — grab / grabbing hand. */
+    body.rearrange-mode .grid-stack .folder-header,
+    body.rearrange-mode .grid-stack .widget-section { cursor: grab; }
+    body.rearrange-mode .grid-stack-item.locked .widget-section,
+    body.rearrange-mode .grid-stack-item.locked .folder-header { cursor: default; }
+    body.rearrange-mode .grid-stack-item.ui-draggable-dragging,
+    body.rearrange-mode .grid-stack-item.ui-draggable-dragging .widget-section,
+    body.rearrange-mode .grid-stack-item.ui-draggable-dragging .folder-header { cursor: grabbing; }
     body.rearrange-mode .grid-stack-item.ui-draggable-dragging .grid-stack-item-content {
       border-color: var(--accent);
       box-shadow: 0 6px 20px rgba(0,0,0,0.18);

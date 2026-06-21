@@ -79,6 +79,28 @@
     return isNaN(dt) ? '' : dt.toLocaleDateString(undefined, { weekday: 'short' });
   };
 
+  // ─── sunrise / sunset icons ─────────────────────────────────────────────────
+  // Material Design Icons (webfont): sunset-up / sunset-down, both soft amber.
+  // Dark themes dim them to 70% via the .wx-night class on the widget root.
+  const sunriseIcon = () => '<i class="mdi mdi-weather-sunset-up ww-ico-sun" aria-hidden="true"></i>';
+  const sunsetIcon = () => '<i class="mdi mdi-weather-sunset-down ww-ico-sun" aria-hidden="true"></i>';
+
+  // Detect a dark theme from the live --bg-primary luminance.
+  function isDarkTheme() {
+    try {
+      const bg = (getComputedStyle(document.documentElement).getPropertyValue('--bg-primary') || '').trim() || '#101014';
+      let r, g, b;
+      if (bg[0] === '#') {
+        const h = bg.slice(1);
+        const n = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+        r = parseInt(n.slice(0, 2), 16); g = parseInt(n.slice(2, 4), 16); b = parseInt(n.slice(4, 6), 16);
+      } else {
+        const m = (bg.match(/\d+/g) || ['16', '16', '20']).map(Number); r = m[0]; g = m[1]; b = m[2];
+      }
+      return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 < 0.4;
+    } catch (_) { return true; }
+  }
+
   // ─── data ─────────────────────────────────────────────────────────────────
   const WeatherApi = {
     _cache: {},   // key → { ts, data }  (shared so 3 widgets don't all re-fetch)
@@ -282,22 +304,31 @@
       try {
         this.data = this.cfg.dataProvider ? await this.cfg.dataProvider()
           : await WeatherApi.fetch(this.cfg);
-        this._clearError(); this._render();
+        if (!this.cfg.location && this.data && this.data.current && this.data.current.place) this._setLocation(this.data.current.place);
+        this._clearError(); this._render(); this._applyNightDim();
       } catch (err) { this._showError(err && err.message); }
     }
     _buildSkeleton() {
       this.el.classList.add('weather-widget');
       this.el.innerHTML =
         '<div class="ww-header"><span class="ww-hicon"></span><div class="ww-title"></div>' +
+        '<div class="ww-loc"></div>' +
         '<div class="ww-tools"></div><div class="ww-error" style="display:none"></div></div>' +
         '<div class="ww-body"></div>';
       this.el.querySelector('.ww-hicon').textContent = this.icon;
       this.el.querySelector('.ww-title').textContent = this.title;
+      this.locEl = this.el.querySelector('.ww-loc');
+      this._setLocation(this.cfg.location);
       this.toolsEl = this.el.querySelector('.ww-tools');
       this.errorEl = this.el.querySelector('.ww-error');
       this.body = this.el.querySelector('.ww-body');
       this._buildTools();
     }
+    // Show the configured location next to the title (same font/bold), kept in
+    // sync with the resolved place name once data arrives.
+    _setLocation(name) { if (this.locEl) this.locEl.textContent = name || ''; }
+    // Dim the sunrise/sunset icons to 70% on dark themes (via .wx-night).
+    _applyNightDim() { if (this.el) this.el.classList.toggle('wx-night', isDarkTheme()); }
     _buildTools() { /* override */ }
     _clearError() { if (this.errorEl) this.errorEl.style.display = 'none'; }
     _showError(msg) {
@@ -317,8 +348,8 @@
       this.body.innerHTML =
         `<div class="ww-cur-top">
            <div class="ww-cur-emoji">${c.emoji}</div>
+           <div class="ww-cur-temp">${c.temp}${u.temp}</div>
            <div class="ww-cur-main">
-             <div class="ww-cur-temp">${c.temp}${u.temp}</div>
              <div class="ww-cur-cond">${c.condition}</div>
              <div class="ww-cur-feels">Feels like ${c.feels}${u.temp}</div>
            </div>
@@ -326,72 +357,90 @@
          <div class="ww-stats">
            ${stat('High', c.high + u.temp)}${stat('Low', c.low + u.temp)}
            ${stat('Wind', c.wind + ' ' + u.speed)}${stat('Humidity', c.humidity + '%')}
-           ${stat('Sunrise', '🌅 ' + c.sunrise)}${stat('Sunset', '🌇 ' + c.sunset)}
+           ${stat('Sunrise', sunriseIcon() + ' ' + c.sunrise)}${stat('Sunset', sunsetIcon() + ' ' + c.sunset)}
          </div>`;
     }
   }
 
   // ─── Widget 2: hourly ───────────────────────────────────────────────────────
-  class WeatherHourlyWidget extends WeatherBase {
-    constructor(c, cfg) {
-      super(c, cfg, 'Hourly Forecast', '🕐');
-      this.hours = Math.max(1, Math.min(12, parseInt(this.cfg.hours, 10) || 5));
+  // ─── Shared list base (Hourly + Forecast) ───────────────────────────────────
+  // Renders ALL rows into a track and uses the standard ListCarousel for the
+  // exact same Scroll-on/off + Show + Speed controls (straddling the top in edit
+  // mode) and the same auto-fit/resize behavior as the Stocks widget.
+  class WeatherListBase extends WeatherBase {
+    constructor(c, cfg, title, icon, defCount) {
+      super(c, cfg, title, icon);
+      this.cfg.carousel = this.cfg.carousel !== false;
+      // Seed the visible count from the legacy days/hours config if present.
+      const legacy = parseInt(this.cfg.visibleCount, 10) || parseInt(this.cfg.hours, 10) || parseInt(this.cfg.days, 10);
+      this.cfg.visibleCount = Math.max(1, Math.min(12, legacy || defCount));
+      this.cfg.speed = Math.max(5, parseInt(this.cfg.speed, 10) || 30);
+      this._buildList();
     }
-    _buildTools() {
-      this.toolsEl.innerHTML =
-        '<button class="ww-step" data-d="-1" title="Fewer hours">−</button>' +
-        '<span class="ww-count"></span>' +
-        '<button class="ww-step" data-d="1" title="More hours">+</button>';
-      this.toolsEl.querySelectorAll('.ww-step').forEach((b) => b.addEventListener('click', () => {
-        this.hours = Math.max(1, Math.min(12, this.hours + Number(b.dataset.d)));
-        if (typeof this.cfg.onHoursChange === 'function') this.cfg.onHoursChange(this.hours);
-        this._render();
-      }));
+    _buildTools() { /* controls are built by ListCarousel.buildControls in _buildList */ }
+    _buildList() {
+      this.body.innerHTML =
+        '<div class="ww-empty">Loading…</div>' +
+        '<div class="ww-viewport"><div class="ww-track"></div></div>';
+      this.emptyEl = this.body.querySelector('.ww-empty');
+      this.viewport = this.body.querySelector('.ww-viewport');
+      this.track = this.body.querySelector('.ww-track');
+      if (typeof ListCarousel !== 'undefined') {
+        this.carousel = new ListCarousel({ root: this.el, viewport: this.viewport, track: this.track,
+          enabled: this.cfg.carousel, visibleCount: this.cfg.visibleCount, speed: this.cfg.speed,
+          mode: this.cfg.mode, pauseMs: this.cfg.pauseMs });
+        ListCarousel.buildControls(this.toolsEl, this.cfg, (patch) => {
+          this.carousel.update(patch);
+          if (typeof this.cfg.onConfigChange === 'function') this.cfg.onConfigChange(patch);
+        });
+        // Weather: list Speed first. buildControls appends [Scroll, Show, Speed];
+        // move the Speed group (last) to the front.
+        const groups = this.toolsEl.children;
+        if (groups.length > 1) this.toolsEl.insertBefore(groups[groups.length - 1], groups[0]);
+      }
     }
+    destroy() { if (this.carousel) this.carousel.destroy(); super.destroy(); }
+    _rowsHTML() { return ''; /* override */ }
     _render() {
-      const cnt = this.toolsEl.querySelector('.ww-count'); if (cnt) cnt.textContent = this.hours + 'h';
-      if (!this.data) { this.body.innerHTML = '<div class="ww-empty">Loading…</div>'; return; }
+      if (!this.data) { if (this.emptyEl) { this.emptyEl.style.display = ''; this.emptyEl.textContent = 'Loading…'; } return; }
+      const html = this._rowsHTML();
+      if (this.track) this.track.innerHTML = html;
+      if (this.emptyEl) { this.emptyEl.style.display = html ? 'none' : ''; if (!html) this.emptyEl.textContent = 'No forecast'; }
+      if (this.carousel) this.carousel.layout();
+    }
+    _showError(msg) {
+      if (this.errorEl) { this.errorEl.style.display = ''; this.errorEl.textContent = '⚠ ' + (msg || 'Unavailable'); }
+      if (this.data == null && this.emptyEl) { this.emptyEl.style.display = ''; this.emptyEl.textContent = 'Weather unavailable'; }
+    }
+  }
+
+  // ─── Widget 2: hourly ───────────────────────────────────────────────────────
+  class WeatherHourlyWidget extends WeatherListBase {
+    constructor(c, cfg) { super(c, cfg, 'Hourly Forecast', '🕐', 5); }
+    _rowsHTML() {
       const u = this.data.sym;
-      const rows = this.data.hourly.slice(0, this.hours).map((h) =>
+      return (this.data.hourly || []).map((h) =>
         `<div class="ww-hour">
            <span class="ww-h-time">${h.time}</span>
            <span class="ww-h-emoji">${h.emoji}</span>
            <span class="ww-h-temp">${h.temp}${u.temp}</span>
            <span class="ww-h-wind">💨 ${h.wind} ${u.speed}</span>
          </div>`).join('');
-      this.body.innerHTML = rows || '<div class="ww-empty">No forecast</div>';
     }
   }
 
   // ─── Widget 3: multi-day forecast ───────────────────────────────────────────
-  class WeatherForecastWidget extends WeatherBase {
-    constructor(c, cfg) {
-      super(c, cfg, 'Forecast', '📅');
-      this.days = Math.max(1, Math.min(7, parseInt(this.cfg.days, 10) || 5));
-    }
-    _buildTools() {
-      this.toolsEl.innerHTML =
-        '<button class="ww-step" data-d="-1" title="Fewer days">−</button>' +
-        '<span class="ww-count"></span>' +
-        '<button class="ww-step" data-d="1" title="More days">+</button>';
-      this.toolsEl.querySelectorAll('.ww-step').forEach((b) => b.addEventListener('click', () => {
-        this.days = Math.max(1, Math.min(7, this.days + Number(b.dataset.d)));
-        if (typeof this.cfg.onDaysChange === 'function') this.cfg.onDaysChange(this.days);
-        this._render();
-      }));
-    }
-    _render() {
-      const cnt = this.toolsEl.querySelector('.ww-count'); if (cnt) cnt.textContent = this.days + 'd';
-      if (!this.data) { this.body.innerHTML = '<div class="ww-empty">Loading…</div>'; return; }
+  class WeatherForecastWidget extends WeatherListBase {
+    constructor(c, cfg) { super(c, cfg, 'Forecast', '📅', 5); }
+    _rowsHTML() {
       const u = this.data.sym;
-      const rows = this.data.daily.slice(0, this.days).map((d) =>
+      return (this.data.daily || []).map((d) =>
         `<div class="ww-day">
            <span class="ww-d-name">${d.day}</span>
            <span class="ww-d-emoji">${d.emoji}</span>
-           <span class="ww-d-sun">🌅 ${d.sunrise} · 🌇 ${d.sunset}</span>
+           <span class="ww-d-sun">${sunriseIcon()} ${d.sunrise} · ${sunsetIcon()} ${d.sunset}</span>
            <span class="ww-d-temp"><b>${d.high}${u.temp}</b> / ${d.low}${u.temp}</span>
          </div>`).join('');
-      this.body.innerHTML = rows || '<div class="ww-empty">No forecast</div>';
     }
   }
 
@@ -400,9 +449,10 @@
     constructor(c, cfg) {
       super(c, cfg, 'Weather', '🌦️');
       this.el.classList.add('weather-combined');
-      this.hours = clampN(parseInt(this.cfg.hours, 10) || 12, 6, 24);   // carousel depth
-      this.days = clampN(parseInt(this.cfg.days, 10) || 5, 5, 7);
+      this.hours = clampN(parseInt(this.cfg.hours, 10) || 12, 5, 24);   // carousel depth (min 5)
+      this.days = clampN(parseInt(this.cfg.days, 10) || 5, 1, 7);       // days shown (min 1)
       this.speedMs = clampN(parseInt(this.cfg.speedMs, 10) || 2000, 500, 4000);
+      this.scroll = this.cfg.carousel !== false;   // hourly auto-scroll on/off
       this.dwellMs = 5000;        // 5-second pause before each carousel move
       this._carTimer = null;
       this._onCarEnd = (e) => {
@@ -428,31 +478,27 @@
       try {
         this.data = this.cfg.dataProvider ? await this.cfg.dataProvider()
           : await WeatherApi.fetchHourly(this.cfg);
-        this._clearError(); this._render();
+        if (!this.cfg.location && this.data && this.data.current && this.data.current.place) this._setLocation(this.data.current.place);
+        this._clearError(); this._render(); this._applyNightDim();
       } catch (err) { this._showError(err && err.message); }
     }
 
     _buildTools() {
-      const grp = (key, label) =>
-        `<span class="ww-tgrp"><span class="ww-tlbl">${label}</span>` +
-        `<button class="ww-step" data-k="${key}" data-d="-1" type="button">−</button>` +
-        `<span class="ww-count" data-c="${key}"></span>` +
-        `<button class="ww-step" data-k="${key}" data-d="1" type="button">+</button></span>`;
-      // Hours = how many hours of forecast the carousel cycles through. How many
-      // of those are visible at once is decided by the widget width.
-      this.toolsEl.innerHTML = grp('hours', 'Hrs') + grp('days', 'Days') + grp('speed', 'Speed');
-      this.toolsEl.querySelectorAll('.ww-step').forEach((b) => b.addEventListener('click', () => {
-        const k = b.dataset.k, d = Number(b.dataset.d);
-        if (k === 'hours') { this.hours = clampN(this.hours + d * 2, 6, 24); if (this.cfg.onHoursChange) this.cfg.onHoursChange(this.hours); }
-        else if (k === 'days') { this.days = clampN(this.days + d, 5, 7); if (this.cfg.onDaysChange) this.cfg.onDaysChange(this.days); }
-        else if (k === 'speed') { this.speedMs = clampN(this.speedMs + d * 500, 500, 4000); if (this.cfg.onSpeedChange) this.cfg.onSpeedChange(this.speedMs); }
-        this._render();
+      const tools = this.toolsEl;
+      if (!tools) return;
+      tools.classList.add('lc-tools');   // pick up the config-window row styling
+      tools.innerHTML = '';
+      if (typeof ListCarousel === 'undefined') return;
+      // No carousel controls — the combined widget shows a static hourly strip.
+      // Only the display-amount options (Hours, Days) are exposed.
+      tools.appendChild(ListCarousel.sliderRow('Hours', () => this.hours, 5, 24, 1, (v) => {
+        this.hours = v; if (this.cfg.onHoursChange) this.cfg.onHoursChange(v); this._render();
+      }));
+      tools.appendChild(ListCarousel.sliderRow('Days', () => this.days, 1, 7, 1, (v) => {
+        this.days = v; if (this.cfg.onDaysChange) this.cfg.onDaysChange(v); this._render();
       }));
     }
-    _drawCounts() {
-      const set = (c, v) => { const el = this.toolsEl && this.toolsEl.querySelector(`.ww-count[data-c="${c}"]`); if (el) el.textContent = v; };
-      set('hours', this.hours + 'h'); set('days', this.days + 'd'); set('speed', (this.speedMs / 1000).toFixed(1) + 's');
-    }
+    _drawCounts() { /* counts now live in the slider rows */ }
 
     _render() {
       this._stopCarousel();
@@ -464,10 +510,15 @@
            <div class="wwc-cur-emoji">${c.emoji}</div>
            <div class="wwc-cur-temp">${c.temp}${u.temp}</div>
            <div class="wwc-cur-main">
-             <div class="wwc-cur-place">${c.place || ''}</div>
              <div class="wwc-cur-cond">${c.condition}</div>
+             <div class="wwc-cur-feels">Feels like ${c.feels}${u.temp}</div>
            </div>
            <div class="wwc-cur-hl"><span><b>${c.high}${u.temp}</b> H</span><span>${c.low}${u.temp} L</span></div>
+         </div>
+         <div class="wwc-cur-stats">
+           <span>💧 ${c.humidity}%</span>
+           <span>${sunriseIcon()} ${c.sunrise}</span>
+           <span>${sunsetIcon()} ${c.sunset}</span>
          </div>`;
       // Pool = `hours` cards; the width decides how many are visible at once and
       // the rest scroll in via the carousel.
@@ -507,7 +558,8 @@
       visible = Math.min(visible, total);
       clip.style.width = (visible * cardW + (visible - 1) * gap) + 'px';
       this._step = cardW + gap;
-      if (total > visible) this._scheduleCar();   // carousel only when needed
+      // Static hourly strip — no carousel auto-scroll (the only cards shown are
+      // the ones that fully fit the width).
     }
     _scheduleCar() {
       if (this._carTimer) clearTimeout(this._carTimer);

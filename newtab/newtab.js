@@ -1,6 +1,18 @@
 // Auto Dashboard AI — New Tab Page
 'use strict';
 
+// ─── Auto-sync (Gist) ─────────────────────────────────────────────────────────
+// On open, ask the background to pull a newer backup if auto-sync is on; reload
+// the page when the config is replaced so the dashboard shows the synced data.
+(function () {
+  try {
+    chrome.runtime.sendMessage({ type: 'gistAutoPullCheck' }, () => void chrome.runtime.lastError);
+    chrome.runtime.onMessage.addListener((msg) => {
+      if (msg && msg.type === 'configReplaced') location.reload();
+    });
+  } catch (_) {}
+})();
+
 // ─── Integration icon fallback ────────────────────────────────────────────────
 // Hide widget-header brand icons (.wg-icon) that haven't been downloaded yet
 // (icons/integrations/fetch-icons.sh) rather than showing a broken image. Done
@@ -998,7 +1010,8 @@ function renderDashboardGrid(dash, folderNames, groups) {
     section.dataset.iconsize = iconSize;
     section.dataset.textpos = storedTextPos(name);
     content.appendChild(section);
-    content.appendChild(buildGridLock(name));      // lock/unlock in the top-right corner
+    content.appendChild(buildSectionDel(name));    // remove (✕) straddling the top-right corner
+    content.appendChild(buildGridLock(name));      // lock/unlock straddling the bottom-right corner
     item.appendChild(content);
     gridEl.appendChild(item);
   });
@@ -1024,8 +1037,11 @@ function renderDashboardGrid(dash, folderNames, groups) {
     content.className = 'grid-stack-item-content';
     const wsec = buildWidgetSection(wdef);
     content.appendChild(wsec);
-    attachWidgetToolsBubble(content, wsec, wdef);
-    content.appendChild(buildGridLock('@w:' + wdef.uid));   // lock/unlock in the top-right corner
+    // Sample widgets are non-editable previews: no Configure button and no lock.
+    if (!wdef.sample) {
+      attachWidgetToolsBubble(content, wsec, wdef);
+      content.appendChild(buildGridLock('@w:' + wdef.uid));   // lock/unlock straddling the corner
+    }
     item.appendChild(content);
     gridEl.appendChild(item);
   });
@@ -1037,8 +1053,11 @@ function renderDashboardGrid(dash, folderNames, groups) {
     float: true,
     staticGrid: true,   // locked until Edit Mode unlocks it
     animate: true,
-    handle: '.folder-header, .widget-drag',         // sections by header, widgets by grip
-    draggable: { handle: '.folder-header, .widget-drag' },
+    // Sections drag by their header; widgets drag by the whole body. Buttons stop
+    // propagation, and a scrollable list (ListCarousel) swallows its own drag, so
+    // those interactive areas don't fight the widget move.
+    handle: '.folder-header, .widget-section',
+    draggable: { handle: '.folder-header, .widget-section' },
     resizable: { handles: 'e, se, s' }, // right, corner, and bottom (height-only) handles
     alwaysShowResizeHandle: true,     // visible whenever resize is enabled (Edit Mode)
     // Keep the fixed multi-column grid at all window sizes. Without this,
@@ -2003,8 +2022,11 @@ function addWidgetItemInPlace(wdef) {
   content.className = 'grid-stack-item-content';
   const wsec = buildWidgetSection(wdef);
   content.appendChild(wsec);
-  attachWidgetToolsBubble(content, wsec, wdef);
-  content.appendChild(buildGridLock('@w:' + wdef.uid));   // lock/unlock in the top-right corner
+  // Sample widgets are non-editable previews: no Configure button and no lock.
+  if (!wdef.sample) {
+    attachWidgetToolsBubble(content, wsec, wdef);
+    content.appendChild(buildGridLock('@w:' + wdef.uid));
+  }
   item.appendChild(content);
 
   const wasStatic = !state.rearrangeMode;
@@ -2049,6 +2071,42 @@ async function removeWidgetGrouping(uid) {
   showToast('Widget removed ✓');
 }
 
+// Remove (✕) button for a section — straddles the top-right corner (edit mode).
+function buildSectionDel(name) {
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.className = 'widget-del';   // share the widget remove styling for consistency
+  del.title = 'Remove section from board';
+  del.setAttribute('aria-label', 'Remove section');
+  del.textContent = '✕';
+  del.addEventListener('pointerdown', (e) => e.stopPropagation());   // don't start a drag
+  del.addEventListener('click', (e) => { e.stopPropagation(); removeSection(name); });
+  return del;
+}
+
+async function removeSection(name) {
+  const dash = getActiveDash();
+  if (!dash) return;
+  const inSection = (b) => (b.folder || 'General') === name;
+  const count = (dash.bookmarks || []).filter(inSection).length;
+  if (!confirm(`Remove the "${name}" section${count ? ` and its ${count} item${count !== 1 ? 's' : ''}` : ''} from this dashboard?`)) return;
+
+  dash.bookmarks = (dash.bookmarks || []).filter((b) => !inSection(b));
+  if (Array.isArray(dash.sectionOrder)) dash.sectionOrder = dash.sectionOrder.filter((n) => n !== name);
+  if (dash.layout) delete dash.layout[name];
+
+  // Tear down the nested icon grid for this section so its timers/instance go.
+  iconGrids = iconGrids.filter((g) => { if (g._folder === name) { try { g.destroy(false); } catch (_) {} return false; } return true; });
+
+  // Remove ONLY this item from the grid — no full re-render, so everything else
+  // stays exactly where it is.
+  const el = document.querySelector(`.grid-stack > .grid-stack-item[data-folder="${CSS.escape(name)}"]`);
+  if (el) { if (gridInstance) gridInstance.removeWidget(el, true); else el.remove(); }
+
+  await chromeSet({ dashboards: state.dashboards });
+  showToast('Section removed ✓');
+}
+
 function setupWidgetModal() {
   const modal = document.getElementById('widget-modal');
   if (!modal) return;
@@ -2070,6 +2128,8 @@ function applyCarouselOpts(wdef, opts) {
   if (wdef.config.carousel != null) opts.carousel = wdef.config.carousel;
   if (wdef.config.visibleCount) opts.visibleCount = wdef.config.visibleCount;
   if (wdef.config.speed) opts.speed = wdef.config.speed;
+  if (wdef.config.mode) opts.mode = wdef.config.mode;
+  if (wdef.config.pauseMs) opts.pauseMs = wdef.config.pauseMs;
 }
 
 // Build a widget grouping for the board (no S/M/L pill; shows a disabled notice
@@ -2079,12 +2139,119 @@ function applyCarouselOpts(wdef, opts) {
 // static, so they get no bubble (and their in-widget tools are hidden via CSS).
 function attachWidgetToolsBubble(content, sec, wdef) {
   if (!content || !sec || (wdef && wdef.sample)) return;
-  const tools = sec.querySelectorAll('.lc-tools, .pc-tools');
+  // Collect the widget's live, already-wired control bars and stash them in a
+  // hidden store. A single "Configure" button (straddling the top border, edit
+  // mode only) moves them into a draggable config window on demand.
+  const tools = [...sec.querySelectorAll('.lc-tools, .pc-tools, .ww-tools')].filter((t) => t.children.length);
   if (!tools.length) return;
-  const bubble = document.createElement('div');
-  bubble.className = 'widget-tools-bubble';
-  tools.forEach((t) => bubble.appendChild(t));   // relocate the controls into the overlay
-  content.appendChild(bubble);
+  const store = document.createElement('div');
+  store.className = 'widget-config-store';
+  tools.forEach((t) => store.appendChild(t));
+  content.appendChild(store);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'widget-configure';
+  btn.innerHTML =
+    '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>' +
+    '<span>Configure</span>';
+  btn.title = 'Configure this widget';
+  const titleText = (wdef && wdef.name) || 'Widget';
+  btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+  btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openWidgetConfig(content, store, titleText, btn); });
+  content.appendChild(btn);
+}
+
+// ─── Widget configuration window ──────────────────────────────────────────────
+// One resizable (not movable) panel at a time. While open, every OTHER widget is
+// dimmed + locked and other Configure buttons are disabled; the widget being
+// configured stays bright and reactive. Controls inside are the widget's own live
+// controls, so changes apply + persist in real time.
+let activeConfig = null;
+
+function openWidgetConfig(content, store, titleText, btn) {
+  if (activeConfig) return;   // single-window rule
+  const win = document.createElement('div');
+  win.className = 'config-window';
+  win.innerHTML =
+    '<div class="cw-head"><span class="cw-grip">⠿</span><span class="cw-title"></span>' +
+    '<button class="cw-close" type="button" aria-label="Close">✕</button></div>' +
+    '<div class="cw-body"></div>';
+  win.querySelector('.cw-title').textContent = titleText;
+  const body = win.querySelector('.cw-body');
+  while (store.firstChild) body.appendChild(store.firstChild);   // move the live controls in
+
+  // The widget being configured stays bright + reactive (not dimmed/locked like
+  // the others) so the user can watch it respond live.
+  const itemEl = content.closest('.grid-stack-item') || content;
+  itemEl.classList.add('config-active');
+
+  dashboardArea.appendChild(win);
+
+  // Open centered on the widget. The window is resizable but NOT movable.
+  const areaRect = dashboardArea.getBoundingClientRect();
+  const itRect = itemEl.getBoundingClientRect();
+  const ww = win.offsetWidth || 280, wh = win.offsetHeight || 180;
+  let left = (itRect.left - areaRect.left) + dashboardArea.scrollLeft + (itRect.width - ww) / 2;
+  let top = (itRect.top - areaRect.top) + dashboardArea.scrollTop + (itRect.height - wh) / 2;
+  win.style.left = Math.max(8, left) + 'px';
+  win.style.top = Math.max(8, top) + 'px';
+
+  document.body.classList.add('config-open');
+  document.querySelectorAll('.widget-configure').forEach((b) => { if (b !== btn) b.disabled = true; });
+  // Lock movement for everyone; keep resize available but only on the launching
+  // widget (it stays resizable, not movable, so it can be sized in place).
+  if (gridInstance) {
+    try {
+      gridInstance.enableMove(false);
+      gridInstance.enableResize(true);
+      const nodes = (gridInstance.engine && gridInstance.engine.nodes) ? gridInstance.engine.nodes : [];
+      nodes.forEach((n) => { if (n.el) { try { gridInstance.resizable(n.el, n.el === itemEl); } catch (_) {} } });
+    } catch (_) {}
+  }
+
+  // The window is movable (drag the header) AND resizable (CSS resize handle).
+  const head = win.querySelector('.cw-head');
+  let dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  head.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.cw-close')) return;
+    dragging = true; sx = e.clientX; sy = e.clientY;
+    ox = parseFloat(win.style.left) || 0; oy = parseFloat(win.style.top) || 0;
+    try { head.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+  });
+  head.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    win.style.left = (ox + e.clientX - sx) + 'px';
+    win.style.top = Math.max(0, oy + e.clientY - sy) + 'px';
+  });
+  const endDrag = (e) => { if (dragging) { dragging = false; try { head.releasePointerCapture(e.pointerId); } catch (_) {} } };
+  head.addEventListener('pointerup', endDrag);
+  head.addEventListener('pointercancel', endDrag);
+
+  win.querySelector('.cw-close').addEventListener('click', closeWidgetConfig);
+  activeConfig = { win, store, btn, item: itemEl };
+}
+
+function closeWidgetConfig() {
+  if (!activeConfig) return;
+  const { win, store, item } = activeConfig;
+  const body = win.querySelector('.cw-body');
+  while (body && body.firstChild) store.appendChild(body.firstChild);   // return controls to the store
+  win.remove();
+  if (item) item.classList.remove('config-active');
+  document.body.classList.remove('config-open');
+  document.querySelectorAll('.widget-configure').forEach((b) => { b.disabled = false; });
+  // Restore normal edit-mode move/resize (honoring any per-item locks).
+  if (gridInstance && state.rearrangeMode) {
+    try {
+      gridInstance.enableMove(true);
+      gridInstance.enableResize(true);
+      reassertGridLocks();
+    } catch (_) {}
+  }
+  activeConfig = null;
 }
 
 // ─── Lock / unlock a grid item (section or widget) ───────────────────────────
@@ -2102,6 +2269,29 @@ function applyLockedAttrs(item, pos) {
 }
 
 // The small lock toggle shown in each item's top-right corner (edit mode only).
+// Distinct padlock icons (stroke = currentColor, so they stay visible on the
+// red locked fill and the transparent unlocked state). Closed shackle = locked,
+// open shackle = unlocked.
+function lockIconSVG(locked) {
+  const body = '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>';
+  const shackle = locked
+    ? '<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>'        // closed
+    : '<path d="M7 11V7a5 5 0 0 1 9.9-1"></path>';        // open
+  return '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" ' +
+    'stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    body + shackle + '</svg>';
+}
+function lockTitle(locked) {
+  return locked
+    ? 'Locked — click to unlock and allow moving/resizing'
+    : 'Unlocked — click to lock this in place';
+}
+function paintGridLock(btn, locked) {
+  btn.innerHTML = lockIconSVG(locked);
+  btn.title = lockTitle(locked);                 // native tooltip after a short hover pause
+  btn.setAttribute('aria-label', lockTitle(locked));
+}
+
 function buildGridLock(key) {
   const dash = getActiveDash();
   const locked = !!(dash && dash.layout && dash.layout[key] && dash.layout[key].locked);
@@ -2109,9 +2299,7 @@ function buildGridLock(key) {
   btn.type = 'button';
   btn.className = 'grid-lock' + (locked ? ' is-locked' : '');
   btn.dataset.lockKey = key;
-  btn.textContent = locked ? '🔒' : '🔓';
-  btn.title = locked ? 'Locked — click to unlock' : 'Lock in place';
-  btn.setAttribute('aria-label', btn.title);
+  paintGridLock(btn, locked);
   btn.addEventListener('pointerdown', (e) => e.stopPropagation());   // never start a drag
   btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); toggleGridLock(btn); });
   return btn;
@@ -2127,9 +2315,7 @@ function toggleGridLock(btn) {
   dash.layout[key].locked = locked;
   applyGridLock(item, locked);
   btn.classList.toggle('is-locked', locked);
-  btn.textContent = locked ? '🔒' : '🔓';
-  btn.title = locked ? 'Locked — click to unlock' : 'Lock in place';
-  btn.setAttribute('aria-label', btn.title);
+  paintGridLock(btn, locked);
   markRearrangeChanged();
 }
 
@@ -2147,13 +2333,9 @@ function applyGridLock(item, locked) {
 function buildWidgetSection(wdef) {
   const sec = document.createElement('div');
   sec.className = 'widget-section';
-  // No section title — the widget renders its own icon + name. A slim drag grip
-  // (the Gridstack handle for widgets) appears only in rearrange mode.
-  const drag = document.createElement('div');
-  drag.className = 'widget-drag';
-  drag.title = 'Drag to move';
-  drag.innerHTML = '<span class="wg-grip">⠿</span>';
-  sec.appendChild(drag);
+  // No drag grip — in edit mode the whole widget body is the drag handle
+  // (see the grid's draggable config). Interactive areas (controls, scrolling
+  // lists) are excluded via the draggable `cancel` selector.
 
   // Delete control (edit-mode only) — removes this widget's board placement.
   // Does NOT touch the underlying integration configuration.
@@ -2212,26 +2394,27 @@ function buildWidgetSection(wdef) {
       // Per-widget options (e.g. the hourly-forecast count, persisted on the
       // widget entry).
       const opts = {};
-      if (wdef.intId === 'weather-hourly') {
-        opts.hours = (wdef.config && wdef.config.hours) || 5;
-        opts.onHoursChange = (n) => {
-          wdef.config = Object.assign({}, wdef.config, { hours: n });
-          chromeSet({ dashboards: state.dashboards });
-        };
-      } else if (wdef.intId === 'weather-forecast') {
-        opts.days = (wdef.config && wdef.config.days) || 5;
-        opts.onDaysChange = (n) => {
-          wdef.config = Object.assign({}, wdef.config, { days: n });
+      if (wdef.intId === 'weather-hourly' || wdef.intId === 'weather-forecast') {
+        // Same Scroll/Show/Speed model as the list widgets (stocks/tautulli).
+        applyCarouselOpts(wdef, opts);
+        if (opts.visibleCount == null && wdef.config) {
+          const legacy = wdef.config.hours || wdef.config.days;   // migrate old count
+          if (legacy) opts.visibleCount = legacy;
+        }
+        opts.onConfigChange = (patch) => {
+          wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });
         };
       } else if (wdef.intId === 'weather-combined') {
         opts.hours = (wdef.config && wdef.config.hours) || 12;
         opts.days = (wdef.config && wdef.config.days) || 5;
         opts.speedMs = (wdef.config && wdef.config.speedMs) || 2000;
+        opts.carousel = !(wdef.config && wdef.config.carousel === false);   // hourly auto-scroll on/off
         const persist = (patch) => { wdef.config = Object.assign({}, wdef.config, patch); chromeSet({ dashboards: state.dashboards }); };
         opts.onHoursChange = (n) => persist({ hours: n });
         opts.onDaysChange = (n) => persist({ days: n });
         opts.onSpeedChange = (n) => persist({ speedMs: n });
+        opts.onScrollChange = (on) => persist({ carousel: on });
       } else if (wdef.intId === 'tautulli') {
         if (wdef.config && wdef.config.maxVisible) opts.maxVisible = wdef.config.maxVisible;
         if (wdef.config && wdef.config.dwellMs) opts.dwellMs = wdef.config.dwellMs;
@@ -2340,6 +2523,9 @@ function enterRearrangeMode() {
 
 function exitRearrangeMode(discard = false) {
   if (!state.rearrangeMode) return;
+
+  // Close any open widget config window first.
+  if (typeof closeWidgetConfig === 'function') closeWidgetConfig();
 
   // End any in-progress drag
   if (pDrag.active) endPointerDrag();

@@ -10,31 +10,52 @@
 .weather-widget .ww-hicon { font-size: 16px; line-height: 1; }
 .weather-widget .ww-title {
   font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--text-secondary, #a9a9c0);
+  color: var(--text-secondary, #a9a9c0); flex-shrink: 0;
+}
+/* Location next to the title — same font + bold weight as the title. */
+.weather-widget .ww-loc {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-primary, #e8e8ee);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.weather-widget .ww-loc:not(:empty)::before {
+  content: "·"; margin: 0 6px 0 2px; color: var(--text-muted, #6b6b80); font-weight: 400;
 }
 .weather-widget .ww-tools { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+/* Control groups spaced by the bubble's flex gap (no divider line). */
+.widget-tools-bubble .ww-tools { gap: 14px; }
 .weather-widget .ww-error { color: var(--danger, #ef4444); font-size: 11px; margin-left: 8px; }
-.weather-widget .ww-step {
-  width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--border, #2a2a3e);
+/* Tool controls are UNSCOPED (no .weather-widget ancestor) so they keep their
+   styling after being relocated into the edit-mode tools bubble — matching the
+   shared ListCarousel controls used by the Stocks widget. */
+.ww-step {
+  width: 18px; height: 18px; border-radius: 5px; border: 1px solid var(--border, #2a2a3e);
   background: var(--bg-secondary, #1a1a24); color: var(--text-secondary, #a9a9c0);
-  cursor: pointer; font: 700 13px/1 var(--font, sans-serif);
+  cursor: pointer; font: 700 12px/1 sans-serif; padding: 0;
 }
-.weather-widget .ww-step:hover { color: var(--accent, #6366f1); border-color: var(--accent, #6366f1); }
-.weather-widget .ww-count { font-size: 11px; color: var(--text-muted, #6b6b80); min-width: 22px; text-align: center; }
-.weather-widget .ww-body { flex: 1; min-height: 0; }
+.ww-step:hover { color: var(--accent, #6366f1); border-color: var(--accent, #6366f1); }
+.ww-count { font-size: 10px; color: var(--text-muted, #6b6b80); min-width: 26px; text-align: center; }
+/* Sunrise/sunset (MDI sunset-up / sunset-down) — soft amber, dimmed to 70% on
+   dark themes so they don't dominate the card. */
+.ww-ico-sun { color: #F59E0B; font-size: 14px; line-height: 1; vertical-align: -2px; }
+.weather-widget.wx-night .ww-ico-sun { opacity: 0.7; }
+.weather-widget .ww-body { flex: 1; min-height: 0; overflow: auto; }
 .weather-widget .ww-empty { color: var(--text-muted, #6b6b80); font-size: 12px; padding: 18px 4px; text-align: center; }
+/* List widgets (Hourly / 5-Day) use the shared ListCarousel viewport + track. */
+.weather-widget .ww-viewport { overflow: hidden; }
+.weather-widget .ww-track { display: flex; flex-direction: column; will-change: transform; }
 
-/* Current */
-.ww-cur-top { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 12px; }
-.ww-cur-emoji { font-size: 46px; line-height: 1; }
-.ww-cur-main { text-align: center; }
-.ww-cur-temp { font-size: 32px; font-weight: 700; line-height: 1.05; }
-.ww-cur-cond { font-size: 13px; color: var(--text-secondary, #a9a9c0); }
-.ww-cur-feels { font-size: 12px; color: var(--text-muted, #6b6b80); margin-top: 2px; }
-.ww-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
-.ww-stat { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--border, #2a2a3e); }
-.ww-stat-l { font-size: 11px; color: var(--text-muted, #6b6b80); text-transform: uppercase; letter-spacing: 0.04em; }
-.ww-stat-v { font-size: 13px; font-weight: 600; }
+/* Current — compact: temperature + conditions centered, stats packed tightly. */
+.ww-cur-top { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 8px; }
+.ww-cur-emoji { font-size: 38px; line-height: 1; }
+.ww-cur-main { text-align: left; }
+.ww-cur-temp { font-size: 28px; font-weight: 700; line-height: 1.05; }
+.ww-cur-cond { font-size: 12.5px; color: var(--text-secondary, #a9a9c0); }
+.ww-cur-feels { font-size: 11.5px; color: var(--text-muted, #6b6b80); margin-top: 1px; }
+.ww-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 14px; }
+.ww-stat { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 2px 0; border-bottom: 1px solid var(--border, #2a2a3e); }
+.ww-stat-l { font-size: 10.5px; color: var(--text-muted, #6b6b80); text-transform: uppercase; letter-spacing: 0.04em; }
+.ww-stat-v { font-size: 12.5px; font-weight: 600; }
 
 /* Hourly */
 .ww-hour { display: flex; align-items: center; gap: 10px; padding: 7px 4px; border-bottom: 1px solid var(--border, #2a2a3e); }
@@ -45,10 +66,21 @@
 .ww-h-wind { font-size: 11.5px; color: var(--text-muted, #6b6b80); margin-left: auto; }
 
 /* ── Combined widget ─────────────────────────────────────────────────────── */
-.weather-combined .ww-tools { gap: 10px; }
-.weather-combined .ww-tgrp { display: inline-flex; align-items: center; gap: 3px; }
-.weather-combined .ww-tlbl { font-size: 8.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted, #6b6b80); margin-right: 1px; }
-.weather-combined .ww-body { display: flex; flex-direction: column; gap: 12px; }
+/* Tool group + label are UNSCOPED so they survive relocation into the tools
+   bubble (edit mode) and read like the Stocks controls. */
+.weather-combined .ww-tools { gap: 12px; }
+.ww-tgrp { display: inline-flex; align-items: center; gap: 4px; }
+/* Compact stacked ▲/▼ spinner (replaces the −/+ buttons). */
+.ww-spin { display: inline-flex; flex-direction: column; gap: 1px; }
+.ww-spin .ww-step { width: 16px; height: 9px; font: 700 7px/1 sans-serif; border-radius: 3px; }
+/* Scroll on/off toggle (combined widget hourly carousel). */
+.ww-toggle { font: 700 9px/1 sans-serif; border: 1px solid var(--border, #2a2a3e); background: var(--bg-secondary, #1a1a24); color: var(--text-secondary, #a9a9c0); border-radius: 4px; padding: 3px 7px; cursor: pointer; }
+.ww-toggle:hover { color: var(--accent, #6366f1); border-color: var(--accent, #6366f1); }
+.ww-tlbl { font-size: 8.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted, #6b6b80); margin-right: 1px; }
+/* Reserve the scrollbar's gutter (adapts to OS scrollbar width) and add a small
+   gap so right-aligned content (H/L, sun times) never sits under the scrollbar,
+   at any size/zoom/theme. */
+.weather-combined .ww-body { display: flex; flex-direction: column; gap: 12px; scrollbar-gutter: stable; padding-right: 6px; }
 
 /* Current row */
 .wwc-current { display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 12px; }
@@ -57,8 +89,12 @@
 .wwc-cur-main { min-width: 0; }
 .wwc-cur-place { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wwc-cur-cond { font-size: 12px; color: var(--text-secondary, #a9a9c0); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wwc-cur-feels { font-size: 11px; color: var(--text-muted, #6b6b80); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
 .wwc-cur-hl { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 12px; color: var(--text-secondary, #a9a9c0); }
 .wwc-cur-hl b { color: var(--text-primary, #e8e8ee); }
+/* Extra current-conditions strip: humidity left, sunrise/sunset right-justified. */
+.wwc-cur-stats { display: flex; align-items: center; gap: 6px 16px; font-size: 11.5px; color: var(--text-secondary, #a9a9c0); }
+.wwc-cur-stats > span:nth-child(2) { margin-left: auto; }   /* push sunrise + sunset to the right */
 
 /* Hourly carousel — the clip window is sized (in JS) to a whole number of cards
    so partial cards roll into the carousel instead of showing clipped. */

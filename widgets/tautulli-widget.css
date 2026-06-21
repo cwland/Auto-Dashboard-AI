@@ -62,6 +62,9 @@
   cursor: pointer; font: 700 12px/1 var(--font, sans-serif); padding: 0;
 }
 .tautulli-widget .tw-step:hover { color: var(--accent, #6366f1); border-color: var(--accent, #6366f1); }
+/* Compact stacked ▲/▼ spinner (replaces the −/+ buttons). */
+.tautulli-widget .tw-spin { display: inline-flex; flex-direction: column; gap: 1px; }
+.tautulli-widget .tw-spin .tw-step { width: 16px; height: 9px; font: 700 7px/1 sans-serif; border-radius: 3px; }
 .tautulli-widget .tw-toggle {
   font: 700 9.5px/1 var(--font, sans-serif); border: 1px solid var(--border);
   background: var(--bg-secondary); color: var(--text-secondary);

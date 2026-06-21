@@ -215,7 +215,7 @@
       this._buildSkeleton();
       this._buildTools();
       if (typeof ListCarousel !== 'undefined') {
-        this.carousel = new ListCarousel({ root: this.el, viewport: this.viewport, track: this.track, enabled: this.cfg.carousel, visibleCount: this.cfg.visibleCount, speed: this.cfg.speed });
+        this.carousel = new ListCarousel({ root: this.el, viewport: this.viewport, track: this.track, enabled: this.cfg.carousel, visibleCount: this.cfg.visibleCount, speed: this.cfg.speed, mode: this.cfg.mode, pauseMs: this.cfg.pauseMs });
         ListCarousel.buildControls(this.lcToolsEl, this.cfg, (patch) => {
           this.carousel.update(patch);
           if (this.cfg.onConfigChange) this.cfg.onConfigChange(patch);
@@ -297,16 +297,17 @@
         (v) => this._applyConfig({ statusFilter: v }));
       this.nodeSel = sel('Node', this.cfg.nodeFilter, [['all', 'All']], (v) => this._applyConfig({ nodeFilter: v }));
 
-      // Poll-interval stepper (seconds).
+      // Poll-interval stepper (seconds) — compact value + stacked ▲/▼ spinner.
       const grp = document.createElement('div'); grp.className = 'pc-toolgrp';
       const lab = document.createElement('span'); lab.className = 'pc-tlabel'; lab.textContent = 'Poll';
-      const dec = document.createElement('button'); dec.type = 'button'; dec.className = 'pc-step'; dec.textContent = '−';
       const cnt = document.createElement('span'); cnt.className = 'pc-tcount';
-      const inc = document.createElement('button'); inc.type = 'button'; inc.className = 'pc-step'; inc.textContent = '+';
+      const spin = document.createElement('span'); spin.className = 'pc-spin';
+      const inc = document.createElement('button'); inc.type = 'button'; inc.className = 'pc-step'; inc.textContent = '▲'; inc.title = 'Increase poll interval';
+      const dec = document.createElement('button'); dec.type = 'button'; dec.className = 'pc-step'; dec.textContent = '▼'; dec.title = 'Decrease poll interval';
       const draw = () => { cnt.textContent = Math.round(this.cfg.pollMs / 1000) + 's'; };
       dec.addEventListener('click', () => this._applyConfig({ pollMs: Math.max(5, Math.round(this.cfg.pollMs / 1000) - 5) * 1000 }, draw));
       inc.addEventListener('click', () => this._applyConfig({ pollMs: Math.min(300, Math.round(this.cfg.pollMs / 1000) + 5) * 1000 }, draw));
-      grp.append(lab, dec, cnt, inc); tools.appendChild(grp); draw();
+      spin.append(inc, dec); grp.append(lab, cnt, spin); tools.appendChild(grp); draw();
     }
 
     _applyConfig(patch, after) {

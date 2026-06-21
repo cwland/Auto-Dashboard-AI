@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Auto Dashboard AI — Settings</title>
   <link rel="stylesheet" href="../styles/common.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@7/css/materialdesignicons.min.css">
   <link rel="stylesheet" href="../widgets/tautulli-widget.css">
   <link rel="stylesheet" href="../widgets/tautulli-stats.css">
   <link rel="stylesheet" href="../widgets/uptime-kuma-widget.css">
@@ -134,7 +135,7 @@
     .tab-panel { display: none; flex: 1; overflow-y: auto; }
     .tab-panel.active { display: flex; flex-direction: column; }
     /* Settings sub-tabs */
-    .set-subnav { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 0 20px; border-bottom: 1px solid var(--border); }
+    .set-subnav { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; margin: 0 0 20px; border-bottom: 1px solid var(--border); }
     .set-subtab { appearance: none; border: 0; background: transparent; color: var(--text-secondary); font: 600 13.5px/1 inherit; padding: 10px 15px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
     .set-subtab:hover { color: var(--text-primary); }
     .set-subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
@@ -291,7 +292,9 @@
 
     /* ── Settings tab ────────────────────────────────────────────────────── */
     .settings-content {
+      width: 100%;
       max-width: 640px;
+      margin: 0 auto;
       padding: 28px;
       display: flex;
       flex-direction: column;
@@ -1230,6 +1233,7 @@
         <button class="set-subtab" type="button" data-sub="theme">🎨 Theme</button>
         <button class="set-subtab" type="button" data-sub="startup">🚀 Startup &amp; New Tab</button>
         <button class="set-subtab" type="button" data-sub="clock">🕐 Clock &amp; Date</button>
+        <button class="set-subtab" type="button" data-sub="backup">💾 Backup</button>
       </div>
 
       <div class="set-sub active" id="set-sub-ai">
@@ -1363,6 +1367,17 @@
 
         <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
           <div>
+            <label class="label" style="margin-bottom:2px;">Sync dashboards to bookmark bar</label>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Automatically mirror your dashboard links into a <strong>Dashboard AI</strong> folder on the browser bookmark bar (Dashboard → Section → Bookmark). Dashboards are the source of truth — manual changes inside that folder are overwritten on the next sync.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="sync-bookmarks-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+
+        <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
+          <div>
             <label class="label" style="margin-bottom:2px;">Show search bar</label>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">Show the search box on the dashboard. As you type, matches from the active dashboard appear in a dropdown.</p>
           </div>
@@ -1435,6 +1450,69 @@
               </optgroup>
             </select>
           </div>
+        </div>
+      </div>
+      </div>
+
+      <div class="set-sub" id="set-sub-backup">
+      <!-- Backup & Sync -->
+      <div class="card">
+        <div class="section-title">💾 Backup &amp; Restore</div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="label">Save a backup file</label>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">Save a copy of all your settings and dashboards to a file you can keep or move to another computer. Import a file to restore everything (this replaces what you have now). The file includes your saved API keys, so keep it somewhere private.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary" id="export-config-btn">Export configuration</button>
+            <button type="button" class="btn btn-secondary" id="import-config-btn">Import configuration…</button>
+            <input type="file" id="import-config-file" accept="application/json,.json" style="display:none;">
+          </div>
+        </div>
+
+
+        <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
+          <div>
+            <label class="label" style="margin-bottom:2px;">Back up to a private GitHub Gist</label>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Save an encrypted copy of your dashboards and settings to a private GitHub Gist, so you can restore it on any computer or browser. Your data is encrypted on this device before it's uploaded, so GitHub never sees your settings or keys. Turn this on, then add a passphrase and a GitHub token below.</p>
+            <p id="gist-status" style="font-size:12px;color:var(--text-secondary);margin:6px 0 0;display:none;"></p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="gist-sync-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+          <label class="label" for="backup-passphrase">Encryption passphrase <span style="font-weight:400;color:var(--danger);">(required)</span></label>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;">A password used to scramble your backup before it's uploaded. Use the <strong>same passphrase on every computer</strong> you want to sync. ⚠️ Keep it safe — if you forget it, the backup can't be recovered.</p>
+          <div class="api-key-row">
+            <input class="input input-mono" type="password" id="backup-passphrase" placeholder="Choose a strong passphrase" autocomplete="off" spellcheck="false" disabled>
+            <button class="btn btn-ghost eyeball-btn" id="backup-passphrase-toggle" title="Show passphrase" disabled><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+          <label class="label" for="gist-token">GitHub access token</label>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;">This lets the extension save your backup to a private Gist on your GitHub account. Create one with <strong>Gist</strong> access in your <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">GitHub token settings</a>, paste it here, and click <strong>Test</strong> to check it.</p>
+          <div class="api-key-row">
+            <input class="input input-mono" type="password" id="gist-token" placeholder="Paste your GitHub token…" autocomplete="off" spellcheck="false" disabled>
+            <button class="btn btn-ghost eyeball-btn" id="gist-token-toggle" title="Show token" disabled><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+            <button type="button" class="btn btn-secondary" id="gist-test-btn" disabled>Test</button>
+          </div>
+          <div id="gist-validation-result" style="display:none;margin-top:8px;"></div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;">
+          <button type="button" class="btn btn-secondary" id="gist-backup-btn" disabled>Back up to Gist</button>
+          <button type="button" class="btn btn-secondary" id="gist-restore-btn" disabled>Restore from Gist</button>
+        </div>
+
+        <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
+          <div>
+            <label class="label" style="margin-bottom:2px;">Auto-sync from backup</label>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Automatically load the Gist backup on this computer whenever it's <strong>newer</strong> than what's here — on startup, every few minutes, and when you open a dashboard. Backing up stays manual, so use it like a sync: back up on one computer, and your others pull the changes in. If you've made local edits that are newer, they're kept until you back them up.</p>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="gist-autosync-toggle" disabled>
+            <span class="toggle-slider"></span>
+          </label>
         </div>
       </div>
       </div>

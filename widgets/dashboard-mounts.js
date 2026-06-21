@@ -21,6 +21,8 @@
     if (opts.carousel != null) o.carousel = opts.carousel;
     if (opts.visibleCount != null) o.visibleCount = opts.visibleCount;
     if (opts.speed != null) o.speed = opts.speed;
+    if (opts.mode != null) o.mode = opts.mode;
+    if (opts.pauseMs != null) o.pauseMs = opts.pauseMs;
     if (opts.onConfigChange) o.onConfigChange = opts.onConfigChange;
     return o;
   }
@@ -143,15 +145,13 @@
 
     // ── Weather (three independent widgets) ─────────────────────────────────
     'weather-current': (h, s) => new WeatherCurrentWidget(h, wxBase(s)),
-    'weather-hourly': (h, s, opts) => new WeatherHourlyWidget(h, wxBase(s, {
-      hours: (opts && opts.hours) || 5, onHoursChange: opts && opts.onHoursChange,
-    })),
-    'weather-forecast': (h, s, opts) => new WeatherForecastWidget(h, wxBase(s, {
-      days: (opts && opts.days) || 5, onDaysChange: opts && opts.onDaysChange,
-    })),
+    'weather-hourly': (h, s, opts) => new WeatherHourlyWidget(h, wxBase(s, carouselOpts(opts))),
+    'weather-forecast': (h, s, opts) => new WeatherForecastWidget(h, wxBase(s, carouselOpts(opts))),
     'weather-combined': (h, s, opts) => new WeatherCombinedWidget(h, wxBase(s, {
       hours: (opts && opts.hours) || 12, days: (opts && opts.days) || 5, speedMs: (opts && opts.speedMs) || 2000,
+      carousel: !(opts && opts.carousel === false),
       onHoursChange: opts && opts.onHoursChange, onDaysChange: opts && opts.onDaysChange, onSpeedChange: opts && opts.onSpeedChange,
+      onScrollChange: opts && opts.onScrollChange,
     })),
   };
 
