@@ -50,16 +50,20 @@ you can scope it to gists only.
 On another computer (any browser), enter the **same** token and passphrase, Save,
 then click **Restore from Gist** to pull your config (icons included) down.
 
-## Auto-sync (optional)
+## Keep in sync automatically (optional)
 
-Turn on **Auto-sync from backup** to use the gist like a cross-computer sync.
-When it's on, each computer automatically loads the backup whenever it's **newer**
-than what's there — on startup, every ~10 minutes, and when you open a dashboard
-(the page refreshes to show the synced data). Backing up stays **manual**, so the
-flow is: make changes and **Back up to Gist** on one computer, and your others
-pull them in automatically. It's one-way (pull only) and never auto-backs-up, so
-there's no risk of a sync loop. If a computer has local edits that are newer than
-the backup, they're kept until you back them up.
+Turn on **Keep in sync automatically** for hands-off two-way sync across your
+computers. When it's on:
+
+- Your changes are **backed up automatically**, about 30 seconds after you stop
+  editing.
+- Newer changes from your other computers are **loaded automatically** — on
+  startup, every ~30 seconds, and when you open a dashboard (the page refreshes
+  to show the synced data).
+
+The most recently edited copy wins if two computers change at once. It's
+loop-safe: a change that was just loaded by sync won't trigger another backup.
+You can still use **Back up to Gist** / **Restore from Gist** by hand anytime.
 
 ---
 

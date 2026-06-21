@@ -322,13 +322,21 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== 'local') return;
   if (changes.dashboards || changes.settings) scheduleBookmarkSync();
   if (!_cfgApplying && (changes.settings || changes.dashboards || changes.defaultDashboardId)) {
-    scheduleLocalStamp();
+    scheduleLocalStamp();      // mark this as a real local edit
+    scheduleAutoBackup();      // ~30s after you stop editing, back up the change
   }
 });
 
-// Periodic auto-sync check (and a beacon-free poll, since gists don't push).
+// Debounced auto-backup of local edits (only fires when auto-sync is enabled).
+let _autoBackupTimer = null;
+function scheduleAutoBackup() {
+  if (_autoBackupTimer) clearTimeout(_autoBackupTimer);
+  _autoBackupTimer = setTimeout(gistReconcile, 30000);
+}
+
+// Periodic two-way sync (gists have no push notifications, so we poll).
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm && alarm.name === GIST_AUTOSYNC_ALARM) gistAutoPull();
+  if (alarm && alarm.name === GIST_AUTOSYNC_ALARM) gistReconcile();
 });
 
 // Build the {settings,dashboards,defaultDashboardId} payload + its hash.
@@ -552,34 +560,52 @@ async function gistRestoreNow() {
 // stored backup is NEWER than this device's config, load it and refresh open
 // dashboards. We never auto-push, and an applied pull updates the synced baseline
 // so it can't re-trigger anything — no circular backup loop.
-let _autoPulling = false;
-async function gistAutoPull() {
-  if (_autoPulling) return;
-  _autoPulling = true;
+// Two-way auto-sync: push local edits to the gist and pull newer remote backups.
+// Loop-safe via the synced baseline (lastSyncedHash): a backup that we just loaded
+// (or just pushed) matches the baseline, so it never triggers another write.
+let _reconciling = false, _reconcileQueued = false;
+async function gistReconcile() {
+  if (_reconciling) { _reconcileQueued = true; return; }
+  _reconciling = true;
   try {
     const { settings } = await chrome.storage.local.get('settings');
     if (!settings || settings.gistSync !== true || settings.gistAutoSync !== true) return;
     if (!settings.gistToken || !settings.backupPassphrase) return;
-    const remote = await gistRead();
-    if (!remote || remote.noAuth || remote.none) return;
-    const rData = remote.data || {};
-    if ((rData.schema || 1) > CFG_SCHEMA) return;             // newer schema → can't read
-    if (rData.enc && !(await backupGetPass())) return;        // need the passphrase
-    const remoteHash = cfgPayloadHash(rData);
+    const { obj, hash } = await cfgBuild();
     const st = await cfgLoadState();
-    if (remoteHash === st.lastSyncedHash) return;             // already synced to this backup
-    const localHash = cfgHash(JSON.stringify(await cfgLocalPayload()));
-    if (remoteHash === localHash) {                           // identical content → just record it
-      st.lastSyncedHash = remoteHash; await cfgSaveState(); return;
+    const base = st.lastSyncedHash;
+
+    const remote = await gistRead();
+    if (!remote || remote.noAuth) return;                     // not signed in / transient error
+    if (remote.none) { await gistPush(obj, hash, st); return; }   // empty gist → seed it
+
+    const rData = remote.data || {};
+    if ((rData.schema || 1) > CFG_SCHEMA) { await gistSetError({ code: 'schema', remote: rData.schema || 1, local: CFG_SCHEMA, at: Date.now() }); return; }
+    if (rData.enc && !(await backupGetPass())) { await gistSetError({ code: 'passphrase', at: Date.now() }); return; }
+
+    const remoteHash = cfgPayloadHash(rData);
+    if (remoteHash === hash) {                                 // already identical
+      if (base !== hash) { st.lastSyncedHash = hash; await cfgSaveState(); }
+      await gistClearError();
+      return;
     }
-    const remoteTs = rData.ts || 0;
-    if (remoteTs <= (st.localTs || 0)) return;                // local is newer/unpushed → don't clobber
-    const ok = await gistPull(remote, remoteHash, st);        // remote is newer → load it
-    if (ok) notifyConfigReplaced();
+    const localChanged = hash !== base;
+    const remoteChanged = remoteHash !== base;
+    if (localChanged && !remoteChanged) {                      // only local changed → back up
+      await gistPush(obj, hash, st);
+    } else if (!localChanged && remoteChanged) {               // only remote changed → load it
+      const ok = await gistPull(remote, remoteHash, st);
+      if (ok) notifyConfigReplaced();
+    } else {                                                   // both changed → last-write-wins
+      const remoteTs = rData.ts || 0;
+      if ((st.localTs || 0) >= remoteTs) { await gistPush(obj, hash, st); }
+      else { const ok = await gistPull(remote, remoteHash, st); if (ok) notifyConfigReplaced(); }
+    }
   } catch (_) {
     // Auto-sync is best-effort; never throw from the background.
   } finally {
-    _autoPulling = false;
+    _reconciling = false;
+    if (_reconcileQueued) { _reconcileQueued = false; gistReconcile(); }
   }
 }
 
@@ -662,16 +688,16 @@ chrome.runtime.onInstalled.addListener(({ reason }) => {
     checkForUpdate({ force: true });
   }
   scheduleBookmarkSync();   // reconcile bookmarks (no-op if disabled)
-  try { chrome.alarms.create(GIST_AUTOSYNC_ALARM, { periodInMinutes: 10 }); } catch (_) {}
-  gistAutoPull();           // pull a newer backup if one exists (no-op if disabled)
+  try { chrome.alarms.create(GIST_AUTOSYNC_ALARM, { periodInMinutes: 0.5 }); } catch (_) {}  // 30s = Chrome's floor
+  gistReconcile();          // sync with the gist (no-op if auto-sync disabled)
 });
 
 // Open the dashboard on browser startup when the user has opted in.
 chrome.runtime.onStartup.addListener(async () => {
   checkForUpdate();
   scheduleBookmarkSync();   // catch any dashboard/bookmark drift since last session
-  try { chrome.alarms.create(GIST_AUTOSYNC_ALARM, { periodInMinutes: 10 }); } catch (_) {}
-  gistAutoPull();           // pull a newer backup made on another computer while closed
+  try { chrome.alarms.create(GIST_AUTOSYNC_ALARM, { periodInMinutes: 0.5 }); } catch (_) {}  // 30s = Chrome's floor
+  gistReconcile();          // sync with the gist (no-op if auto-sync disabled)
 
   const { settings, defaultDashboardId, dashboards } =
     await chrome.storage.local.get(['settings', 'defaultDashboardId', 'dashboards']);
@@ -710,7 +736,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'gistStatus')  { gistStatus().then(sendResponse); return true; }
   if (msg.type === 'gistTest')    { gistTest(msg.token).then(sendResponse); return true; }
   // A dashboard page just opened — check for a newer backup right away.
-  if (msg.type === 'gistAutoPullCheck') { gistAutoPull().finally(() => sendResponse({ ok: true })); return true; }
+  if (msg.type === 'gistAutoPullCheck') { gistReconcile().finally(() => sendResponse({ ok: true })); return true; }
 
   return true;
 });

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.16",
-  "notes": "Encrypted GitHub Gist backup with manual backup/restore, optional auto-sync across computers, and dashboard icons included in backups.",
+  "version": "1.0.19",
+  "notes": "Two-way GitHub Gist sync: automatic encrypted backups on change and automatic loading of newer changes from your other computers, plus manual backup/restore.",
   "downloadUrl": "https://github.com/cwland/Auto-Dashboard-AI/releases"
 }
