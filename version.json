@@ -1,5 +1,5 @@
 {
-  "version": "1.0.23",
-  "notes": "Gist sync is now scoped per browser brand (Brave syncs with Brave, Chrome with Chrome) — each keeps its own backup, avoiding cross-browser layout differences. Use Export/Import to copy between brands.",
+  "version": "1.0.24",
+  "notes": "New Countdown widget — a single big countdown to a date/time, or a scrolling list of countdowns. Configurable expired behavior, live preview, and a sample. Updates every second.",
   "downloadUrl": "https://github.com/cwland/Auto-Dashboard-AI/releases"
 }

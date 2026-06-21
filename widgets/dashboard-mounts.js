@@ -86,6 +86,15 @@
     'tautulli-libraries': (h, s) => new TautulliLibrariesWidget(h, withPoll(s, 'tautulli', { baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey })),
     'tautulli-top': (h, s) => new TautulliTopUsersWidget(h, withPoll(s, 'tautulli', { baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey })),
     stocks: (h, s, opts) => new StocksWidget(h, withPoll(s, 'stocks', Object.assign({ symbols: StocksApi.parseSymbols(s.stocksSymbols) }, carouselOpts(opts)))),
+    countdown: (h, s, opts) => new CountdownWidget(h, {
+      items: s.countdownItems, expired: s.countdownExpired || 'started',
+      units: (opts && opts.units) || s.countdownUnits,
+      onConfigChange: opts && opts.onConfigChange,
+    }),
+    'countdown-list': (h, s, opts) => new CountdownListWidget(h, Object.assign({
+      items: s.countdownItems, expired: s.countdownExpired || 'started',
+      units: (opts && opts.units) || s.countdownUnits,
+    }, carouselOpts(opts))),
     portainer: (h, s, opts) => {
       const base = withPoll(s, 'portainer', { baseUrl: s.portainerUrl, apiKey: s.portainerApiKey });
       return new PortainerWidget(h, Object.assign(base, {
@@ -161,6 +170,7 @@
     'tautulli-list': 'tautulli', 'tautulli-recent': 'tautulli', 'tautulli-watch': 'tautulli',
     'tautulli-libraries': 'tautulli', 'tautulli-top': 'tautulli',
     'weather-current': 'weather', 'weather-hourly': 'weather', 'weather-forecast': 'weather', 'weather-combined': 'weather',
+    'countdown-list': 'countdown',
   };
   function baseIntOf(intId) { return WIDGET_BASE_INT[intId] || intId; }
   global.dashboardWidgetBaseInt = baseIntOf;

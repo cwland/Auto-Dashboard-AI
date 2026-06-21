@@ -35,6 +35,7 @@
   <link rel="stylesheet" href="../widgets/weather-widget.css">
   <link rel="stylesheet" href="../widgets/portainer-widget.css">
   <link rel="stylesheet" href="../widgets/stocks-widget.css">
+  <link rel="stylesheet" href="../widgets/countdown-widget.css">
   <style>
     html, body { height: 100%; overflow: hidden; }
 
@@ -135,8 +136,8 @@
     .tab-panel { display: none; flex: 1; overflow-y: auto; }
     .tab-panel.active { display: flex; flex-direction: column; }
     /* Settings sub-tabs */
-    .set-subnav { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; margin: 0 0 20px; border-bottom: 1px solid var(--border); }
-    .set-subtab { appearance: none; border: 0; background: transparent; color: var(--text-secondary); font: 600 13.5px/1 inherit; padding: 10px 15px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .set-subnav { display: flex; justify-content: center; gap: 4px; flex-wrap: nowrap; margin: 0 0 20px; border-bottom: 1px solid var(--border); }
+    .set-subtab { appearance: none; border: 0; background: transparent; color: var(--text-secondary); font: 600 13.5px/1 inherit; padding: 10px 15px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; flex: 0 0 auto; }
     .set-subtab:hover { color: var(--text-primary); }
     .set-subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
     .set-sub { display: none; }
@@ -993,7 +994,7 @@
       <a class="logo-icon" href="../newtab/dashboard.html" title="Open your dashboard"><img src="../icons/logo.png" alt="Auto Dashboard AI" style="width:24px;height:24px;object-fit:contain;display:block;"></a>
       <div>
         <div class="logo-name">Auto Dashboard AI</div>
-        <div class="logo-ver" id="app-version">v1.0.23</div>
+        <div class="logo-ver" id="app-version">v1.0.24</div>
       </div>
     </div>
 
@@ -1011,7 +1012,7 @@
         <span class="tab-icon">📊</span> Dashboards
       </button>
       <button class="tab-btn" data-tab="integrations">
-        <span class="tab-icon">🧩</span> Integrations
+        <span class="tab-icon">🧩</span> Action Cards
       </button>
     </nav>
   </header>
@@ -1526,7 +1527,7 @@
   <div class="tab-panel" id="tab-integrations">
 
     <div class="int-search">
-      <input type="text" id="int-search" placeholder="Search integrations…" autocomplete="off">
+      <input type="text" id="int-search" placeholder="Search action cards…" autocomplete="off">
       <button type="button" class="int-search-clear" id="int-search-clear" title="Clear search" aria-label="Clear search">✕</button>
     </div>
     <div class="int-toolbar">
@@ -3018,6 +3019,43 @@
         </div></div>
       </div>
 
+      <!-- Countdown -->
+      <div class="card">
+        <div class="toggle-row">
+          <div><div class="section-title" style="margin-bottom:3px;">⏳ Countdown</div><p style="font-size:12px;color:var(--text-muted);margin:0;">Count down to dates &amp; times — one big timer or a list</p></div>
+          <label class="toggle-switch"><input type="checkbox" id="countdown-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="countdown-config" style="display:none;"><div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+          <style>
+            .cd-config-row.cd-dragging { opacity: 0.5; }
+            .cd-config-row.cd-drop-target { border-color: var(--accent, #6366f1) !important; box-shadow: 0 0 0 1px var(--accent, #6366f1); }
+            .cd-drag-handle:active { cursor: grabbing; }
+          </style>
+          <p class="banner banner-info" style="margin-bottom:18px;">Add one or more countdowns to a future date (and optional time). Pick dates &amp; times with the calendar/clock picker, and drag the <b>⠿</b> handle to reorder. Use the <b>Countdown</b> widget for one big timer, or <b>Countdown List</b> to show several. Times use this computer's timezone.</p>
+          <div class="form-group">
+            <label class="label">Countdowns</label>
+            <div id="countdown-items"></div>
+            <div style="margin-top:10px;"><button class="btn btn-secondary" id="countdown-add-btn" type="button">＋ Add countdown</button></div>
+          </div>
+          <div class="form-group">
+            <label class="label">Display units</label>
+            <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px;">Choose which time units to show. Hidden top-level units roll into the largest remaining unit (e.g. hide Years &amp; Months and Days shows the full day count).</p>
+            <div id="countdown-units"></div>
+          </div>
+          <div class="form-group">
+            <label class="label" for="countdown-expired">When a countdown reaches zero</label>
+            <select class="input" id="countdown-expired">
+              <option value="started">Show “Event Started”</option>
+              <option value="stop">Stop at zero (00 00 00 00)</option>
+              <option value="elapsed">Count up — time since the event</option>
+              <option value="hide">Hide the countdown</option>
+            </select>
+          </div>
+          <div id="countdown-validation-result" style="display:none;margin-top:8px;"></div>
+          <div class="form-group" style="margin-bottom:0;"><button class="btn btn-primary" id="countdown-preview-btn" disabled>Preview Widget</button><p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="countdown-preview-hint">Add a countdown to enable a live preview.</p></div>
+        </div></div>
+      </div>
+
       <!-- Proxmox Backup Server Integration -->
       <div class="card">
         <div class="toggle-row">
@@ -3121,7 +3159,7 @@
     <div class="int-modal" style="max-width:880px;">
       <div class="int-m-head">
         <img id="int-sample-ico" alt="">
-        <div class="int-m-t"><h3 id="int-sample-name"></h3><p>Offline sample — demo data, no server needed</p></div>
+        <div class="int-m-t"><h3 id="int-sample-name"></h3><p>Demo Data</p></div>
         <a id="int-sample-open" href="#" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="margin-right:8px;">Open in tab ↗</a>
         <button class="int-m-x" id="int-sample-close" title="Close" type="button">&times;</button>
       </div>
@@ -3232,6 +3270,7 @@
   <div class="modal-overlay" id="proxmox-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🖥 Proxmox Widget Preview</h3><button class="modal-close-btn" id="proxmox-preview-close">✕</button></div><div class="modal-body"><div id="proxmox-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="proxmox-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="portainer-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🐳 Portainer Widget Preview</h3><button class="modal-close-btn" id="portainer-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Live container data from your Portainer environments. Start / Stop / Restart actions are live in this preview.</p><div id="portainer-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="portainer-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="stocks-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>📈 Stocks Widget Preview</h3><button class="modal-close-btn" id="stocks-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">Live quotes for your tickers from the public market-data source.</p><div id="stocks-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="stocks-preview-done">Close</button></div></div></div>
+  <div class="modal-overlay" id="countdown-preview-modal"><style>#countdown-preview-modal .lc-tools,#countdown-preview-modal .cd-tools{display:none !important;}</style><div class="modal-box modal-wide"><div class="modal-header"><h3>⏳ Countdown Preview</h3><button class="modal-close-btn" id="countdown-preview-close">✕</button></div><div class="modal-body"><p style="font-size:12px;color:var(--text-muted);margin:0 0 14px;">A live preview of both countdown widgets — the single timer and the list — using your configured countdowns.</p><div id="countdown-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="countdown-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="pbs-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>💾 PBS Widget Preview</h3><button class="modal-close-btn" id="pbs-preview-close">✕</button></div><div class="modal-body"><div id="pbs-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="pbs-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="beszel-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>🐿 Beszel Widget Preview</h3><button class="modal-close-btn" id="beszel-preview-close">✕</button></div><div class="modal-body"><div id="beszel-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="beszel-preview-done">Close</button></div></div></div>
   <div class="modal-overlay" id="ical-preview-modal"><div class="modal-box modal-wide"><div class="modal-header"><h3>📅 iCal Widget Preview</h3><button class="modal-close-btn" id="ical-preview-close">✕</button></div><div class="modal-body"><div id="ical-preview-host"></div></div><div class="modal-footer"><button class="btn btn-ghost" id="ical-preview-done">Close</button></div></div></div>
@@ -3824,6 +3863,7 @@
 <script src="../widgets/tautulli-stats-widgets.js"></script>
 <script src="../widgets/portainer-widget.js"></script>
 <script src="../widgets/stocks-widget.js"></script>
+<script src="../widgets/countdown-widget.js"></script>
 <script src="config.js"></script>
 <script src="../shared/update-notifier.js"></script>
 </body>

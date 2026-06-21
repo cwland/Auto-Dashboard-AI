@@ -1607,6 +1607,8 @@ WIDGET_CATALOG.push(
   { wid: 'weather-current',  intId: 'weather-current',  name: 'Current Weather', icon: '', enabledKey: 'weatherEnabled', emoji: '🌤️' },
   { wid: 'weather-hourly',   intId: 'weather-hourly',   name: 'Hourly Forecast', icon: '', enabledKey: 'weatherEnabled', emoji: '🕐' },
   { wid: 'weather-forecast', intId: 'weather-forecast', name: '5-Day Forecast',  icon: '', enabledKey: 'weatherEnabled', emoji: '📅' },
+  { wid: 'countdown',      intId: 'countdown',      name: 'Countdown',      icon: '', enabledKey: 'countdownEnabled', emoji: '⏳' },
+  { wid: 'countdown-list', intId: 'countdown-list', name: 'Countdown List', icon: '', enabledKey: 'countdownEnabled', emoji: '⏳' },
 );
 
 function widgetDef(wid) { return WIDGET_CATALOG.find((w) => w.wid === wid); }
@@ -1685,8 +1687,8 @@ function renderWidgetModalBody() {
   if (!source.length) {
     body.innerHTML = sample
       ? '<div class="widget-empty">No sample widgets are available.</div>'
-      : '<div class="widget-empty">No integrations are enabled yet.<br>Enable them in ' +
-        '<a href="../config/config.html?tab=integrations">Setup → Integrations</a>, then come back, ' +
+      : '<div class="widget-empty">No action cards are enabled yet.<br>Enable them in ' +
+        '<a href="../config/config.html?tab=integrations">Setup → Action Cards</a>, then come back, ' +
         'or use the <b>Sample</b> tab to preview widgets with demo data.</div>';
     updateWidgetAddState();
     return;
@@ -1743,6 +1745,16 @@ function renderWidgetModalBody() {
         const eps = Endpoints.list(settings, key);
         eps.forEach((ep) => group.appendChild(buildInstance(widgets, ep.name || 'Endpoint', ep.id)));
         if (!eps.length) group.appendChild(buildInstance(widgets, 'No endpoints configured', null));
+      } else if (!sample && key === 'countdown') {
+        // Countdown: list the configured countdown names so the user can see
+        // exactly which countdowns the widget will show before adding it.
+        const names = (settings.countdownItems || [])
+          .map((it) => String((it && (it.name != null ? it.name : it.title)) || '').trim())
+          .filter(Boolean);
+        const label = names.length
+          ? 'Countdowns: ' + names.join(', ')
+          : 'No countdowns configured yet — add them in Setup → Countdown';
+        group.appendChild(buildInstance(widgets, label, null));
       } else {
         // Single configuration (Sample tab, or Weather/Stocks).
         const descText = sample ? 'Sample (demo data)' : (descs[key] || '');
@@ -2180,7 +2192,7 @@ function attachWidgetToolsBubble(content, sec, wdef) {
   // Collect the widget's live, already-wired control bars and stash them in a
   // hidden store. A single "Configure" button (straddling the top border, edit
   // mode only) moves them into a draggable config window on demand.
-  const tools = [...sec.querySelectorAll('.lc-tools, .pc-tools, .ww-tools')].filter((t) => t.children.length);
+  const tools = [...sec.querySelectorAll('.lc-tools, .pc-tools, .ww-tools, .cd-tools')].filter((t) => t.children.length);
   if (!tools.length) return;
   const store = document.createElement('div');
   store.className = 'widget-config-store';
@@ -2423,7 +2435,7 @@ function buildWidgetSection(wdef) {
     bodyEl.innerHTML =
       '<div class="widget-disabled"><div style="font-size:24px;">⚠️</div>' +
       '<div style="font-weight:600;color:var(--text-secondary);">Service disabled</div>' +
-      '<div>Enable it in <a href="../config/config.html?tab=integrations">Setup → Integrations</a></div></div>';
+      '<div>Enable it in <a href="../config/config.html?tab=integrations">Setup → Action Cards</a></div></div>';
   } else {
     // Try to mount the real, live widget; fall back to a placeholder if there's
     // no live mount for this integration yet.
@@ -2472,8 +2484,17 @@ function buildWidgetSection(wdef) {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });
         };
-      } else if (wdef.intId === 'stocks' || wdef.intId === 'tautulli-list' || wdef.intId === 'tautulli-recent' || wdef.intId === 'tautulli-watch') {
+      } else if (wdef.intId === 'stocks' || wdef.intId === 'countdown-list' || wdef.intId === 'tautulli-list' || wdef.intId === 'tautulli-recent' || wdef.intId === 'tautulli-watch') {
         applyCarouselOpts(wdef, opts);
+        // Per-widget display-unit visibility (Countdown List).
+        if (wdef.config && wdef.config.units) opts.units = wdef.config.units;
+        opts.onConfigChange = (patch) => {
+          wdef.config = Object.assign({}, wdef.config, patch);
+          chromeSet({ dashboards: state.dashboards });
+        };
+      } else if (wdef.intId === 'countdown') {
+        // Single countdown: per-widget display-unit visibility + a Configure card.
+        if (wdef.config && wdef.config.units) opts.units = wdef.config.units;
         opts.onConfigChange = (patch) => {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });

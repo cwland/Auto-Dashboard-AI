@@ -445,6 +445,7 @@ const DEFAULT_SETTINGS = {
   proxmoxEnabled: false, proxmoxUrl: '', proxmoxUsername: 'root', proxmoxRealm: 'pam', proxmoxTokenId: '', proxmoxApiKey: '',
   portainerEnabled: false, portainerUrl: '', portainerApiKey: '',
   stocksEnabled: false, stocksSymbols: 'AAPL, MSFT, NVDA',
+  countdownEnabled: false, countdownItems: [], countdownExpired: 'started', countdownUnits: ['years', 'months', 'days', 'hours', 'minutes', 'seconds'],
   pbsEnabled: false, pbsUrl: '', pbsUsername: 'root', pbsRealm: 'pbs', pbsTokenId: '', pbsApiKey: '', pbsNode: 'localhost',
   beszelEnabled: false, beszelUrl: '', beszelUsername: '', beszelPassword: '',
   icalEnabled: false, icalName: 'Calendar', icalUrl: '', icalView: 'upcoming',
@@ -512,6 +513,7 @@ let state = {
   proxmoxValidated: false, proxmoxPreviewWidget: null,
   portainerValidated: false, portainerPreviewWidget: null,
   stocksValidated: false, stocksPreviewWidget: null,
+  countdownValidated: false, countdownPreviewWidget: null,
   pbsValidated: false, pbsPreviewWidget: null,
   beszelValidated: false, beszelPreviewWidget: null,
   icalValidated: false, icalPreviewWidget: null,
@@ -609,6 +611,7 @@ async function loadSettings() {
     state.proxmoxValidated         = !!(stored.settings.proxmoxUrl && stored.settings.proxmoxApiKey);
     state.portainerValidated       = !!(stored.settings.portainerUrl && stored.settings.portainerApiKey);
     state.stocksValidated          = !!(stored.settings.stocksSymbols && String(stored.settings.stocksSymbols).trim());
+    state.countdownValidated       = Array.isArray(stored.settings.countdownItems) && stored.settings.countdownItems.length > 0;
     state.pbsValidated             = !!(stored.settings.pbsUrl && stored.settings.pbsApiKey);
     state.beszelValidated          = !!(stored.settings.beszelUrl && stored.settings.beszelUsername);
     state.icalValidated            = !!stored.settings.icalUrl;
@@ -631,6 +634,11 @@ async function loadSettings() {
     Endpoints.migrate(state.savedSettings, names);
     Endpoints.migrate(state.currentSettings, names);
   }
+  // countdownItems is an array edited in place — give saved/current their own
+  // copies so editing one never aliases the other (breaks change detection).
+  const cloneArr = (v) => (Array.isArray(v) ? JSON.parse(JSON.stringify(v)) : []);
+  state.savedSettings.countdownItems = cloneArr(state.savedSettings.countdownItems);
+  state.currentSettings.countdownItems = cloneArr(state.currentSettings.countdownItems);
   applySettingsToUI();
   updateSaveBar();
 }
@@ -1259,6 +1267,11 @@ function applySettingsToUI() {
   updatePortainerPreviewButton();
   setToggle('stocks'); setVal('stocks-symbols', s.stocksSymbols);
   updateStocksPreviewButton();
+  setToggle('countdown');
+  setVal('countdown-expired', s.countdownExpired || 'started');
+  renderCountdownItems();
+  renderCountdownUnits();
+  updateCountdownPreviewButton();
   setToggle('pbs'); setVal('pbs-url', s.pbsUrl); setVal('pbs-username', s.pbsUsername); setVal('pbs-realm', s.pbsRealm); setVal('pbs-token-id', s.pbsTokenId); setVal('pbs-api-key', s.pbsApiKey);
   updatePbsPreviewButton();
   setToggle('beszel'); setVal('beszel-url', s.beszelUrl); setVal('beszel-username', s.beszelUsername); setVal('beszel-password', s.beszelPassword);
@@ -2059,6 +2072,7 @@ function setupSettingsListeners() {
     fields: { 'stocks-symbols': 'stocksSymbols' }, invalidates: true,
     validate: validateStocks, update: updateStocksPreviewButton, open: openStocksPreview, close: closeStocksPreview,
   });
+  setupCountdownConfig();
   setupExtraListeners('pbs', {
     fields: { 'pbs-url': 'pbsUrl', 'pbs-username': 'pbsUsername', 'pbs-realm': 'pbsRealm', 'pbs-token-id': 'pbsTokenId', 'pbs-api-key': 'pbsApiKey' },
     secret: ['pbs-api-key', 'pbs-key-toggle'], invalidates: true,
@@ -2452,6 +2466,7 @@ function hasUnsavedChanges() {
     c.proxmoxEnabled !== s.proxmoxEnabled || c.proxmoxUrl !== s.proxmoxUrl || c.proxmoxUsername !== s.proxmoxUsername || c.proxmoxRealm !== s.proxmoxRealm || c.proxmoxTokenId !== s.proxmoxTokenId || c.proxmoxApiKey !== s.proxmoxApiKey ||
     c.portainerEnabled !== s.portainerEnabled || c.portainerUrl !== s.portainerUrl || c.portainerApiKey !== s.portainerApiKey ||
     c.stocksEnabled !== s.stocksEnabled || c.stocksSymbols !== s.stocksSymbols ||
+    c.countdownEnabled !== s.countdownEnabled || c.countdownExpired !== s.countdownExpired || j(c.countdownItems) !== j(s.countdownItems) || j(c.countdownUnits) !== j(s.countdownUnits) ||
     c.pbsEnabled !== s.pbsEnabled || c.pbsUrl !== s.pbsUrl || c.pbsUsername !== s.pbsUsername || c.pbsRealm !== s.pbsRealm || c.pbsTokenId !== s.pbsTokenId || c.pbsApiKey !== s.pbsApiKey || c.pbsNode !== s.pbsNode ||
     c.beszelEnabled !== s.beszelEnabled || c.beszelUrl !== s.beszelUrl || c.beszelUsername !== s.beszelUsername || c.beszelPassword !== s.beszelPassword ||
     c.icalEnabled !== s.icalEnabled || c.icalName !== s.icalName || c.icalUrl !== s.icalUrl || c.icalView !== s.icalView ||
@@ -2659,6 +2674,7 @@ async function saveSettings() {
     proxmoxEnabled: state.currentSettings.proxmoxEnabled, proxmoxUrl: state.currentSettings.proxmoxUrl, proxmoxUsername: state.currentSettings.proxmoxUsername, proxmoxRealm: state.currentSettings.proxmoxRealm, proxmoxTokenId: state.currentSettings.proxmoxTokenId, proxmoxApiKey: state.currentSettings.proxmoxApiKey,
     portainerEnabled: state.currentSettings.portainerEnabled, portainerUrl: state.currentSettings.portainerUrl, portainerApiKey: state.currentSettings.portainerApiKey,
     stocksEnabled: state.currentSettings.stocksEnabled, stocksSymbols: state.currentSettings.stocksSymbols,
+    countdownEnabled: state.currentSettings.countdownEnabled, countdownItems: JSON.parse(JSON.stringify(state.currentSettings.countdownItems || [])), countdownExpired: state.currentSettings.countdownExpired, countdownUnits: JSON.parse(JSON.stringify(countdownUnitsArr())),
     pbsEnabled: state.currentSettings.pbsEnabled, pbsUrl: state.currentSettings.pbsUrl, pbsUsername: state.currentSettings.pbsUsername, pbsRealm: state.currentSettings.pbsRealm, pbsTokenId: state.currentSettings.pbsTokenId, pbsApiKey: state.currentSettings.pbsApiKey, pbsNode: state.currentSettings.pbsNode,
     beszelEnabled: state.currentSettings.beszelEnabled, beszelUrl: state.currentSettings.beszelUrl, beszelUsername: state.currentSettings.beszelUsername, beszelPassword: state.currentSettings.beszelPassword,
     icalEnabled: state.currentSettings.icalEnabled, icalName: state.currentSettings.icalName, icalUrl: state.currentSettings.icalUrl, icalView: state.currentSettings.icalView,
@@ -2680,6 +2696,8 @@ async function saveSettings() {
 function discardChanges() {
   state.currentSettings = { ...state.savedSettings };
   state.currentSettings.instances = JSON.parse(JSON.stringify(state.savedSettings.instances || {}));
+  state.currentSettings.countdownItems = JSON.parse(JSON.stringify(state.savedSettings.countdownItems || []));
+  state.currentSettings.countdownUnits = JSON.parse(JSON.stringify(state.savedSettings.countdownUnits || ['years', 'months', 'days', 'hours', 'minutes', 'seconds']));
   state.apiKeyValidated        = !!state.savedSettings.apiKey;
   state.weatherApiKeyValidated = !!state.savedSettings.weatherApiKey;
   state.tautulliApiKeyValidated = !!(state.savedSettings.tautulliApiKey && state.savedSettings.tautulliUrl);
@@ -4365,6 +4383,261 @@ function updateStocksPreviewButton() {
 }
 function openStocksPreview() { openExtraPreview('stocks', typeof StocksWidget !== 'undefined' ? StocksWidget : undefined, () => ({ symbols: StocksApi.parseSymbols(state.currentSettings.stocksSymbols) })); }
 function closeStocksPreview() { closeExtraPreview('stocks'); }
+
+// ── Countdown ──
+function countdownItemsArr() {
+  if (!Array.isArray(state.currentSettings.countdownItems)) state.currentSettings.countdownItems = [];
+  return state.currentSettings.countdownItems;
+}
+function countdownValidCount() {
+  return countdownItemsArr().filter((it) => it && /^\d{4}-\d{2}-\d{2}$/.test(String(it.date || ''))).length;
+}
+// Countdown has no async check — validity is simply "≥1 item with a date".
+function countdownRecompute() {
+  state.countdownValidated = countdownValidCount() > 0;
+  updateCountdownPreviewButton();
+  updateSaveBar();
+}
+function updateCountdownPreviewButton() {
+  const ready = countdownValidCount() > 0;
+  const btn = document.getElementById('countdown-preview-btn');
+  const hint = document.getElementById('countdown-preview-hint');
+  if (btn) btn.disabled = !ready;
+  if (hint) hint.textContent = ready ? 'Opens a live preview of your countdowns.' : 'Add a countdown (with a date) to enable a live preview.';
+}
+// A date/time field that must be filled via the native picker — typing and
+// pasting are blocked, and clicking/focusing pops the calendar/clock picker.
+function mkPickerInput(type, val) {
+  const el = document.createElement('input');
+  el.className = 'input';
+  el.type = type;
+  el.value = val || '';
+  el.setAttribute('inputmode', 'none');
+  const openPicker = () => { try { if (typeof el.showPicker === 'function') el.showPicker(); } catch (_) {} };
+  // Block manual keystrokes (allow Tab/Escape for keyboard navigation only).
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Tab' || e.key === 'Escape') return;
+    e.preventDefault();
+    openPicker();
+  });
+  el.addEventListener('paste', (e) => e.preventDefault());
+  el.addEventListener('drop', (e) => e.preventDefault());
+  el.addEventListener('click', openPicker);
+  el.addEventListener('focus', openPicker);
+  return el;
+}
+
+// A small "grip" drag handle (six-dot icon) used to reorder countdown rows.
+function mkDragHandle() {
+  const h = document.createElement('span');
+  h.className = 'cd-drag-handle';
+  h.title = 'Drag to reorder';
+  h.setAttribute('aria-label', 'Drag to reorder');
+  h.innerHTML = '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="currentColor">' +
+    '<circle cx="7" cy="4" r="1.6"/><circle cx="13" cy="4" r="1.6"/>' +
+    '<circle cx="7" cy="10" r="1.6"/><circle cx="13" cy="10" r="1.6"/>' +
+    '<circle cx="7" cy="16" r="1.6"/><circle cx="13" cy="16" r="1.6"/></svg>';
+  h.style.cssText = 'cursor:grab;display:inline-flex;align-items:center;color:var(--text-muted);flex:0 0 auto;touch-action:none;';
+  return h;
+}
+
+function renderCountdownItems() {
+  const wrap = document.getElementById('countdown-items');
+  if (!wrap) return;
+  const items = countdownItemsArr();
+  wrap.innerHTML = '';
+  if (!items.length) {
+    const p = document.createElement('p');
+    p.style.cssText = 'font-size:12px;color:var(--text-muted);margin:0;';
+    p.textContent = 'No countdowns yet — click “Add countdown” below.';
+    wrap.appendChild(p);
+    return;
+  }
+  // Native HTML5 drag-and-drop reordering. Rows are only draggable while the
+  // grip handle is held (so the text/date fields stay usable).
+  let dragFrom = -1;
+  const reorder = (from, to) => {
+    if (from < 0 || to < 0 || from === to || from >= items.length) return;
+    const moved = items.splice(from, 1)[0];
+    items.splice(to, 0, moved);
+    renderCountdownItems();
+    countdownRecompute();
+  };
+  items.forEach((it, i) => {
+    // Migrate legacy {title,desc} → single name on first render.
+    if (it.name == null) it.name = it.title || it.desc || '';
+    const row = document.createElement('div');
+    row.className = 'cd-config-row';
+    row.dataset.index = String(i);
+    row.style.cssText = 'border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px;';
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:auto 1fr 160px 130px auto;gap:8px;align-items:center;';
+
+    const handle = mkDragHandle();
+    const name = document.createElement('input');
+    name.className = 'input cd-name-input';
+    name.type = 'text';
+    name.placeholder = 'Name (e.g. Christmas)';
+    name.maxLength = 25;
+    name.value = it.name || '';
+    name.style.cssText = 'font-size:16px;font-weight:600;';
+    const date = mkPickerInput('date', it.date);
+    const time = mkPickerInput('time', it.time);
+    const del = document.createElement('button');
+    del.type = 'button'; del.className = 'btn btn-ghost'; del.textContent = '✕';
+    del.title = 'Remove'; del.style.cssText = 'padding:4px 9px;';
+
+    grid.append(handle, name, date, time, del);
+    row.append(grid);
+
+    name.addEventListener('input', () => { it.name = name.value.slice(0, 25); it.title = it.name; countdownRecompute(); });
+    date.addEventListener('input', () => { it.date = date.value; countdownRecompute(); });
+    time.addEventListener('input', () => { it.time = time.value; countdownRecompute(); });
+    del.addEventListener('click', () => { items.splice(i, 1); renderCountdownItems(); countdownRecompute(); });
+
+    // Drag wiring: arm draggability only when the grip is pressed.
+    handle.addEventListener('mousedown', () => { row.setAttribute('draggable', 'true'); handle.style.cursor = 'grabbing'; });
+    handle.addEventListener('mouseup', () => { handle.style.cursor = 'grab'; });
+    row.addEventListener('dragstart', (e) => {
+      dragFrom = i; row.classList.add('cd-dragging');
+      try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)); } catch (_) {}
+    });
+    row.addEventListener('dragend', () => { row.classList.remove('cd-dragging'); row.removeAttribute('draggable'); handle.style.cursor = 'grab'; wrap.querySelectorAll('.cd-drop-target').forEach((r) => r.classList.remove('cd-drop-target')); });
+    row.addEventListener('dragover', (e) => { e.preventDefault(); try { e.dataTransfer.dropEffect = 'move'; } catch (_) {} row.classList.add('cd-drop-target'); });
+    row.addEventListener('dragleave', () => row.classList.remove('cd-drop-target'));
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      row.classList.remove('cd-drop-target');
+      const to = parseInt(row.dataset.index, 10);
+      reorder(dragFrom, to);
+      dragFrom = -1;
+    });
+
+    wrap.appendChild(row);
+  });
+}
+
+// ── Countdown display units (per-widget visibility toggles) ──
+const COUNTDOWN_UNIT_ORDER = ['years', 'months', 'days', 'hours', 'minutes', 'seconds'];
+const COUNTDOWN_UNIT_LABELS = { years: 'Years', months: 'Months', days: 'Days', hours: 'Hours', minutes: 'Minutes', seconds: 'Seconds' };
+function countdownUnitsArr() {
+  let u = state.currentSettings.countdownUnits;
+  if (!Array.isArray(u)) u = COUNTDOWN_UNIT_ORDER.slice();
+  const set = new Set(u.filter((x) => COUNTDOWN_UNIT_ORDER.includes(x)));
+  const out = COUNTDOWN_UNIT_ORDER.filter((x) => set.has(x));
+  return out.length ? out : COUNTDOWN_UNIT_ORDER.slice();
+}
+function renderCountdownUnits() {
+  const wrap = document.getElementById('countdown-units');
+  if (!wrap) return;
+  const enabled = new Set(countdownUnitsArr());
+  wrap.innerHTML = '';
+  COUNTDOWN_UNIT_ORDER.forEach((u) => {
+    const lab = document.createElement('label');
+    lab.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-size:13px;margin:0 14px 8px 0;cursor:pointer;';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = enabled.has(u); cb.dataset.unit = u;
+    cb.addEventListener('change', () => {
+      const cur = new Set(countdownUnitsArr());
+      if (cb.checked) cur.add(u); else cur.delete(u);
+      // Keep at least one unit visible.
+      if (cur.size === 0) { cur.add(u); cb.checked = true; }
+      state.currentSettings.countdownUnits = COUNTDOWN_UNIT_ORDER.filter((x) => cur.has(x));
+      syncCountdownPreview({ units: state.currentSettings.countdownUnits });
+      updateSaveBar();
+    });
+    const span = document.createElement('span'); span.textContent = COUNTDOWN_UNIT_LABELS[u];
+    lab.append(cb, span);
+    wrap.appendChild(lab);
+  });
+}
+function setupCountdownConfig() {
+  const toggle = document.getElementById('countdown-toggle');
+  if (toggle) toggle.addEventListener('change', () => {
+    state.currentSettings.countdownEnabled = toggle.checked;
+    const cfg = document.getElementById('countdown-config');
+    if (cfg) cfg.style.display = toggle.checked ? 'block' : 'none';
+    updateSaveBar();
+  });
+  document.getElementById('countdown-add-btn')?.addEventListener('click', () => {
+    countdownItemsArr().push({ id: 'cd' + Math.random().toString(36).slice(2, 9), name: '', title: '', date: '', time: '' });
+    renderCountdownItems(); countdownRecompute();
+    const inputs = document.querySelectorAll('#countdown-items input.cd-name-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  });
+  renderCountdownUnits();
+  const exp = document.getElementById('countdown-expired');
+  if (exp) exp.addEventListener('change', () => {
+    state.currentSettings.countdownExpired = exp.value; updateSaveBar();
+    syncCountdownPreview({ expired: exp.value });
+  });
+  document.getElementById('countdown-preview-btn')?.addEventListener('click', openCountdownPreview);
+  document.getElementById('countdown-preview-close')?.addEventListener('click', closeCountdownPreview);
+  document.getElementById('countdown-preview-done')?.addEventListener('click', closeCountdownPreview);
+  const modal = document.getElementById('countdown-preview-modal');
+  if (modal) modal.addEventListener('click', (e) => { if (e.target === modal) closeCountdownPreview(); });
+}
+// Destroy any live preview widgets currently mounted in the modal.
+function destroyCountdownPreviewWidgets() {
+  if (Array.isArray(state.countdownPreviewWidgets)) {
+    state.countdownPreviewWidgets.forEach((w) => { try { w.destroy(); } catch (_) {} });
+  }
+  state.countdownPreviewWidgets = [];
+  state.countdownPreviewWidget = null;
+}
+// Push a config patch (units / expired) to every open preview widget.
+function syncCountdownPreview(patch) {
+  if (Array.isArray(state.countdownPreviewWidgets)) {
+    state.countdownPreviewWidgets.forEach((w) => { try { w.setConfig(patch); } catch (_) {} });
+  }
+}
+function openCountdownPreview() {
+  if (countdownValidCount() === 0) return;
+  const modal = document.getElementById('countdown-preview-modal');
+  const host = document.getElementById('countdown-preview-host');
+  if (!modal || !host || typeof CountdownWidget === 'undefined' || typeof CountdownListWidget === 'undefined') return;
+  destroyCountdownPreviewWidgets();
+  host.innerHTML = '';
+
+  const items = countdownItemsArr();
+  const units = countdownUnitsArr();
+  const expired = state.currentSettings.countdownExpired || 'started';
+
+  // Two live cards side by side — the single big timer and the scrolling list —
+  // exactly as they render on the dashboard. No configuration controls are
+  // mounted here (no onConfigChange is passed), so the preview is display-only.
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;';
+  const mkCard = (label) => {
+    const card = document.createElement('div');
+    const cap = document.createElement('div');
+    cap.textContent = label;
+    cap.style.cssText = 'font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary);margin-bottom:8px;';
+    const tile = document.createElement('div');
+    tile.style.cssText = 'border:1px solid var(--border);border-radius:12px;padding:14px;height:240px;background:var(--bg-card,rgba(255,255,255,0.03));overflow:hidden;';
+    const inner = document.createElement('div'); inner.style.cssText = 'height:100%;';
+    tile.appendChild(inner);
+    card.append(cap, tile);
+    return { card, host: inner };
+  };
+  const single = mkCard('Countdown');
+  const list = mkCard('Countdown List');
+  grid.append(single.card, list.card);
+  host.appendChild(grid);
+
+  state.countdownPreviewWidgets = [];
+  const w1 = new CountdownWidget(single.host, { items: items.slice(0, 1), expired, units });
+  w1.start(); state.countdownPreviewWidgets.push(w1);
+  const w2 = new CountdownListWidget(list.host, { items, expired, units, carousel: true, visibleCount: 5 });
+  w2.start(); state.countdownPreviewWidgets.push(w2);
+
+  modal.classList.add('visible');
+}
+function closeCountdownPreview() {
+  const modal = document.getElementById('countdown-preview-modal');
+  if (modal) modal.classList.remove('visible');
+  destroyCountdownPreviewWidgets();
+}
 
 // ── PBS ──
 function pbsTokenOpts() { const s = state.currentSettings; return { username: s.pbsUsername, realm: s.pbsRealm, tokenId: s.pbsTokenId, apiKey: s.pbsApiKey, node: s.pbsNode || 'localhost' }; }
@@ -6446,6 +6719,9 @@ function showToast(msg) {
 const INT_SUN_ICON = 'data:image/svg+xml,' + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>');
 
+const INT_HOURGLASS_ICON = 'data:image/svg+xml,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14M5 2h14M17 22v-4.17a2 2 0 0 0-.59-1.42L12 12l-4.41 4.41A2 2 0 0 0 7 17.83V22M7 2v4.17a2 2 0 0 0 .59 1.42L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2"/></svg>');
+
 const INTEGRATIONS = [
   { id:'adguard',        name:'AdGuard Home',          cat:'DNS Ad-Blocking',  icon:'adguard-home.svg',          w:1 },
   { id:'audiobookshelf', name:'Audiobookshelf',        cat:'Media Library',    icon:'audiobookshelf.svg',        w:1 },
@@ -6465,6 +6741,7 @@ const INTEGRATIONS = [
   { id:'plex',           name:'Plex',                  cat:'Media Server',     icon:'plex.svg',                  w:1 },
   { id:'portainer',      name:'Portainer',             cat:'Containers',       icon:'portainer.svg',             w:1, validatedKey:'portainerValidated' },
   { id:'stocks',         name:'Stocks',                cat:'Finance',          icon:'stocks.svg',                w:1, validatedKey:'stocksValidated' },
+  { id:'countdown',      name:'Countdown',             cat:'Utilities',        icon:INT_HOURGLASS_ICON,          w:2, validatedKey:'countdownValidated' },
   { id:'proxmox',        name:'Proxmox VE',            cat:'Virtualization',   icon:'proxmox.svg',               w:1 },
   { id:'pbs',            name:'Proxmox Backup Server', cat:'Backup',           icon:'proxmox-backup-server.svg', w:1 },
   { id:'prowlarr',       name:'Prowlarr',              cat:'Indexer Manager',  icon:'prowlarr.svg',              w:1 },
@@ -6508,6 +6785,7 @@ const WIZ_WIDGETS = (() => {
     { wid: 'weather-current',  intId: 'weather-current',  name: 'Current Weather',    icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
     { wid: 'weather-hourly',   intId: 'weather-hourly',   name: 'Hourly Forecast',    icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
     { wid: 'weather-forecast', intId: 'weather-forecast', name: '5-Day Forecast',     icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
+    { wid: 'countdown-list',   intId: 'countdown-list',   name: 'Countdown List',     icon: INT_HOURGLASS_ICON, enabledKey: 'countdownEnabled' },
   );
   return list;
 })();
@@ -6525,6 +6803,7 @@ const WIZ_BASE_INT = {
   'tautulli-list': 'tautulli', 'tautulli-recent': 'tautulli', 'tautulli-watch': 'tautulli',
   'tautulli-libraries': 'tautulli', 'tautulli-top': 'tautulli',
   'weather-combined': 'weather', 'weather-current': 'weather', 'weather-hourly': 'weather', 'weather-forecast': 'weather',
+  'countdown-list': 'countdown',
 };
 function wizBaseInt(intId) { return WIZ_BASE_INT[intId] || intId; }
 function wizServiceMeta(key, widgets) {
@@ -6595,7 +6874,7 @@ function renderWizWidgetPanel() {
     const e = document.createElement('div'); e.className = 'wiz-wp-empty';
     e.innerHTML = sample
       ? 'No sample widgets available.'
-      : 'No integrations are enabled yet — enable some in <a href="?tab=integrations">Setup → Integrations</a> to add live widgets, or use the <b>Sample</b> tab to add demo widgets.';
+      : 'No action cards are enabled yet — enable some in <a href="?tab=integrations">Setup → Action Cards</a> to add live widgets, or use the <b>Sample</b> tab to add demo widgets.';
     panel.appendChild(e); updateCount(); return;
   }
 
@@ -6671,7 +6950,8 @@ function renderIntegrationGrid() {
   // Category filter chips (built once).
   const filters = document.getElementById('int-filters');
   if (filters && !filters.dataset.built) {
-    const cats = ['All', ...Array.from(new Set(INTEGRATIONS.map((e) => e.cat))).sort()];
+    // 'Active' is a special filter (enabled-only); the rest are real categories.
+    const cats = ['All', 'Active', ...Array.from(new Set(INTEGRATIONS.map((e) => e.cat))).sort()];
     filters.innerHTML = '';
     cats.forEach((c) => {
       const b = document.createElement('button');
@@ -6688,8 +6968,11 @@ function renderIntegrationGrid() {
     filters.dataset.built = '1';
   }
 
+  const matchesCat = (e) =>
+    intCatalog.cat === 'All' ||
+    (intCatalog.cat === 'Active' ? intIsEnabled(e) : e.cat === intCatalog.cat);
   const items = INTEGRATIONS
-    .filter((e) => (intCatalog.cat === 'All' || e.cat === intCatalog.cat) &&
+    .filter((e) => matchesCat(e) &&
                    (!intCatalog.query ||
                     e.name.toLowerCase().includes(intCatalog.query) ||
                     e.cat.toLowerCase().includes(intCatalog.query)))

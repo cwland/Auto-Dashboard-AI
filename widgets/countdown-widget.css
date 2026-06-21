@@ -1,0 +1,72 @@
+/* Auto Dashboard AI — Countdown widget (single + list) */
+.countdown-widget {
+  display: flex; flex-direction: column; height: 100%; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary, #e8e8ee);
+  min-width: 0;
+}
+
+/* Header (shared) */
+.countdown-widget .cd-header { padding: 2px 2px 8px; border-bottom: 1px solid var(--border, #2a2a3e); margin-bottom: 8px; }
+.countdown-widget .cd-title {
+  font-size: 19px; font-weight: 800; letter-spacing: 0.01em;
+  color: var(--text-primary, #e8e8ee);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.countdown-widget .cd-sub { font-size: 12px; color: var(--text-secondary, #a9a9c0); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.countdown-widget .cd-desc { font-size: 11.5px; color: var(--text-muted, #6b6b80); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.countdown-widget .cd-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.countdown-widget .cd-empty { color: var(--text-muted, #6b6b80); font-size: 12px; padding: 18px 4px; text-align: center; }
+
+/* ── Single: the big DAYS / HOURS / MIN / SEC boxes ───────────────────────── */
+.cd-single .cd-body { justify-content: center; }
+/* Columns are set inline per the number of visible units (1–6). */
+.cd-single .cd-boxes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.cd-single .cd-box {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg-secondary, rgba(255,255,255,0.04));
+  border: 1px solid var(--border, #2a2a3e);
+  border-radius: var(--radius-lg, 12px);
+  padding: 12px 4px; min-width: 0;
+}
+.cd-single .cd-num {
+  font-size: clamp(16px, 9cqw, 40px);
+  font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #f5f5fa);
+}
+.cd-single .cd-unit {
+  margin-top: 6px; font-size: 10.5px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--text-muted, #6b6b80);
+}
+.cd-single.cd-expired .cd-num { color: var(--accent, #6366f1); }
+.cd-single .cd-status {
+  margin-top: 12px; text-align: center; font-size: 14px; font-weight: 700;
+  color: var(--accent, #6366f1); letter-spacing: 0.02em;
+}
+/* Container queries so the big numbers scale with the widget, not the viewport. */
+.cd-single .cd-boxes { container-type: inline-size; }
+
+/* ── List: compact rows (uses the shared ListCarousel viewport/track) ─────── */
+.cd-list .cd-header { display: flex; align-items: center; gap: 8px; }
+.cd-list .cd-l-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--text-secondary, #a9a9c0);
+}
+.cd-list .cd-tools { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.cd-list .cd-body { overflow: auto; }
+.cd-list .cd-viewport { overflow: hidden; }
+.cd-list .cd-track { display: flex; flex-direction: column; will-change: transform; }
+
+.cd-li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 4px; border-bottom: 1px solid var(--border, #2a2a3e);
+}
+.cd-li:last-child { border-bottom: none; }
+.cd-li-main { min-width: 0; flex: 1; }
+.cd-li-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cd-li-desc { font-size: 11px; color: var(--text-muted, #6b6b80); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.cd-li-time {
+  flex-shrink: 0; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--accent, #6366f1); white-space: nowrap;
+}
+.cd-li-time.cd-li-done { color: var(--text-muted, #6b6b80); font-weight: 600; }

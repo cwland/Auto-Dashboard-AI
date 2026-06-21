@@ -30,6 +30,7 @@
   <link rel="stylesheet" href="../widgets/proxmox-widget.css">
   <link rel="stylesheet" href="../widgets/portainer-widget.css">
   <link rel="stylesheet" href="../widgets/stocks-widget.css">
+  <link rel="stylesheet" href="../widgets/countdown-widget.css">
   <link rel="stylesheet" href="../widgets/pbs-widget.css">
   <link rel="stylesheet" href="../widgets/beszel-widget.css">
   <link rel="stylesheet" href="../widgets/ical-widget.css">
@@ -166,6 +167,7 @@
     .config-window .cw-body .lc-tools,
     .config-window .cw-body .ww-tools,
     .config-window .cw-body .pc-tools,
+    .config-window .cw-body .cd-tools,
     .config-window .cw-body .tw-tools { display: flex !important; flex-direction: column; gap: 14px; align-items: stretch; margin: 0; }
 
     .cfg-row { display: flex; flex-direction: column; gap: 6px; }
@@ -361,7 +363,7 @@
     body.rearrange-mode .widget-tools-bubble { display: flex; }
     .widget-tools-bubble .lc-tools, .widget-tools-bubble .pc-tools { display: flex !important; align-items: center; gap: 12px; flex-wrap: nowrap !important; }
     /* Sample widgets are static examples — never show config controls. */
-    .widget-sample .lc-tools, .widget-sample .pc-tools { display: none !important; }
+    .widget-sample [class*="-tools"] { display: none !important; }
     .widget-disabled {
       flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
       gap: 8px; text-align: center; color: var(--text-muted); font-size: 12.5px; padding: 16px;
@@ -1029,7 +1031,7 @@
       <span class="dash-brand-icon"><img src="../icons/logo.png" alt="" style="width:22px;height:22px;object-fit:contain;display:block;"></span>
       <span class="dash-brand-text">
         <span class="dash-brand-name">Auto Dashboard AI</span>
-        <span class="dash-brand-ver" id="app-version">v1.0.23</span>
+        <span class="dash-brand-ver" id="app-version">v1.0.24</span>
       </span>
     </div>
   </div>
@@ -1383,6 +1385,7 @@
 <script src="../widgets/tautulli-stats-widgets.js"></script>
 <script src="../widgets/portainer-widget.js"></script>
 <script src="../widgets/stocks-widget.js"></script>
+<script src="../widgets/countdown-widget.js"></script>
 <script src="../widgets/pbs-widget.js"></script>
 <script src="../widgets/beszel-widget.js"></script>
 <script src="../widgets/ical-widget.js"></script>

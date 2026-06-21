@@ -3,6 +3,22 @@ const GB = 1024 ** 3;
 const now = () => Math.floor(Date.now() / 1000);
 const root = document.getElementById('root');
 
+// Samples are static, display-only previews — never auto-scroll. This page is
+// isolated (no live widgets), so force every ListCarousel instance created here
+// to start disabled. Covers all list/carousel sample widgets in one place
+// (current and future); the combined-weather widget uses its own scroller and
+// is turned off via `carousel: false` at its mount below.
+if (typeof ListCarousel === 'function' && !ListCarousel._sampleStatic) {
+  const _Orig = ListCarousel;
+  const _Patched = function (opts) { return new _Orig(Object.assign({}, opts || {}, { enabled: false })); };
+  _Patched.prototype = _Orig.prototype;
+  Object.keys(_Orig).forEach((k) => { _Patched[k] = _Orig[k]; });   // buildControls, toggleRow, sliderRow, segmentRow
+  _Patched._sampleStatic = true;
+  // eslint-disable-next-line no-global-assign
+  ListCarousel = _Patched;
+  if (typeof window !== 'undefined') window.ListCarousel = _Patched;
+}
+
 // Create a captioned tile and return the inner host element to mount into.
 function tile(caption) {
   const wrap = document.createElement('div');
@@ -340,10 +356,38 @@ function demoWeatherData() {
 }
 SAMPLES.weather = function () {
   const dp = () => Promise.resolve(demoWeatherData());
-  if (typeof WeatherCombinedWidget !== 'undefined') new WeatherCombinedWidget(tile('Weather — Combined'), { dataProvider: dp, hours: 12, days: 5 }).start();
+  if (typeof WeatherCombinedWidget !== 'undefined') new WeatherCombinedWidget(tile('Weather — Combined'), { dataProvider: dp, hours: 12, days: 5, carousel: false }).start();
   new WeatherCurrentWidget(tile('Current Weather'), { dataProvider: dp }).start();
   new WeatherHourlyWidget(tile('Hourly Forecast'), { dataProvider: dp, hours: 5 }).start();
   new WeatherForecastWidget(tile('5-Day Forecast'), { dataProvider: dp }).start();
+};
+
+// ── Countdown (single big timer + scrolling list) ────────────────────────
+function demoCountdownItems() {
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+  const nowD = new Date(); const y = nowD.getFullYear();
+  const nextHoliday = (m, d) => { let yr = y; if (new Date(y, m - 1, d).getTime() <= nowD.getTime()) yr += 1; return fmt(new Date(yr, m - 1, d)); };
+  const launch = new Date(nowD.getTime() + 5 * 3600000);   // ~5 hours out (short duration)
+  return [
+    { id: 's1', name: 'Project Launch', date: fmt(launch), time: `${pad(launch.getHours())}:${pad(launch.getMinutes())}` },
+    { id: 's2', name: 'Independence Day', date: nextHoliday(7, 4) },
+    { id: 's3', name: 'Vacation Countdown', date: nextHoliday(8, 10) },
+    { id: 's4', name: 'Christmas', date: nextHoliday(12, 25) },
+    { id: 's5', name: "New Year's Day", date: nextHoliday(1, 1) },
+    { id: 's6', name: 'Birthday Countdown', date: fmt(new Date(y + 2, 2, 14)), time: '08:00' },
+  ];
+}
+SAMPLES.countdown = function () {
+  if (typeof CountdownWidget === 'undefined') return;
+  const items = demoCountdownItems();
+  const ALL = ['years', 'months', 'days', 'hours', 'minutes', 'seconds'];
+  // Single: default full breakdown against a multi-year target.
+  new CountdownWidget(tile('Countdown'), { items: items.filter((it) => it.id === 's6'), expired: 'started', units: ALL }).start();
+  // List: a customized unit set (Days/Hours/Min/Sec) across a spread of dates.
+  if (typeof CountdownListWidget !== 'undefined') {
+    new CountdownListWidget(tile('Countdown List'), { items, expired: 'started', units: ['days', 'hours', 'minutes', 'seconds'], carousel: false, visibleCount: 4 }).start();
+  }
 };
 
 // ── Portainer (10-service homelab dataset across two nodes) ──────────────

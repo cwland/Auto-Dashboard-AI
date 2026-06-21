@@ -18,7 +18,9 @@
   function dp(W, data, extra) {
     return (host) => {
       if (typeof W === 'undefined') return null;
-      const w = new W(host, Object.assign({ dataProvider: (o) => Promise.resolve(typeof data === 'function' ? data(o) : data) }, extra || {}));
+      // Samples are static previews — never auto-scroll (carousel off). Widgets
+      // that don't have a carousel simply ignore the flag.
+      const w = new W(host, Object.assign({ dataProvider: (o) => Promise.resolve(typeof data === 'function' ? data(o) : data), carousel: false }, extra || {}));
       w.start();
       return w;
     };
@@ -68,7 +70,7 @@
   }
   M.tautulli = (host) => {
     if (typeof TautulliWidget === 'undefined') return null;
-    const w = new TautulliWidget(host, { baseUrl: '', apiKey: '', maxVisible: 3 });
+    const w = new TautulliWidget(host, { baseUrl: '', apiKey: '', maxVisible: 3, carousel: false });
     w.stop();
     w.headerSummary.textContent = 'Sessions: 2 streams (1 transcode) | Bandwidth: 17.4 Mbps';
     w.headerTitle.textContent = 'Tautulli';
@@ -78,7 +80,7 @@
   };
   M['tautulli-list'] = (host) => {
     if (typeof TautulliListWidget === 'undefined') return null;
-    const w = new TautulliListWidget(host, { baseUrl: '', apiKey: '' });
+    const w = new TautulliListWidget(host, { baseUrl: '', apiKey: '', carousel: false });
     w.stop();
     w._renderSessions(tauCards(), { count: 2, total: '17.4 Mbps' });
     return w;
@@ -350,6 +352,51 @@
   M['weather-current'] = dp(typeof WeatherCurrentWidget !== 'undefined' ? WeatherCurrentWidget : undefined, () => demoWeather());
   M['weather-hourly'] = dp(typeof WeatherHourlyWidget !== 'undefined' ? WeatherHourlyWidget : undefined, () => demoWeather(), { hours: 5 });
   M['weather-forecast'] = dp(typeof WeatherForecastWidget !== 'undefined' ? WeatherForecastWidget : undefined, () => demoWeather(), { days: 5 });
+
+  // ── Countdown (single + list) ───────────────────────────────────────────────
+  // Sample data demonstrating the full range of the widget: short durations
+  // (hours/minutes), long ones (months and multiple years), times-of-day, and
+  // the next occurrence of each named holiday relative to "today".
+  function sampleCountdownItems() {
+    const pad = (n) => String(n).padStart(2, '0');
+    const fmtDate = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+    const fmtTime = (dt) => `${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    const now = new Date();
+    const y = now.getFullYear();
+    // Next occurrence of a fixed month/day holiday (this year if still ahead, else next year).
+    const nextHoliday = (month, day) => {
+      let yr = y;
+      if (new Date(y, month - 1, day, 0, 0, 0).getTime() <= now.getTime()) yr += 1;
+      return fmtDate(new Date(yr, month - 1, day));
+    };
+    // A near-future point a given number of hours out (short-duration demo).
+    const inHours = (h) => { const dt = new Date(now.getTime() + h * 3600000); return { date: fmtDate(dt), time: fmtTime(dt) }; };
+    const launch = inHours(5);
+    return [
+      { id: 's1', name: 'Project Launch', date: launch.date, time: launch.time },          // short: hours/minutes/seconds
+      { id: 's2', name: "Independence Day", date: nextHoliday(7, 4) },                       // weeks away
+      { id: 's3', name: 'Vacation Countdown', date: nextHoliday(8, 10) },                    // ~weeks/months
+      { id: 's4', name: 'Christmas', date: nextHoliday(12, 25) },                            // months
+      { id: 's5', name: "New Year's Day", date: nextHoliday(1, 1) },                         // crosses year boundary
+      { id: 's6', name: 'Birthday Countdown', date: fmtDate(new Date(y + 2, 2, 14)), time: '08:00' }, // long: multi-year, shows years/months
+    ];
+  }
+  M.countdown = (host) => {
+    if (typeof CountdownWidget === 'undefined') return null;
+    // Single mode showing the default full breakdown (all six units) against a
+    // multi-year target, so Years / Months / Days / Hours / Min / Sec all appear.
+    const birthday = sampleCountdownItems().filter((it) => it.id === 's6');
+    const w = new CountdownWidget(host, { items: birthday, expired: 'started', units: ['years', 'months', 'days', 'hours', 'minutes', 'seconds'] });
+    w.start(); return w;
+  };
+  M['countdown-list'] = (host) => {
+    if (typeof CountdownListWidget === 'undefined') return null;
+    // List mode with a customized unit set (Days/Hours/Min/Sec) to showcase the
+    // per-widget display-unit toggles: Years & Months are hidden, so their time
+    // rolls into the day count across the whole list.
+    const w = new CountdownListWidget(host, { items: sampleCountdownItems(), expired: 'started', units: ['days', 'hours', 'minutes', 'seconds'], carousel: false, visibleCount: 4 });
+    w.start(); return w;
+  };
 
   // Mount a sample widget into `host`. Returns the instance (for cleanup) or null.
   global.SAMPLE_MOUNTS = M;
