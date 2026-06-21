@@ -1,5 +1,5 @@
 {
-  "version": "1.0.19",
-  "notes": "Two-way GitHub Gist sync: automatic encrypted backups on change and automatic loading of newer changes from your other computers, plus manual backup/restore.",
+  "version": "1.0.23",
+  "notes": "Gist sync is now scoped per browser brand (Brave syncs with Brave, Chrome with Chrome) — each keeps its own backup, avoiding cross-browser layout differences. Use Export/Import to copy between brands.",
   "downloadUrl": "https://github.com/cwland/Auto-Dashboard-AI/releases"
 }

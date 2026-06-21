@@ -65,6 +65,13 @@ The most recently edited copy wins if two computers change at once. It's
 loop-safe: a change that was just loaded by sync won't trigger another backup.
 You can still use **Back up to Gist** / **Restore from Gist** by hand anytime.
 
+**Same browser brand only.** Each browser brand keeps its own separate backup
+file (e.g. `auto-dashboard-config-brave.json`, `auto-dashboard-config-chrome.json`)
+in your gists, and only syncs with the same brand — Brave ↔ Brave, Chrome ↔
+Chrome. Different brands render the grid slightly differently, so they're kept
+apart on purpose. To copy your setup from one brand to another, use **Export
+configuration** / **Import configuration** instead.
+
 ---
 
 ## Why encryption is required

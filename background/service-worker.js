@@ -284,8 +284,25 @@ async function cfgSaveState() { try { await chrome.storage.local.set({ _cfgSync:
 // it!) and the encryption passphrase (must be entered per device, not synced).
 const CFG_LOCAL_ONLY_SETTINGS = ['gistToken', 'backupPassphrase'];
 
+// Per-dashboard flags that are LOCAL and transient — they must not travel in a
+// backup. `autoArrange` is a one-shot "tidy this freshly-created dashboard on its
+// first render" flag; if it syncs, the receiving browser re-compacts the saved
+// grid layout instead of showing it as-is, scrambling the section grouping.
+const CFG_TRANSIENT_DASH_KEYS = ['autoArrange'];
+function cfgStripDashboards(dashboards) {
+  if (!Array.isArray(dashboards)) return dashboards;
+  return dashboards.map((d) => {
+    if (!d || typeof d !== 'object') return d;
+    let copy = d;
+    CFG_TRANSIENT_DASH_KEYS.forEach((k) => {
+      if (k in d) { if (copy === d) copy = { ...d }; delete copy[k]; }
+    });
+    return copy;
+  });
+}
+
 // Build the {settings,dashboards,defaultDashboardId} payload from local storage,
-// with device-local-only secrets stripped out of settings.
+// with device-local-only secrets and transient dashboard flags stripped out.
 async function cfgLocalPayload() {
   const local = await chrome.storage.local.get(CFG_SYNC_KEYS);
   const obj = {};
@@ -295,6 +312,7 @@ async function cfgLocalPayload() {
     CFG_LOCAL_ONLY_SETTINGS.forEach((k) => { delete s[k]; });
     obj.settings = s;
   }
+  if (obj.dashboards) obj.dashboards = cfgStripDashboards(obj.dashboards);
   return obj;
 }
 
@@ -303,6 +321,7 @@ async function cfgLocalPayload() {
 async function cfgApplyToLocal(obj) {
   const writeLocal = {};
   CFG_SYNC_KEYS.forEach((k) => { if (obj[k] !== undefined) writeLocal[k] = obj[k]; });
+  if (writeLocal.dashboards) writeLocal.dashboards = cfgStripDashboards(writeLocal.dashboards);
   if (writeLocal.settings && typeof writeLocal.settings === 'object') {
     const cur = (await chrome.storage.local.get('settings')).settings || {};
     const merged = { ...writeLocal.settings };
@@ -419,9 +438,38 @@ async function backupReadPayload(rData) {
 // single file in a private gist. Works across any browser. Opt-in via the
 // "gistSync" setting, using the same three-way reconcile + schema guard as the
 // other backends. The gist id is remembered locally so updates patch the same gist.
-const GIST_FILE = 'auto-dashboard-config.json';
-const GIST_DESC = 'Auto Dashboard AI — config backup (managed automatically)';
+const GIST_FILE_BASE = 'auto-dashboard-config';
+const GIST_DESC_BASE = 'Auto Dashboard AI — config backup';
 const GIST_API = 'https://api.github.com';
+
+// Browser-type-scoped backups: each browser brand keeps its OWN gist file, so a
+// browser only ever syncs with the same brand (Brave↔Brave, Chrome↔Chrome). This
+// avoids cross-brand differences in how the grid layout renders. Brave reports a
+// Chrome user-agent, so it's detected via navigator.brave; pages also stash the
+// detected type in storage (a window is the most reliable place to detect Brave).
+async function detectBrowserType() {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.brave && navigator.brave.isBrave) {
+      if (await navigator.brave.isBrave()) return 'brave';
+    }
+  } catch (_) {}
+  const ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+  if (/\bEdg\//.test(ua)) return 'edge';
+  if (/\bOPR\//.test(ua) || /\bOpera\b/.test(ua)) return 'opera';
+  if (/\bVivaldi\b/.test(ua)) return 'vivaldi';
+  return 'chrome';
+}
+let _browserType = null;
+async function getBrowserType() {
+  if (_browserType) return _browserType;
+  try {
+    const { browserType } = await chrome.storage.local.get('browserType');
+    if (browserType) { _browserType = browserType; return _browserType; }
+  } catch (_) {}
+  _browserType = await detectBrowserType();
+  return _browserType;
+}
+async function gistFileName() { return `${GIST_FILE_BASE}-${await getBrowserType()}.json`; }
 
 async function gistGetToken() {
   const { settings } = await chrome.storage.local.get('settings');
@@ -441,14 +489,19 @@ async function gistFetch(url, opts) {
 async function gistSetError(err) { try { await chrome.storage.local.set({ gistSyncError: err }); } catch (_) {} }
 async function gistClearError() { try { await chrome.storage.local.remove('gistSyncError'); } catch (_) {} }
 
-// Locate our backup gist. Returns {id} | {noAuth:true} | {none:true} | null.
-async function gistFindId(st) {
+// Locate THIS browser's backup gist (by its browser-scoped filename `fname`).
+// Returns {id} | {noAuth:true} | {none:true} | null.
+async function gistFindId(st, fname) {
   if (st.gistId) {
     const r = await gistFetch(`${GIST_API}/gists/${st.gistId}`);
     if (r === null) return { noAuth: true };
-    if (r.ok) return { id: st.gistId };
-    if (r.status === 401) return { noAuth: true };
-    if (r.status === 404) { st.gistId = null; await cfgSaveState(); }   // gist was deleted
+    if (r.ok) {
+      const g = await r.json().catch(() => null);
+      if (g && g.files && g.files[fname]) return { id: st.gistId };   // cached gist holds OUR file
+      // Cached gist isn't this browser's backup (e.g. after the per-browser split) →
+      // fall through to find/create the correct one.
+    } else if (r.status === 401) return { noAuth: true };
+    else if (r.status === 404) { st.gistId = null; await cfgSaveState(); }   // gist was deleted
   }
   const r = await gistFetch(`${GIST_API}/gists?per_page=100`);
   if (r === null) return { noAuth: true };
@@ -456,20 +509,21 @@ async function gistFindId(st) {
   if (!r.ok) return null;
   const list = await r.json().catch(() => null);
   if (!Array.isArray(list)) return null;
-  const found = list.find((g) => g && g.files && g.files[GIST_FILE]);
+  const found = list.find((g) => g && g.files && g.files[fname]);
   return found ? { id: found.id } : { none: true };
 }
 // Returns {noAuth:true} | {none:true} | null(error) | {id,data}
 async function gistRead() {
   const st = await cfgLoadState();
-  const f = await gistFindId(st);
+  const fname = await gistFileName();
+  const f = await gistFindId(st, fname);
   if (!f || f.noAuth) return f || null;
   if (f.none) return { none: true };
   const r = await gistFetch(`${GIST_API}/gists/${f.id}`);
   if (r === null) return { noAuth: true };
   if (!r.ok) return null;
   const g = await r.json().catch(() => null);
-  const file = g && g.files && g.files[GIST_FILE];
+  const file = g && g.files && g.files[fname];
   if (!file) return { none: true };
   let content = file.content;
   if (file.truncated && file.raw_url) {
@@ -479,21 +533,23 @@ async function gistRead() {
   st.gistId = f.id; await cfgSaveState();
   return { id: f.id, data };
 }
-// Create or update the gist. Returns id or null.
+// Create or update this browser's gist. Returns id or null.
 async function gistWrite(payloadObj) {
   const st = await cfgLoadState();
-  const f = await gistFindId(st);
+  const fname = await gistFileName();
+  const f = await gistFindId(st, fname);
   if (!f || f.noAuth) return null;
-  const files = { [GIST_FILE]: { content: JSON.stringify(payloadObj) } };
+  const files = { [fname]: { content: JSON.stringify(payloadObj) } };
   if (f.id) {
     const r = await gistFetch(`${GIST_API}/gists/${f.id}`,
       { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files }) });
     if (r && r.ok) { st.gistId = f.id; await cfgSaveState(); return f.id; }
     return null;
   }
+  const desc = `${GIST_DESC_BASE} (${await getBrowserType()})`;
   const r = await gistFetch(`${GIST_API}/gists`,
     { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: GIST_DESC, public: false, files }) });
+      body: JSON.stringify({ description: desc, public: false, files }) });
   if (!r || !r.ok) return null;
   const g = await r.json().catch(() => null);
   if (!g || !g.id) return null;

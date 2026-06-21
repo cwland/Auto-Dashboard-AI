@@ -1,6 +1,23 @@
 // Auto Dashboard AI — New Tab Page
 'use strict';
 
+// ─── Browser type (for per-browser-brand gist backups) ───────────────────────
+// Brave reports a Chrome user-agent, so detect it via navigator.brave (most
+// reliable in a window) and store it so the background picks the right gist file.
+(function () {
+  (async () => {
+    let bt = 'chrome';
+    try { if (navigator.brave && navigator.brave.isBrave && await navigator.brave.isBrave()) bt = 'brave'; } catch (_) {}
+    if (bt === 'chrome') {
+      const ua = navigator.userAgent || '';
+      if (/\bEdg\//.test(ua)) bt = 'edge';
+      else if (/\bOPR\//.test(ua) || /\bOpera\b/.test(ua)) bt = 'opera';
+      else if (/\bVivaldi\b/.test(ua)) bt = 'vivaldi';
+    }
+    try { chrome.storage.local.get('browserType', (d) => { if (!chrome.runtime.lastError && d.browserType !== bt) chrome.storage.local.set({ browserType: bt }); }); } catch (_) {}
+  })();
+})();
+
 // ─── Auto-sync (Gist) ─────────────────────────────────────────────────────────
 // On open, ask the background to pull a newer backup if auto-sync is on; reload
 // the page when the config is replaced so the dashboard shows the synced data.
@@ -905,8 +922,12 @@ function estimateSectionRows(count, w) {
 
 // Ensure dash.layout has {x,y,w,h} for every current section, auto-placing any
 // new ones into a tidy left-to-right flow. Returns the layout map.
+// Set to true by ensureDashLayout when it had to auto-fill/migrate/prune layout
+// entries — the caller then persists so the exact geometry is saved (and synced).
+let _dashLayoutChanged = false;
 function ensureDashLayout(dash, folderNames, groups) {
   const DEF_W = 8;   // ~1/3 width on the 24-col grid
+  _dashLayoutChanged = false;
 
   // Migrate a layout saved at a different grid density (e.g. the old 12-column
   // grid) so sections keep their proportions instead of rendering half-width.
@@ -923,8 +944,10 @@ function ensureDashLayout(dash, folderNames, groups) {
         p.y = Math.round((p.y || 0) * fh);
         p.h = Math.max(GRID_MIN_H, Math.round((p.h || GRID_MIN_H) * fh));
       });
+      _dashLayoutChanged = true;
     }
   }
+  if (dash.gridCols !== GRID_COLS || dash.gridCell !== GRID_CELL) _dashLayoutChanged = true;
   dash.gridCols = GRID_COLS;
   dash.gridCell = GRID_CELL;
 
@@ -938,6 +961,7 @@ function ensureDashLayout(dash, folderNames, groups) {
       if (cx + w > GRID_COLS) { cx = 0; cy += rowH; rowH = 0; }
       layout[name] = { x: cx, y: cy, w, h, iconSize: prev.iconSize || DEFAULT_ICON_SIZE };
       cx += w; rowH = Math.max(rowH, h);
+      _dashLayoutChanged = true;
     }
   });
 
@@ -951,13 +975,14 @@ function ensureDashLayout(dash, folderNames, groups) {
       if (cx + w > GRID_COLS) { cx = 0; cy += rowH; rowH = 0; }
       layout[key] = { x: cx, y: cy, w, h };
       cx += w; rowH = Math.max(rowH, h);
+      _dashLayoutChanged = true;
     }
   });
 
   // Drop layout entries for sections/widgets that no longer exist.
   Object.keys(layout).forEach((k) => {
-    if (k.startsWith('@w:')) { if (!widgetKeys.has(k)) delete layout[k]; }
-    else if (!folderNames.includes(k)) delete layout[k];
+    if (k.startsWith('@w:')) { if (!widgetKeys.has(k)) { delete layout[k]; _dashLayoutChanged = true; } }
+    else if (!folderNames.includes(k)) { delete layout[k]; _dashLayoutChanged = true; }
   });
   dash.layout = layout;
   return layout;
@@ -966,6 +991,13 @@ function ensureDashLayout(dash, folderNames, groups) {
 function renderDashboardGrid(dash, folderNames, groups) {
   injectGridColumnCss(GRID_COLS);
   const layout = ensureDashLayout(dash, folderNames, groups);
+  // If we had to auto-place/migrate any section, persist so the exact geometry is
+  // saved to storage (and therefore included in the backup) — this keeps the grid
+  // grouping identical when the config is synced to another browser, instead of
+  // each browser independently recomputing positions.
+  if (_dashLayoutChanged && !dash.autoArrange) {
+    try { chromeSet({ dashboards: state.dashboards }); } catch (_) {}
+  }
 
   // Tear down any previous grid instance + live widgets before rebuilding
   // (stops their polling/timers).
@@ -990,7 +1022,15 @@ function renderDashboardGrid(dash, folderNames, groups) {
     const pos = layout[name] || {};
     const iconSize = pos.iconSize || DEFAULT_ICON_SIZE;
     const minW = sectionMinW(name, iconSize, cellW0);
-    const w = Math.min(GRID_COLS, Math.max(Number.isFinite(pos.w) ? pos.w : minW, minW));
+    // Render the SAVED column width verbatim so a synced layout looks identical on
+    // any window width (Brave and Chrome have different content widths, so the
+    // pixel-derived minimum differs between them and would otherwise widen sections
+    // and re-wrap the grid). Only sections with no saved width fall back to minW.
+    // Cap gs-min-w at the chosen width so Gridstack can't widen a saved layout on
+    // init; the live minimum is re-applied during an actual resize.
+    const hasSavedW = Number.isFinite(pos.w);
+    const w = hasSavedW ? Math.min(GRID_COLS, pos.w) : minW;
+    const gsMinW = hasSavedW ? Math.min(minW, w) : minW;
     const item = document.createElement('div');
     item.className = 'grid-stack-item';
     item.dataset.folder = name;
@@ -998,7 +1038,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
     if (Number.isFinite(pos.y)) item.setAttribute('gs-y', pos.y);
     item.setAttribute('gs-w', w);
     if (Number.isFinite(pos.h)) item.setAttribute('gs-h', pos.h);
-    item.setAttribute('gs-min-w', minW);
+    item.setAttribute('gs-min-w', gsMinW);
     item.setAttribute('gs-min-h', GRID_MIN_H);
     item.setAttribute('gs-max-w', GRID_COLS);
     applyLockedAttrs(item, pos);
@@ -1037,11 +1077,10 @@ function renderDashboardGrid(dash, folderNames, groups) {
     content.className = 'grid-stack-item-content';
     const wsec = buildWidgetSection(wdef);
     content.appendChild(wsec);
-    // Sample widgets are non-editable previews: no Configure button and no lock.
-    if (!wdef.sample) {
-      attachWidgetToolsBubble(content, wsec, wdef);
-      content.appendChild(buildGridLock('@w:' + wdef.uid));   // lock/unlock straddling the corner
-    }
+    // Sample widgets are non-configurable previews (no Configure button), but they
+    // can still be moved/resized and locked like any other widget.
+    if (!wdef.sample) attachWidgetToolsBubble(content, wsec, wdef);
+    content.appendChild(buildGridLock('@w:' + wdef.uid));   // lock/unlock straddling the corner
     item.appendChild(content);
     gridEl.appendChild(item);
   });
@@ -2022,11 +2061,10 @@ function addWidgetItemInPlace(wdef) {
   content.className = 'grid-stack-item-content';
   const wsec = buildWidgetSection(wdef);
   content.appendChild(wsec);
-  // Sample widgets are non-editable previews: no Configure button and no lock.
-  if (!wdef.sample) {
-    attachWidgetToolsBubble(content, wsec, wdef);
-    content.appendChild(buildGridLock('@w:' + wdef.uid));
-  }
+  // Sample widgets are non-configurable previews (no Configure button), but they
+  // can still be moved/resized and locked like any other widget.
+  if (!wdef.sample) attachWidgetToolsBubble(content, wsec, wdef);
+  content.appendChild(buildGridLock('@w:' + wdef.uid));
   item.appendChild(content);
 
   const wasStatic = !state.rearrangeMode;

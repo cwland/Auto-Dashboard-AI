@@ -28,6 +28,22 @@
 // to avoid a flash of the default palette. applyTheme is hoisted below.
 chrome.storage.local.get('settings', ({ settings: s }) => { injectCustomThemeStyles(s && s.customThemes); applyTheme(s && s.theme); });
 
+// Detect the browser brand (Brave reports a Chrome UA, so use navigator.brave)
+// and store it so the background uses the right per-browser-brand gist file.
+(function () {
+  (async () => {
+    let bt = 'chrome';
+    try { if (navigator.brave && navigator.brave.isBrave && await navigator.brave.isBrave()) bt = 'brave'; } catch (_) {}
+    if (bt === 'chrome') {
+      const ua = navigator.userAgent || '';
+      if (/\bEdg\//.test(ua)) bt = 'edge';
+      else if (/\bOPR\//.test(ua) || /\bOpera\b/.test(ua)) bt = 'opera';
+      else if (/\bVivaldi\b/.test(ua)) bt = 'vivaldi';
+    }
+    try { chrome.storage.local.get('browserType', (d) => { if (!chrome.runtime.lastError && d.browserType !== bt) chrome.storage.local.set({ browserType: bt }); }); } catch (_) {}
+  })();
+})();
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
