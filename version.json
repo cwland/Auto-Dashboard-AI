@@ -1,5 +1,5 @@
 {
-  "version": "1.0.24",
-  "notes": "New Countdown widget — a single big countdown to a date/time, or a scrolling list of countdowns. Configurable expired behavior, live preview, and a sample. Updates every second.",
+  "version": "1.0.25",
+  "notes": "Proxmox dashboards (Health, System Logs, Backup Logs, Storage, VMs & LXCs, Overview), redesigned themes with full-palette swatches and editable custom themes, the renamed Widget Library, a new Privacy page, and dashboard-creation improvements (blank dashboards, optional bookmarks, auto-open).",
   "downloadUrl": "https://github.com/cwland/Auto-Dashboard-AI/releases"
 }
