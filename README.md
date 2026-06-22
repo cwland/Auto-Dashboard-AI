@@ -256,6 +256,8 @@ The Uptime Kuma, Sonarr, Radarr, Seerr, Pi-hole, AdGuard Home, Plex, Jellyfin, E
 
 The integration brand icons (in `icons/integrations/`, shown in the Settings section titles and each widget's header) come from [homarr-labs/dashboard-icons](https://github.com/homarr-labs/dashboard-icons), mirroring the icon URLs Homarr uses. They are not committed — run `icons/integrations/fetch-icons.sh` once to download them locally (keeps the extension free of runtime external requests).
 
+The Proxmox dashboards (System Health, System & Backup Logs, Storage, Virtual Machines & Containers, and System Overview) — their health checks, metrics, and layouts — are adapted from the [ProxMenux](https://github.com/MacRimi/ProxMenux) project by MacRimi.
+
 ## License
 
 MIT
