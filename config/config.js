@@ -570,6 +570,13 @@ async function init() {
   if (params.get('tab') === 'dashboards') {
     switchTab('dashboards');
   }
+
+  // Deep links from the dashboard's theme picker.
+  if (window.location.hash === '#new-theme') {
+    try { openCustomThemeModal(null, { mode: 'manual', lock: true }); } catch (_) {}
+  } else if (window.location.hash === '#generate-theme') {
+    try { openCustomThemeModal(null, { mode: 'ai', lock: true }); } catch (_) {}
+  }
 }
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -777,7 +784,10 @@ function ctTextContrast(c) {
 }
 function ctMissing(c) { return CT_FIELDS.filter(([k]) => !ctValidHex(c[k])).map(([, label]) => label); }
 
-function openCustomThemeModal(edit) {
+// opts: { mode: 'manual' | 'ai', lock: true } — open straight into one flow and
+// hide the tab switcher (the manual creator and AI generator are separate modals).
+function openCustomThemeModal(edit, opts) {
+  opts = opts || {};
   ctModalState.aiThemes = []; ctModalState.aiSelected = new Set();
   ctModalState.editId = (edit && edit.id) || null;
   ctModalState.manual = {}; ctModalState.optAuto = {};
@@ -794,12 +804,20 @@ function openCustomThemeModal(edit) {
   document.getElementById('ct-ai-warn').textContent = '';
   document.getElementById('ct-palettes').innerHTML = '';
   const saveBtn = document.getElementById('ct-save-manual'); if (saveBtn) saveBtn.textContent = edit ? 'Save Changes' : 'Save Theme';
-  const titleEl = document.querySelector('#custom-theme-modal .modal-header h3'); if (titleEl) titleEl.textContent = edit ? 'Edit Custom Theme' : 'Add Custom Theme';
   buildManualRows();
-  // The AI tab only makes sense when creating a new theme — hide it while editing.
+
+  // Editing is always manual; otherwise honor the requested single mode. Each
+  // entry point (Add custom theme / Generate with AI / edit) is its own modal,
+  // so the tab switcher is hidden and only the chosen flow is shown.
+  const mode = edit ? 'manual' : (opts.mode || 'manual');
+  const lock = !!edit || !!opts.lock || !!opts.mode;
+  const tabsEl = document.querySelector('#custom-theme-modal .ct-tabs');
+  if (tabsEl) tabsEl.style.display = lock ? 'none' : 'flex';
   const aiTab = document.querySelector('.ct-tab[data-ctmode="ai"]');
   if (aiTab) aiTab.style.display = edit ? 'none' : '';
-  setCtMode(edit ? 'manual' : 'ai');
+  const titleEl = document.querySelector('#custom-theme-modal .modal-header h3');
+  if (titleEl) titleEl.textContent = edit ? 'Edit Custom Theme' : (mode === 'ai' ? '✨ Generate Theme with AI' : '🎨 Add Custom Theme');
+  setCtMode(mode);
   document.getElementById('custom-theme-modal').classList.add('visible');
 }
 function closeCustomThemeModal() { document.getElementById('custom-theme-modal').classList.remove('visible'); }
@@ -1053,7 +1071,8 @@ function setupCustomThemeModal() {
   const addBtn = document.getElementById('add-custom-theme');
   if (!addBtn || addBtn.dataset.wired) return;
   addBtn.dataset.wired = '1';
-  addBtn.addEventListener('click', () => openCustomThemeModal());
+  addBtn.addEventListener('click', () => openCustomThemeModal(null, { mode: 'manual', lock: true }));
+  document.getElementById('generate-ai-theme')?.addEventListener('click', () => openCustomThemeModal(null, { mode: 'ai', lock: true }));
   document.getElementById('ct-close')?.addEventListener('click', closeCustomThemeModal);
   document.getElementById('ct-cancel')?.addEventListener('click', closeCustomThemeModal);
   document.getElementById('custom-theme-modal')?.addEventListener('click', (e) => {
@@ -1145,12 +1164,10 @@ function applySettingsToUI() {
   const clockEl = document.getElementById(`clock-${s.clockFormat || '12'}`);
   if (clockEl) clockEl.checked = true;
 
-  // Date visible toggle + format section
-  const dateVisible = s.dateVisible !== false; // default true
-  const dateVisibleToggle = document.getElementById('date-visible-toggle');
-  if (dateVisibleToggle) dateVisibleToggle.checked = dateVisible;
+  // Time/Date visibility now lives in each dashboard's Options panel; only the
+  // Date Format selector remains here (always shown).
   const dateSection = document.getElementById('date-format-section');
-  if (dateSection) dateSection.style.display = dateVisible ? 'block' : 'none';
+  if (dateSection) dateSection.style.display = 'block';
 
   // Startup & new-tab toggles (both default off)
   const ntToggle = document.getElementById('newtab-override-toggle');
@@ -1639,16 +1656,7 @@ function setupSettingsListeners() {
     });
   });
 
-  // Date visible toggle
-  const dateVisibleToggle = document.getElementById('date-visible-toggle');
-  if (dateVisibleToggle) {
-    dateVisibleToggle.addEventListener('change', () => {
-      state.currentSettings.dateVisible = dateVisibleToggle.checked;
-      const section = document.getElementById('date-format-section');
-      if (section) section.style.display = dateVisibleToggle.checked ? 'block' : 'none';
-      updateSaveBar();
-    });
-  }
+  // (Time/Date visibility moved to each dashboard's Options panel.)
 
   // Startup & new-tab toggles
   const ntToggle = document.getElementById('newtab-override-toggle');

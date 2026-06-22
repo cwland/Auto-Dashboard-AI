@@ -2,6 +2,24 @@
 
 A Chrome extension that auto-generates beautiful new-tab dashboards from your bookmarks, enriched with AI-powered descriptions and icons via [OpenRouter](https://openrouter.ai).
 
+## Purpose
+
+Auto Dashboard AI grew out of trying a number of self-hosted dashboards and finding that I liked different features in each one, but no single one did everything I wanted. More importantly, every one of them was a hosted service: if I was away from home and not on a VPN, or the service itself went down, I lost the dashboard entirely and had to look up addresses by hand. Browser bookmarks were my fallback, but they were constantly out of sync — I'd add a new service to the dashboard and forget to bookmark it, or vice versa.
+
+This project is the answer to that problem: a dashboard that lives in the browser itself, so it keeps working no matter where I am or whether any server is up. It started from my own bookmarks (so the dashboard and the bookmarks can't drift apart) and grew from there.
+
+It's also a deliberate learning project — a way to build a real application primarily through AI prompting, and to experiment with where AI genuinely helps inside an app (organizing bookmarks, generating descriptions and icons, designing color themes, and more).
+
+**Goals**
+
+- Build a complete application primarily through AI-assisted coding (prompting).
+- Explore and test practical AI features inside an app — organization, themes, descriptions, icons, and so on.
+- Provide a dashboard that does **not** depend on any service running to be usable.
+- Sync settings and dashboards across computers.
+- Improve on the features I liked best in other dashboard software.
+- Add widgets and integrations that weren't available elsewhere.
+- Make everything easy to back up and restore.
+
 ## Features
 
 - **AI-enriched bookmarks** — descriptions, clean names, and icons fetched or inferred for every bookmark
@@ -46,18 +64,31 @@ A Chrome extension that auto-generates beautiful new-tab dashboards from your bo
 4. Click **Load unpacked** and select this folder
 5. The Settings page opens automatically on first launch
 
-## Setup
+## Getting Started
 
-### 1. API Key
+AI is **optional**. You can build and use a full dashboard without an API key — turn AI on later if you want it to do the busywork for you.
 
-1. Get a free or paid API key from [openrouter.ai/keys](https://openrouter.ai/keys)
-2. Paste it into the **Settings → API Key** field
-3. Click **Validate** to confirm it works
-4. Click **Save Settings**
+### 1. Create your first dashboard
 
-### 2. Choose a Model
+1. Click the extension icon → **Create / Update Dashboard**.
+2. Choose how to start:
+   - **From bookmarks** — select bookmarks and/or folders from the tree on the left. Your folder structure becomes the dashboard's sections.
+   - **Blank dashboard** — start empty and add items yourself later (in Edit mode).
+3. Give the dashboard a name, pick a default icon shape, and choose whether labels show below icons.
+4. Create it:
+   - With AI off, the dashboard is created right away using each site's favicon.
+   - With AI on, click **✨ Generate Dashboard** and the AI adds clean names, descriptions, and best-guess icons (see step 2 below).
+5. The new dashboard opens automatically. Open **Settings → Dashboards** to set one as **Default** so it appears on every new tab.
 
-Recommended models (pre-populated in the dropdown):
+Once a dashboard exists you can refine it in **Edit mode** (the ✎ button, top-right): drag to rearrange, resize sections, add bookmarks or widgets, and open **Dashboard Options** (⚙) and the **Theme** picker (🎨).
+
+### 2. (Optional) Turn on AI
+
+AI enriches a dashboard with clean names, descriptions, and inferred icons, and can generate color themes for you. To enable it:
+
+1. Get a free or paid API key from [openrouter.ai/keys](https://openrouter.ai/keys) (OpenRouter gives you one key for many providers; you can also use OpenAI, Anthropic, Google, and others directly).
+2. Open **Settings → AI**, paste the key, and click **Validate**, then **Save Settings**.
+3. Pick a model (the dropdown is pre-populated with good defaults):
 
 | Model | Speed | Cost | Notes |
 |---|---|---|---|
@@ -67,13 +98,7 @@ Recommended models (pre-populated in the dropdown):
 | Llama 3.1 8B | Fast | Free | Free tier |
 | Mistral 7B | Fast | Free | Free tier |
 
-### 3. Create Your First Dashboard
-
-1. Click the extension icon → **Create / Update Dashboard**
-2. Select bookmarks and/or folders from the tree view on the left
-3. Give your dashboard a name, pick an icon shape, and choose whether labels show below icons
-4. Click **✨ Generate Dashboard** — the AI will analyze each bookmark in batches
-5. Once complete, your dashboard appears in the list; set it as **Default** to show on new tabs
+With AI configured you can use **✨ Generate Dashboard** when creating a dashboard, and **Generate with AI** / **Surprise me** in the Theme picker. Without a key those AI actions stay disabled, and everything else continues to work normally.
 
 ## Usage
 

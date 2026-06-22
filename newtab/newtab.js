@@ -145,6 +145,7 @@ async function init() {
   setupRearrangeControls();
   setupEditModal();
   setupDashEditModal();
+  refreshHeaderDisplay();   // apply edit/settings button + corner-cog visibility
   // Weather is now provided by the three add-to-board weather widgets (no top
   // panel), so there's no global weather fetch here anymore.
 }
@@ -183,8 +184,21 @@ async function loadData() {
 
 // ─── Clock ────────────────────────────────────────────────────────────────────
 
+// Time / date visibility. Newer settings (showTime/showDate) are managed in the
+// Dashboard Options panel; fall back to the legacy combined `dateVisible` flag.
+function isTimeShown() {
+  return settings.showTime !== undefined ? settings.showTime !== false : settings.dateVisible !== false;
+}
+function isDateShown() {
+  return settings.showDate !== undefined ? settings.showDate !== false : settings.dateVisible !== false;
+}
+
 function startClock() {
-  function tick() {
+  renderClock();
+  setInterval(renderClock, 10000);
+}
+function renderClock() {
+  {
     const now = new Date();
     const fmt = settings.clockFormat || '12';
 
@@ -197,10 +211,15 @@ function startClock() {
       clockEl.textContent = `${h12}:${pad(now.getMinutes())} ${ampm}`;
     }
 
-    const dateVisible = settings.dateVisible !== false; // default true
-    clockEl.style.display  = dateVisible ? '' : 'none';
-    dateEl.style.display   = dateVisible ? '' : 'none';
-    if (!dateVisible) {
+    const showTime = isTimeShown();
+    const showDate = isDateShown();
+    clockEl.style.display  = showTime ? '' : 'none';
+    dateEl.style.display   = showDate ? '' : 'none';
+    // In compact mode time and date share one line ("Time – Date"); show the
+    // separator only when both are visible.
+    const sepEl = document.getElementById('clock-sep');
+    if (sepEl) sepEl.style.display = (settings.headerLayout === 'compact' && showTime && showDate) ? '' : 'none';
+    if (!showDate) {
       // nothing to render
     } else {
       const dfmt = settings.dateFormat || 'long';
@@ -244,8 +263,6 @@ function startClock() {
       }
     }
   }
-  tick();
-  setInterval(tick, 10000);
 }
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -455,9 +472,11 @@ function renderDashboard(dashId) {
   const dash = state.dashboards.find((d) => d.id === dashId);
   if (!dash) { showEmptyState(); return; }
 
-  // Update dashboard name in topbar
+  // Update dashboard name in topbar (center for Full mode, left for Compact).
   const nameEl = document.getElementById('dash-name-display');
   if (nameEl) nameEl.textContent = dash.name;
+  const nameCompact = document.getElementById('dash-name-compact');
+  if (nameCompact) { nameCompact.textContent = dash.name; nameCompact.title = dash.name; }
 
   // Label visibility/placement is now per-section (data-textpos); the old
   // dashboard-wide .text-hidden flag is no longer applied. Existing dashboards
@@ -815,17 +834,24 @@ function tightenSection(el) {
 function autoResizeGroupings() {
   if (!gridInstance) return;
   pushLayoutUndo();
+  // Legacy CSS-grid sections (if any) tighten via the old path.
   gridInstance.batchUpdate();
   document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(tightenSection);
   gridInstance.commit();
-  syncGridAttrs();
-  // The tighten estimate can land short of the consistent bottom gap, so enforce
-  // it once the new sizes are laid out.
-  requestAnimationFrame(() => {
-    document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach(fitSectionToContent);
-    syncGridAttrs();
+  // Icon sections: auto-resize overrides hand-sizing, so clear the manual flag,
+  // compact the icons to the top-left (removing internal gaps), then re-fit each
+  // section's height tightly to its icons.
+  document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach((el) => {
+    delete el.dataset.manualSize;
+    const gridEl = el.querySelector('.icon-grid');
+    if (gridEl && gridEl.gridstack) { try { gridEl.gridstack.compact(); } catch (_) {} }
   });
-  markRearrangeChanged();
+  syncGridAttrs();
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach((el) => relayoutIconGrid(el.dataset.folder));
+    syncGridAttrs();
+    markRearrangeChanged();
+  });
   showToast('Groups auto-resized ✓');
 }
 
@@ -1152,6 +1178,9 @@ function renderDashboardGrid(dash, folderNames, groups) {
     const item = document.createElement('div');
     item.className = 'grid-stack-item';
     item.dataset.folder = name;
+    // Restore the "hand-sized" flag so the height isn't snapped back to
+    // content-fit on load (only grown if too small to show every icon).
+    if (pos.manual) item.dataset.manualSize = '1';
     if (Number.isFinite(pos.x)) item.setAttribute('gs-x', pos.x);
     if (Number.isFinite(pos.y)) item.setAttribute('gs-y', pos.y);
     item.setAttribute('gs-w', w);
@@ -1238,8 +1267,13 @@ function renderDashboardGrid(dash, folderNames, groups) {
     gridInteracting = false;
     // A manually-resized widget keeps its size (auto-fit no longer touches it).
     if (el.dataset.widget) { el.dataset.manualSize = '1'; syncGridAttrs(); return; }
-    // A resized section re-flows its nested icon grid (more/fewer columns).
-    if (el.dataset.folder) { requestAnimationFrame(() => { relayoutIconGrid(el.dataset.folder); syncGridAttrs(); }); return; }
+    // A resized section keeps the user's chosen size: re-flow its nested icon
+    // grid (more/fewer columns) but don't snap the height back to content-fit.
+    if (el.dataset.folder) {
+      el.dataset.manualSize = '1';
+      requestAnimationFrame(() => { relayoutIconGrid(el.dataset.folder); syncGridAttrs(); });
+      return;
+    }
     enforceSectionMin(el);
     requestAnimationFrame(() => { fitSectionToContent(el); syncGridAttrs(); });
   });
@@ -1409,6 +1443,9 @@ function fitSectionForIconGrid(gridEl) {
   const needPx = headerPx + rows * cell + ICON_GRID_MARGIN * (rows + 1) + 18;
   const needH = Math.max(GRID_MIN_H, Math.ceil(needPx / GRID_CELL));
   if (item.gridstackNode && item.gridstackNode.h === needH) return;
+  // A hand-resized section keeps the size the user chose: only grow it back up
+  // when it's too small to show every icon — never shrink it to content-fit.
+  if (item.dataset.manualSize === '1' && item.gridstackNode && item.gridstackNode.h > needH) return;
   const wasStatic = !state.rearrangeMode;
   if (wasStatic) gridInstance.setStatic(false);
   try { gridInstance.update(item, { h: needH }); } catch (_) {}
@@ -1669,6 +1706,10 @@ function setupRearrangeControls() {
   document.getElementById('rt-autoresize')?.addEventListener('click', autoResizeGroupings);
   document.getElementById('rt-snap')?.addEventListener('click', snapGroupingsTogether);
   document.getElementById('rt-undo')?.addEventListener('click', undoAutoLayout);
+  document.getElementById('rt-dash-options')?.addEventListener('click', openDashOptions);
+  setupDashOptions();
+  setupThemeModal();
+  setupThemeCreate();
   setupRearrangeToolsMenu();
   setupWidgetModal();
 }
@@ -1908,7 +1949,7 @@ function setWidgetTab(tab) {
 // Grey out + lower the floating tools menu while any add dialog is open, so it
 // doesn't float over the popup. Re-activates once every add dialog is closed.
 function refreshToolsDimmed() {
-  const anyOpen = ['add-item-modal', 'add-bookmark-modal', 'manual-item-modal', 'widget-modal']
+  const anyOpen = ['add-item-modal', 'add-bookmark-modal', 'manual-item-modal', 'widget-modal', 'dash-options-modal']
     .some((id) => document.getElementById(id)?.classList.contains('visible'));
   document.getElementById('rearrange-tools')?.classList.toggle('tools-dimmed', anyOpen);
 }
@@ -2665,7 +2706,9 @@ function setupRearrangeToolsMenu() {
   if (!menu) return;
   const tip = document.getElementById('rt-tip');
 
-  // The bar is fixed at top-center (CSS) and no longer draggable.
+  // The bar starts top-center (CSS) and can be dragged by its grip handle.
+  makeDraggable(document.getElementById('rt-grip'), menu);
+
   // Hover description tooltips.
   menu.querySelectorAll('.rt-btn').forEach((b) => {
     b.addEventListener('mouseenter', () => {
@@ -2678,6 +2721,735 @@ function setupRearrangeToolsMenu() {
 }
 
 
+// Make `target` draggable by `handle`. The element is switched to fixed
+// positioning and follows the pointer, clamped to the viewport. Pointerdowns on
+// interactive controls inside the handle (buttons, inputs) are ignored.
+function makeDraggable(handle, target) {
+  if (!handle || !target || handle._dragBound) return;
+  handle._dragBound = true;
+  let sx, sy, ox, oy, dragging = false;
+  const move = (e) => {
+    if (!dragging) return;
+    const w = target.offsetWidth, h = target.offsetHeight;
+    let nx = Math.max(4, Math.min(ox + (e.clientX - sx), window.innerWidth  - w - 4));
+    let ny = Math.max(4, Math.min(oy + (e.clientY - sy), window.innerHeight - h - 4));
+    target.style.left = nx + 'px';
+    target.style.top  = ny + 'px';
+  };
+  const up = () => {
+    dragging = false;
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', up);
+  };
+  handle.addEventListener('pointerdown', (e) => {
+    if (e.button) return;                                   // left button only
+    if (e.target.closest('button, a, input, select, textarea')) return;  // don't hijack controls
+    const r = target.getBoundingClientRect();
+    target.style.position = 'fixed';
+    target.style.margin = '0';
+    target.style.left = r.left + 'px';
+    target.style.top  = r.top + 'px';
+    target.style.right = 'auto';
+    target.style.bottom = 'auto';
+    target.style.transform = 'none';
+    sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+    dragging = true;
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+    e.preventDefault();
+  });
+}
+
+// ─── Dashboard Options panel ───────────────────────────────────────────────
+// A floating, draggable popup opened by the ⚙ button in the edit-mode toolbar
+// (and, when the Edit button is hidden, by the corner cog). It does not dim the
+// screen — only the floating toolbar greys out while it's open. Every control
+// auto-saves immediately — there is no Save button — and applies to the UI live.
+
+// Persist the settings object to chrome.storage.local.
+function saveSettings() { return chromeSet({ settings }); }
+
+// Change one setting, persist it, and refresh the affected UI immediately.
+function dashOptSet(key, value) {
+  settings[key] = value;
+  saveSettings();
+  applyDashOptionsLive();
+}
+
+// Re-apply everything the panel can change so edits show up without a refresh.
+function applyDashOptionsLive() {
+  try { applyTheme(settings.theme); } catch (_) {}
+  try { renderSwitcher(); } catch (_) {}
+  try { refreshHeaderDisplay(); } catch (_) {}
+}
+
+// Reflect header-related settings (time/date visibility, header layout, button
+// visibility) onto the DOM.
+function refreshHeaderDisplay() {
+  try { renderClock(); } catch (_) {}
+
+  // Header layout — Full (default) or Compact.
+  const topbar = document.querySelector('.topbar');
+  if (topbar) topbar.classList.toggle('header-compact', settings.headerLayout === 'compact');
+
+  const showEdit = settings.showEditButton !== false;       // default true
+  const showSettings = settings.showSettingsButton !== false; // default true
+
+  // Edit Dashboard button — also hidden while editing (the floating toolbar
+  // drives editing, so the old "Editing Dashboard" label served no purpose).
+  const editBtn = document.getElementById('rearrange-btn');
+  if (editBtn) editBtn.style.display = (showEdit && !state.rearrangeMode) ? '' : 'none';
+
+  // Settings button.
+  const settingsLink = document.getElementById('settings-link');
+  if (settingsLink) settingsLink.style.display = showSettings ? '' : 'none';
+
+  // Corner cog — a fallback shown whenever either header button is hidden, so
+  // there's always a way to reach edit mode. Its visibility reacts immediately
+  // to the toggles (same as the Settings button), including while editing.
+  const cornerCog = document.getElementById('corner-cog');
+  if (cornerCog) {
+    const showCog = (!showEdit || !showSettings);
+    cornerCog.style.display = showCog ? 'flex' : 'none';
+    // Vertically center it within the header band (browser top ↔ tab bar).
+    if (showCog && topbar) {
+      const h = topbar.getBoundingClientRect().height;
+      if (h) cornerCog.style.top = Math.max(6, Math.round(h / 2 - cornerCog.offsetHeight / 2)) + 'px';
+    }
+  }
+}
+
+// ── Small DOM builders shared by every panel section ──
+function doSectionEl(title) {
+  const s = document.createElement('div');
+  s.className = 'do-section';
+  if (title) {
+    const h = document.createElement('div');
+    h.className = 'do-section-title';
+    h.textContent = title;
+    s.appendChild(h);
+  }
+  return s;
+}
+function doRowEl(label, controlEl, sub) {
+  const row = document.createElement('div');
+  row.className = 'do-row';
+  const text = document.createElement('div');
+  text.className = 'do-row-text';
+  const l = document.createElement('div');
+  l.className = 'do-row-label';
+  l.textContent = label;
+  text.appendChild(l);
+  if (sub) {
+    const sb = document.createElement('div');
+    sb.className = 'do-row-sub';
+    sb.textContent = sub;
+    text.appendChild(sb);
+  }
+  row.appendChild(text);
+  row.appendChild(controlEl);
+  return row;
+}
+function doSwitchEl(checked, onChange) {
+  const wrap = document.createElement('label');
+  wrap.className = 'do-switch';
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = !!checked;
+  const slider = document.createElement('span');
+  slider.className = 'do-slider';
+  input.addEventListener('change', () => onChange(input.checked));
+  wrap.appendChild(input);
+  wrap.appendChild(slider);
+  return wrap;
+}
+function doSegmentEl(options, current, onChange) {
+  const seg = document.createElement('div');
+  seg.className = 'do-seg';
+  options.forEach((opt) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = opt.label;
+    if (opt.value === current) b.classList.add('active');
+    b.addEventListener('click', () => {
+      if (b.classList.contains('active')) return;
+      seg.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      onChange(opt.value);
+    });
+    seg.appendChild(b);
+  });
+  return seg;
+}
+
+// ── Theme picker (name + palette preview + dropdown) ──
+// Selectable options: Auto (system) + built-in themes + the user's custom themes.
+function dashThemeOptions() {
+  const opts = [{ id: 'auto', name: 'Auto (System)', colors: null, cat: 'auto' }];
+  const std = (window.ThemeEngine && ThemeEngine.STANDARD_THEMES) || [];
+  std.forEach((t) => {
+    const isDark = window.ThemeEngine ? ThemeEngine.lum(t.bgPrimary) < 0.4 : false;
+    opts.push({ id: t.id, name: t.name, colors: t, cat: isDark ? 'dark' : 'light' });
+  });
+  (settings.customThemes || []).forEach((t) => opts.push({ id: t.id, name: t.name || 'Custom', colors: t.colors, cat: 'custom' }));
+  return opts;
+}
+const DO_SWATCH_TOKENS = ['--accent', '--bg-primary', '--bg-secondary', '--bg-card', '--border', '--text-primary'];
+function dashThemeSwatches(colors) {
+  const row = document.createElement('span');
+  row.className = 'do-sw-row';
+  if (!colors || !window.ThemeEngine) {
+    const dot = document.createElement('span');
+    dot.className = 'do-sw';
+    dot.style.background = 'var(--bg-hover)';
+    dot.title = 'Follows your system light/dark setting';
+    row.appendChild(dot);
+    return row;
+  }
+  const pal = ThemeEngine.paletteFor(colors);
+  DO_SWATCH_TOKENS.forEach((tok) => {
+    const dot = document.createElement('span');
+    dot.className = 'do-sw';
+    dot.style.background = pal[tok] || '#888';
+    row.appendChild(dot);
+  });
+  return row;
+}
+function buildThemeDropdown() {
+  const current = settings.theme || 'auto';
+  const opts = dashThemeOptions();
+  const cur = opts.find((o) => o.id === current) || opts[0];
+
+  const wrap = document.createElement('div');
+  wrap.className = 'do-theme';
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'do-theme-trigger';
+  const nameEl = document.createElement('span');
+  nameEl.className = 'do-theme-name';
+  nameEl.textContent = cur.name;
+  const swWrap = document.createElement('span');
+  swWrap.appendChild(dashThemeSwatches(cur.colors));
+  const caret = document.createElement('span');
+  caret.className = 'do-caret';
+  caret.textContent = '▼';
+  trigger.appendChild(nameEl);
+  trigger.appendChild(swWrap);
+  trigger.appendChild(caret);
+
+  const menu = document.createElement('div');
+  menu.className = 'do-theme-menu';
+  opts.forEach((o) => {
+    const opt = document.createElement('button');
+    opt.type = 'button';
+    opt.className = 'do-theme-opt' + (o.id === current ? ' active' : '');
+    const n = document.createElement('span');
+    n.className = 'do-theme-name';
+    n.textContent = o.name;
+    opt.appendChild(n);
+    opt.appendChild(dashThemeSwatches(o.colors));
+    opt.addEventListener('click', () => {
+      menu.classList.remove('open');
+      menu.querySelectorAll('.do-theme-opt').forEach((x) => x.classList.remove('active'));
+      opt.classList.add('active');
+      nameEl.textContent = o.name;
+      swWrap.innerHTML = '';
+      swWrap.appendChild(dashThemeSwatches(o.colors));
+      dashOptSet('theme', o.id);
+    });
+    menu.appendChild(opt);
+  });
+
+  trigger.addEventListener('click', (e) => { e.stopPropagation(); menu.classList.toggle('open'); });
+
+  wrap.appendChild(trigger);
+  wrap.appendChild(menu);
+  return wrap;
+}
+
+// Build the panel body from the current settings. Sections are appended in
+// spec order; each is added in its own step.
+function renderDashOptions() {
+  const body = document.getElementById('dash-options-body');
+  if (!body) return;
+  body.innerHTML = '';
+
+  // ── Header: layout + time/date ──
+  const disp = doSectionEl('Header');
+  disp.appendChild(doRowEl(
+    'Header Layout',
+    doSegmentEl(
+      [{ label: 'Full', value: 'full' }, { label: 'Compact', value: 'compact' }],
+      settings.headerLayout === 'compact' ? 'compact' : 'full',
+      (v) => dashOptSet('headerLayout', v)
+    ),
+    'Compact hides branding and shows the dashboard name on the left.'
+  ));
+  disp.appendChild(doRowEl(
+    'Show Time',
+    doSwitchEl(isTimeShown(), (on) => dashOptSet('showTime', on)),
+    'Show the clock in the dashboard header.'
+  ));
+  disp.appendChild(doRowEl(
+    'Show Date',
+    doSwitchEl(isDateShown(), (on) => dashOptSet('showDate', on)),
+    'Show the date in the dashboard header.'
+  ));
+  body.appendChild(disp);
+
+  // ── Header & Controls visibility ──
+  const vis = doSectionEl('Header & Controls');
+  vis.appendChild(doRowEl(
+    'Show Edit Dashboard Button',
+    doSwitchEl(settings.showEditButton !== false, (on) => dashOptSet('showEditButton', on)),
+    'When off, a small ⚙ appears in the top-right corner to reach these options.'
+  ));
+  vis.appendChild(doRowEl(
+    'Show Settings Button',
+    doSwitchEl(settings.showSettingsButton !== false, (on) => dashOptSet('showSettingsButton', on)),
+    'Global settings are still reachable from the extension toolbar icon.'
+  ));
+  vis.appendChild(doRowEl(
+    'Search',
+    doSwitchEl(settings.searchEnabled !== false, (on) => dashOptSet('searchEnabled', on)),
+    'Show the bookmark search box.'
+  ));
+  vis.appendChild(doRowEl(
+    'Link Hover Popup',
+    doSwitchEl(settings.showLinkHover !== false, (on) => dashOptSet('showLinkHover', on)),
+    'Show bookmark details in a popup at the bottom-center on hover.'
+  ));
+  body.appendChild(vis);
+
+  // ── Dashboard Type (switcher style) ──
+  const typeSec = doSectionEl('Dashboard Switcher');
+  typeSec.appendChild(doSegmentEl(
+    [{ label: 'Tabs', value: 'tabs' }, { label: 'Sidebar', value: 'sidebar' }, { label: 'Dropdown', value: 'dropdown' }],
+    settings.dashboardSwitcher || 'dropdown',
+    (v) => dashOptSet('dashboardSwitcher', v)
+  ));
+  body.appendChild(typeSec);
+  // (Theme selection lives in its own modal — the 🎨 button in the edit toolbar.)
+}
+
+function dashOptionsOpen() {
+  return document.getElementById('dash-options-modal')?.classList.contains('visible');
+}
+// The toolbar ⚙ and the corner cog toggle the popup open/closed.
+function openDashOptions() { dashOptionsOpen() ? closeDashOptionsModal() : openDashOptionsModal(); }
+function openDashOptionsModal() {
+  renderDashOptions();
+  // Reset to the centered position each time it opens (clears any prior drag).
+  const box = document.querySelector('#dash-options-modal .modal-box');
+  if (box) { box.style.position = ''; box.style.left = ''; box.style.top = ''; box.style.margin = ''; box.style.transform = ''; }
+  document.getElementById('dash-options-modal')?.classList.add('visible');
+  if (typeof refreshToolsDimmed === 'function') refreshToolsDimmed();
+}
+function closeDashOptionsModal() {
+  document.getElementById('dash-options-modal')?.classList.remove('visible');
+  if (typeof refreshToolsDimmed === 'function') refreshToolsDimmed();
+}
+let _cogRecenterRaf = 0;
+function setupDashOptions() {
+  // Keep the corner cog vertically centered in the header as the window resizes.
+  window.addEventListener('resize', () => {
+    if (_cogRecenterRaf) cancelAnimationFrame(_cogRecenterRaf);
+    _cogRecenterRaf = requestAnimationFrame(() => { try { refreshHeaderDisplay(); } catch (_) {} });
+  });
+  document.getElementById('dash-options-close')?.addEventListener('click', closeDashOptionsModal);
+  // The corner cog stands in for the hidden Edit Dashboard button: it toggles
+  // the floating edit toolbar (rearrange mode), not the Dashboard Options panel.
+  document.getElementById('corner-cog')?.addEventListener('click', () => {
+    if (state.rearrangeMode) exitRearrangeMode(true);
+    else enterRearrangeMode();
+  });
+  // Draggable panel (via its header).
+  makeDraggable(
+    document.querySelector('#dash-options-modal .modal-header'),
+    document.querySelector('#dash-options-modal .modal-box')
+  );
+  document.getElementById('dash-options-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'dash-options-modal') { closeDashOptionsModal(); return; }
+    // Close any open theme dropdown when clicking elsewhere in the panel.
+    if (!e.target.closest('.do-theme')) {
+      document.querySelectorAll('.do-theme-menu.open').forEach((m) => m.classList.remove('open'));
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('dash-options-modal')?.classList.contains('visible')) {
+      closeDashOptionsModal();
+    }
+  });
+}
+
+// ─── Theme modal ───────────────────────────────────────────────────────────
+// Opened by the 🎨 button in the edit toolbar. While it's open the dashboard
+// drops its edit chrome and locks (so the theme previews exactly as it will
+// look), stays non-interactive and un-greyed, and the toolbar is inactive.
+// Closing resumes edit mode and the toolbar.
+let _themeResumeEdit = false;
+
+function enterThemePreview() {
+  _themeResumeEdit = state.rearrangeMode;
+  if (!_themeResumeEdit) return;
+  // Drop the edit visuals (handles/overlay) so the dashboard looks normal, and
+  // lock the grids. state.rearrangeMode stays true, so card clicks are still
+  // suppressed (read-only) and the Edit button stays hidden.
+  document.body.classList.remove('rearrange-mode');
+  if (gridInstance) gridInstance.setStatic(true);
+  setIconGridsStatic(true);
+}
+function resumeEditAfterTheme() {
+  if (!_themeResumeEdit) return;
+  _themeResumeEdit = false;
+  document.body.classList.add('rearrange-mode');
+  if (gridInstance) {
+    gridInstance.setStatic(false);
+    gridInstance.enableMove(true);
+    gridInstance.enableResize(true);
+    reassertGridLocks();
+  }
+  setIconGridsStatic(false);
+}
+
+// A little dashboard mock rendered in a theme's palette (header bar + tiles + a
+// text line). For "auto" (no fixed palette) show a split light/dark swatch.
+function buildThemeMini(colors) {
+  const mini = document.createElement('div');
+  mini.className = 'theme-mini';
+  if (!colors || !window.ThemeEngine) {
+    mini.style.background = 'linear-gradient(135deg, #f4f4f6 0 50%, #18181b 50% 100%)';
+    return mini;
+  }
+  const p = ThemeEngine.paletteFor(colors);
+  mini.style.background = p['--bg-primary'];
+  mini.style.borderColor = p['--border'] || 'rgba(0,0,0,.15)';
+  const bar = document.createElement('div');
+  bar.className = 'theme-mini-bar';
+  bar.style.background = p['--bg-secondary'];
+  const dot = document.createElement('span');
+  dot.className = 'theme-mini-dot';
+  dot.style.background = p['--accent'];
+  bar.appendChild(dot);
+  const bodyEl = document.createElement('div');
+  bodyEl.className = 'theme-mini-body';
+  const tiles = document.createElement('div');
+  tiles.className = 'theme-mini-tiles';
+  [p['--bg-card'], p['--bg-card'], p['--accent']].forEach((c) => {
+    const t = document.createElement('span');
+    t.className = 'theme-mini-tile';
+    t.style.background = c;
+    tiles.appendChild(t);
+  });
+  const line = document.createElement('div');
+  line.className = 'theme-mini-line';
+  line.style.background = p['--text-primary'];
+  bodyEl.appendChild(tiles);
+  bodyEl.appendChild(line);
+  mini.appendChild(bar);
+  mini.appendChild(bodyEl);
+  return mini;
+}
+
+// Visual theme picker: Light / Dark / Custom tabs of mini dashboard previews.
+// Click a card to apply + save it (the read-only dashboard updates live); the
+// 🎲 picks a random one from the active tab.
+function buildThemePicker() {
+  const wrap = document.createElement('div');
+  const opts = dashThemeOptions();
+  const committed = () => settings.theme || 'auto';
+  const allCards = [];
+  const refreshActive = () => allCards.forEach((c) => c.classList.toggle('active', c.dataset.theme === committed()));
+
+  function makeCard(o) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'theme-card';
+    card.dataset.theme = o.id;
+    card.title = o.name;
+    card.appendChild(buildThemeMini(o.colors));
+    const nm = document.createElement('span');
+    nm.className = 'theme-card-name';
+    nm.textContent = o.name;
+    card.appendChild(nm);
+    card.addEventListener('click', () => { dashOptSet('theme', o.id); refreshActive(); });
+    if (o.cat === 'custom') {
+      const del = document.createElement('span');
+      del.className = 'theme-card-del';
+      del.textContent = '✕';
+      del.title = 'Delete this custom theme';
+      del.addEventListener('click', (e) => { e.stopPropagation(); removeCustom(o.id, o.name); });
+      card.appendChild(del);
+    }
+    allCards.push(card);
+    return card;
+  }
+
+  // ── Custom-theme management (delete / create / AI generate) ──
+  function persistCustomThemes() {
+    saveSettings();
+    if (window.ThemeEngine) { try { ThemeEngine.injectCustomThemeStyles(settings.customThemes || []); } catch (_) {} }
+  }
+  function removeCustom(id, name) {
+    if (!window.confirm(`Delete the custom theme “${name}”? This can’t be undone.`)) return;
+    settings.customThemes = (settings.customThemes || []).filter((t) => t.id !== id);
+    persistCustomThemes();
+    const i = opts.findIndex((o) => o.id === id);
+    if (i >= 0) opts.splice(i, 1);
+    if (committed() === id) dashOptSet('theme', 'auto');   // active one was deleted → revert
+    renderGrid();
+  }
+  function addGeneratedTheme(theme) {
+    const id = 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const entry = { id, name: (theme.name || 'Custom').slice(0, 24), colors: theme.colors };
+    settings.customThemes = settings.customThemes || [];
+    settings.customThemes.push(entry);
+    persistCustomThemes();                       // inject CSS BEFORE applying
+    opts.push({ id, name: entry.name, colors: entry.colors, cat: 'custom' });
+    activeCat = 'custom';
+    dashOptSet('theme', id);                     // apply + save as active
+    renderGrid();
+  }
+
+  const hint = document.createElement('div');
+  hint.className = 'theme-picker-hint';
+  hint.textContent = 'Click a theme to apply it.';
+  wrap.appendChild(hint);
+
+  // Auto (system) — pinned, always available.
+  const auto = document.createElement('button');
+  auto.type = 'button';
+  auto.className = 'theme-auto';
+  auto.dataset.theme = 'auto';
+  auto.innerHTML = '<span class="theme-auto-sw"></span><span>Auto — follow system light / dark</span>';
+  auto.addEventListener('click', () => { dashOptSet('theme', 'auto'); refreshActive(); });
+  allCards.push(auto);
+  wrap.appendChild(auto);
+
+  // Light / Dark / Custom tabs.
+  const cats = [{ key: 'light', label: 'Light' }, { key: 'dark', label: 'Dark' }, { key: 'custom', label: 'Custom' }];
+  const curOpt = opts.find((o) => o.id === committed());
+  let activeCat = (curOpt && curOpt.cat && curOpt.cat !== 'auto') ? curOpt.cat : 'light';
+
+  const tabs = document.createElement('div');
+  tabs.className = 'do-seg theme-tabs';
+  const grid = document.createElement('div');
+  grid.className = 'theme-grid';
+
+  // ── Custom-tab action bar (create / AI generate / surprise) ──
+  const aiOk = !!(window.AITheme && AITheme.configured(settings));
+  const customActions = document.createElement('div');
+  customActions.style.display = 'none';
+  const actionsRow = document.createElement('div');
+  actionsRow.className = 'theme-actions';
+  const createBtn = document.createElement('button');
+  createBtn.type = 'button'; createBtn.className = 'theme-act-btn full'; createBtn.textContent = '+ Create custom theme';
+  createBtn.addEventListener('click', () => openThemeCreate());
+  const genBtn = document.createElement('button');
+  genBtn.type = 'button'; genBtn.className = 'theme-act-btn'; genBtn.textContent = '✨ Generate with AI'; genBtn.disabled = !aiOk;
+  const surpriseBtn = document.createElement('button');
+  surpriseBtn.type = 'button'; surpriseBtn.className = 'theme-act-btn'; surpriseBtn.textContent = '🎲 Surprise me'; surpriseBtn.disabled = !aiOk;
+  actionsRow.appendChild(createBtn); actionsRow.appendChild(genBtn); actionsRow.appendChild(surpriseBtn);
+  const aiRow = document.createElement('div');
+  aiRow.className = 'theme-ai-input'; aiRow.style.display = 'none';
+  const aiInput = document.createElement('input');
+  aiInput.type = 'text'; aiInput.placeholder = 'Describe a theme — e.g. “sunset over the ocean”';
+  const aiGo = document.createElement('button');
+  aiGo.type = 'button'; aiGo.className = 'theme-act-btn'; aiGo.textContent = 'Generate';
+  aiRow.appendChild(aiInput); aiRow.appendChild(aiGo);
+  const aiMsg = document.createElement('div');
+  aiMsg.className = 'theme-ai-msg';
+  customActions.appendChild(actionsRow);
+  customActions.appendChild(aiRow);
+  customActions.appendChild(aiMsg);
+
+  const setBusy = (busy, label) => {
+    [createBtn, genBtn, surpriseBtn, aiGo].forEach((b) => { b.disabled = busy || (!aiOk && b !== createBtn); });
+    if (busy) { aiMsg.style.color = 'var(--text-muted)'; aiMsg.innerHTML = '<span class="theme-spin"></span> ' + (label || 'Generating…'); }
+  };
+  const runGenerate = async (desc) => {
+    if (!aiOk) return;
+    setBusy(true, desc ? 'Generating your theme…' : 'Dreaming up a theme…');
+    try {
+      const theme = await AITheme.generate(settings, desc);
+      addGeneratedTheme(theme);                 // re-renders the grid (stays on Custom)
+      aiMsg.style.color = 'var(--text-muted)';
+      aiMsg.textContent = 'Added & applied “' + (theme.name || 'Custom') + '”.';
+      aiRow.style.display = 'none'; aiInput.value = '';
+    } catch (e) {
+      aiMsg.style.color = 'var(--danger)';
+      aiMsg.textContent = 'Could not generate: ' + (e && e.message ? e.message : 'unknown error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  genBtn.addEventListener('click', () => {
+    aiRow.style.display = aiRow.style.display === 'none' ? 'flex' : 'none';
+    if (aiRow.style.display === 'flex') aiInput.focus();
+  });
+  aiGo.addEventListener('click', () => runGenerate(aiInput.value.trim()));
+  aiInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runGenerate(aiInput.value.trim()); });
+  surpriseBtn.addEventListener('click', () => runGenerate(''));
+
+  const renderGrid = () => {
+    grid.innerHTML = '';
+    allCards.length = 1;   // keep the pinned Auto button; drop stale grid cards
+    const isCustom = activeCat === 'custom';
+    customActions.style.display = isCustom ? '' : 'none';
+    if (isCustom) {
+      aiMsg.style.color = 'var(--text-muted)';
+      aiMsg.textContent = aiOk ? '' : 'AI not set up — add an API key in Settings to generate themes.';
+    }
+    const list = opts.filter((o) => o.cat === activeCat);
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = 'theme-empty';
+      empty.textContent = isCustom ? 'No custom themes yet — create or generate one above.' : 'No themes here.';
+      grid.appendChild(empty);
+    } else {
+      list.forEach((o) => grid.appendChild(makeCard(o)));
+    }
+    refreshActive();
+  };
+
+  cats.forEach((ct) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = ct.label;
+    if (ct.key === activeCat) b.classList.add('active');
+    b.addEventListener('click', () => {
+      activeCat = ct.key;
+      tabs.querySelectorAll('button').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      renderGrid();
+    });
+    tabs.appendChild(b);
+  });
+
+  wrap.appendChild(tabs);
+  wrap.appendChild(customActions);
+  wrap.appendChild(grid);
+  renderGrid();
+  return wrap;
+}
+
+function renderThemeModal() {
+  const body = document.getElementById('theme-modal-body');
+  if (!body) return;
+  body.innerHTML = '';
+  body.appendChild(buildThemePicker());
+}
+function openThemeModal() {
+  renderThemeModal();
+  const box = document.querySelector('#theme-modal .modal-box');
+  if (box) { box.style.position = ''; box.style.left = ''; box.style.top = ''; box.style.margin = ''; box.style.transform = ''; }
+  enterThemePreview();
+  document.getElementById('theme-modal')?.classList.add('visible');
+}
+function closeThemeModal() {
+  document.getElementById('theme-modal')?.classList.remove('visible');
+  try { applyTheme(settings.theme); } catch (_) {}   // drop any lingering hover preview
+  resumeEditAfterTheme();
+}
+function setupThemeModal() {
+  document.getElementById('rt-theme')?.addEventListener('click', openThemeModal);
+  document.getElementById('theme-modal-close')?.addEventListener('click', closeThemeModal);
+  makeDraggable(
+    document.querySelector('#theme-modal .modal-header'),
+    document.querySelector('#theme-modal .modal-box')
+  );
+  // Only the ✕ closes (so the dashboard stays in preview); still close the theme
+  // dropdown when clicking elsewhere inside the modal.
+  document.getElementById('theme-modal')?.addEventListener('click', (e) => {
+    if (!e.target.closest('.do-theme')) {
+      document.querySelectorAll('#theme-modal .do-theme-menu.open').forEach((m) => m.classList.remove('open'));
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('theme-modal')?.classList.contains('visible')) {
+      closeThemeModal();
+    }
+  });
+}
+
+// ─── Inline custom-theme creator ───────────────────────────────────────────
+// Manual theme creation that stays on the dashboard (no trip to Settings).
+const TC_FIELDS = [
+  ['accent', 'Accent', '#6366f1'],
+  ['bgPrimary', 'Page background', '#101018'],
+  ['bgSecondary', 'Panel surface', '#181826'],
+  ['textPrimary', 'Text', '#e8e8f0'],
+  ['textMuted', 'Muted text', '#8a8a99'],
+];
+let _tcColors = null;
+
+function openThemeCreate() {
+  _tcColors = {};
+  TC_FIELDS.forEach(([k, , def]) => { _tcColors[k] = def; });
+  renderThemeCreate();
+  document.getElementById('theme-create-modal')?.classList.add('visible');
+  const ni = document.getElementById('tc-name'); if (ni) { ni.value = ''; ni.focus(); }
+}
+function closeThemeCreate() { document.getElementById('theme-create-modal')?.classList.remove('visible'); }
+
+function refreshTcPreview() {
+  const pv = document.getElementById('tc-preview');
+  if (!pv) return;
+  pv.innerHTML = '';
+  pv.appendChild(buildThemeMini(_tcColors));
+}
+function renderThemeCreate() {
+  const body = document.getElementById('theme-create-body');
+  if (!body) return;
+  body.innerHTML = '';
+  const nf = document.createElement('div'); nf.className = 'tc-field';
+  const nl = document.createElement('label'); nl.className = 'do-row-label'; nl.textContent = 'Theme name'; nl.setAttribute('for', 'tc-name');
+  const ni = document.createElement('input'); ni.className = 'tc-name'; ni.id = 'tc-name'; ni.type = 'text'; ni.maxLength = 24; ni.placeholder = 'My theme';
+  nf.appendChild(nl); nf.appendChild(ni); body.appendChild(nf);
+
+  const rows = document.createElement('div'); rows.className = 'tc-rows';
+  TC_FIELDS.forEach(([key, label]) => {
+    const row = document.createElement('div'); row.className = 'tc-row';
+    const lab = document.createElement('label'); lab.textContent = label;
+    const pick = document.createElement('input'); pick.type = 'color'; pick.value = _tcColors[key];
+    const text = document.createElement('input'); text.type = 'text'; text.value = _tcColors[key]; text.maxLength = 7; text.spellcheck = false;
+    pick.addEventListener('input', () => { _tcColors[key] = pick.value; text.value = pick.value; refreshTcPreview(); });
+    text.addEventListener('input', () => {
+      const v = text.value.trim();
+      if (/^#?[0-9a-fA-F]{6}$/.test(v)) { const n = (v[0] === '#' ? v : '#' + v).toLowerCase(); _tcColors[key] = n; pick.value = n; refreshTcPreview(); }
+    });
+    row.appendChild(lab); row.appendChild(pick); row.appendChild(text); rows.appendChild(row);
+  });
+  body.appendChild(rows);
+
+  const pv = document.createElement('div'); pv.className = 'tc-preview'; pv.id = 'tc-preview';
+  body.appendChild(pv);
+  refreshTcPreview();
+}
+function saveCreatedTheme() {
+  if (!_tcColors) return;
+  const nameEl = document.getElementById('tc-name');
+  const name = ((nameEl && nameEl.value.trim()) || 'Custom').slice(0, 24);
+  const id = 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  settings.customThemes = settings.customThemes || [];
+  settings.customThemes.push({ id, name, colors: { ..._tcColors } });
+  saveSettings();
+  if (window.ThemeEngine) { try { ThemeEngine.injectCustomThemeStyles(settings.customThemes); } catch (_) {} }
+  closeThemeCreate();
+  dashOptSet('theme', id);   // apply + save as active
+  renderThemeModal();        // rebuild the picker → Custom tab shows the new theme
+}
+function setupThemeCreate() {
+  document.getElementById('theme-create-close')?.addEventListener('click', closeThemeCreate);
+  document.getElementById('theme-create-cancel')?.addEventListener('click', closeThemeCreate);
+  document.getElementById('theme-create-save')?.addEventListener('click', saveCreatedTheme);
+  document.getElementById('theme-create-modal')?.addEventListener('click', (e) => { if (e.target.id === 'theme-create-modal') closeThemeCreate(); });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('theme-create-modal')?.classList.contains('visible')) closeThemeCreate();
+  });
+}
+
 // Snapshot of dash.layout taken when entering edit mode, used to revert on Cancel.
 let layoutSnapshot = null;
 
@@ -2685,12 +3457,11 @@ function enterRearrangeMode() {
   state.rearrangeMode     = true;
   state.rearrangeModified = false;
   document.body.classList.add('rearrange-mode');
-  // The top button becomes a non-clickable "Editing Dashboard" label; Save and
-  // Cancel now live in the floating tools menu.
-  rearrangeBtn.textContent = '✎ Editing Dashboard';
-  rearrangeBtn.classList.add('editing');
+  // The Edit button is hidden while editing (Save/Cancel live in the floating
+  // tools menu); refreshHeaderDisplay hides the button + corner cog for us.
   rearrangeBtn.disabled = true;
   rearrangeSaveBtn.classList.remove('has-changes');
+  refreshHeaderDisplay();
   searchInput.blur();
 
   // (No shake — the tools bar opens cleanly with no animation/layout shift.)
@@ -2730,6 +3501,7 @@ function exitRearrangeMode(discard = false) {
   rearrangeBtn.classList.remove('editing');
   rearrangeBtn.disabled = false;
   rearrangeSaveBtn.classList.remove('has-changes');
+  refreshHeaderDisplay();   // restore corner-cog / hidden-button state after editing
 
   // Re-lock the grid (and the nested icon grids).
   setIconGridsStatic(true);
@@ -2764,7 +3536,9 @@ function captureGridLayout(dash) {
       const sec = n.el.querySelector('.folder-section');
       const iconSize = (sec && sec.dataset.iconsize) || (layout[name] && layout[name].iconSize) || DEFAULT_ICON_SIZE;
       const textPos = (sec && sec.dataset.textpos) || (layout[name] && layout[name].textPos);
-      layout[name] = Object.assign({}, layout[name], { x: n.x, y: n.y, w: n.w, h: n.h, iconSize }, textPos ? { textPos } : {});
+      // Remember a hand-sized section so its height isn't reset to content-fit on reload.
+      const manual = n.el.dataset.manualSize === '1' || !!(layout[name] && layout[name].manual);
+      layout[name] = Object.assign({}, layout[name], { x: n.x, y: n.y, w: n.w, h: n.h, iconSize, manual }, textPos ? { textPos } : {});
     } else if (widgetUid) {
       const k = '@w:' + widgetUid;
       // Remember whether the user hand-sized this widget, so auto-fit doesn't
@@ -3516,6 +4290,7 @@ function hoverInfoEl() {
 }
 
 function showHoverInfo(bm) {
+  if (settings.showLinkHover === false) return;   // bottom-center popup disabled in Dashboard Options
   const el = hoverInfoEl();
   const desc = bm.description
     ? '<div style="font-weight:500;display:-webkit-box;-webkit-line-clamp:2;' +

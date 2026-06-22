@@ -59,6 +59,15 @@
     .topbar-left  { display: flex; align-items: flex-start; gap: 12px; flex: 1; }
     .topbar-center { flex: 1; text-align: center; }
     .topbar-right { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; }
+    .corner-cog {
+      position: fixed; top: 10px; right: 12px; z-index: 30;
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 1px solid var(--border); background: var(--bg-card);
+      color: var(--text-secondary); font-size: 15px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow); transition: color .12s, border-color .12s;
+    }
+    .corner-cog:hover { color: var(--accent); border-color: var(--accent); }
 
     .search-wrapper { position: relative; max-width: 420px; width: 100%; }
     .search-icon {
@@ -108,7 +117,7 @@
     .topbar-center:hover .dash-edit-btn { opacity: 0.7; }
     .dash-edit-btn:hover { opacity: 1 !important; background: var(--bg-hover); color: var(--accent); }
     .clock { font-size: 20px; font-weight: 300; color: var(--text-primary); letter-spacing: 0.05em; }
-    .date  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+    .date  { font-size: 15px; font-weight: 400; color: var(--text-secondary); letter-spacing: 0.03em; margin-top: 3px; }
 
     .dashboard-switcher { display: flex; align-items: center; gap: 8px; }
     .switcher-label { font-size: 12px; color: var(--text-muted); }
@@ -204,6 +213,18 @@
     .dash-brand-text { display: flex; flex-direction: column; line-height: 1.1; }
     .dash-brand-name { font-size: 14px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
     .dash-brand-ver  { font-size: 10px; color: var(--text-muted); }
+
+    /* ── Compact header mode ──────────────────────────────────────────────── */
+    .dash-name-compact { display: none; font-size: 18px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar.header-compact { padding-top: 8px; padding-bottom: 8px; align-items: center; }
+    .topbar.header-compact .dash-brand { display: none; }            /* hide logo/branding/version */
+    .topbar.header-compact .dash-name-compact { display: block; }    /* show dashboard name on the left */
+    .topbar.header-compact .dash-name-row { display: none; }         /* name no longer in the center */
+    /* Time and date on a single line: "Time – Date". */
+    .topbar.header-compact .topbar-center { display: flex; flex-direction: row; align-items: baseline; justify-content: center; gap: 8px; }
+    .topbar.header-compact .clock { font-size: 18px; }
+    .topbar.header-compact .date  { margin-top: 0; }
+    .clock-sep { display: none; color: var(--text-muted); }
 
     /* Tab/search bar — single row; its own surface, distinct from the header
        (--bg-secondary) above and the content (--bg-primary) below. */
@@ -421,6 +442,9 @@
     }
     .rt-btn:hover { background: var(--bg-hover); transform: translateY(-2px); }
     .rt-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+    /* Drag grip — shows the floating toolbar is movable. */
+    .rt-grip { cursor: move; color: var(--text-muted); font-size: 16px; line-height: 1; padding: 0 3px; user-select: none; display: flex; align-items: center; touch-action: none; }
+    .rt-grip:hover { color: var(--text-primary); }
     /* Save / Cancel actions live in the floating menu. */
     .rt-sep { width: 1px; align-self: stretch; background: var(--border); margin: 3px 2px; }
     .rt-btn.rt-cancel { border-color: var(--danger); color: var(--danger); }
@@ -727,12 +751,12 @@
     }
     .bookmark-card:active { transform: translateY(0); }
 
-    /* Card action buttons — appear on hover */
+    /* Card action button (the remove ✕) — straddles the TOP-RIGHT corner. */
     .card-actions {
-      position: absolute; top: -8px; right: -8px;
+      position: absolute; top: 0; right: 0; transform: translate(50%, -50%);
       display: flex; gap: 4px;
       opacity: 0; pointer-events: none;
-      transition: opacity 0.15s; z-index: 5;
+      transition: opacity 0.15s; z-index: 6;
     }
     .bookmark-card:hover .card-actions { opacity: 1; pointer-events: all; }
 
@@ -808,9 +832,10 @@
     body.rearrange-mode .bookmark-card:hover { transform: none; box-shadow: none; }
     /* Rearrange mode: hide the info button, always reveal the remove (✕) button */
     body.rearrange-mode .card-actions { opacity: 1; pointer-events: all; }
-    /* Edit mode: info button shows in the bottom-right corner of the card. */
+    /* Edit mode: info button straddles the TOP-LEFT corner of the card. */
     body.rearrange-mode .card-info-btn {
-      display: inline-flex; position: absolute; right: 4px; bottom: 4px; top: auto; left: auto;
+      display: inline-flex; position: absolute; left: 0; top: 0; right: auto; bottom: auto;
+      transform: translate(-50%, -50%);
       z-index: 7; opacity: 1; pointer-events: all;
     }
     body.rearrange-mode .card-remove-btn { display: flex; }
@@ -886,6 +911,94 @@
       flex: 1; overflow-y: auto; padding: 20px;
       display: flex; flex-direction: column; gap: 14px;
     }
+
+    /* ── Dashboard Options panel ──────────────────────────────────────────── */
+    /* A floating, draggable popup — it does NOT dim the screen (the backdrop is
+       transparent); only the floating toolbar greys out while it's open. */
+    #dash-options-modal, #theme-modal { background: transparent; }
+    #dash-options-modal .modal-box, #theme-modal .modal-box { max-width: 460px; width: 92vw; }
+    #dash-options-modal .modal-header, #theme-modal .modal-header { cursor: move; touch-action: none; }
+    #dash-options-modal .modal-header h3::before, #theme-modal .modal-header h3::before { content: '⠿'; color: var(--text-muted); margin-right: 8px; font-size: 14px; }
+    .do-section { display: flex; flex-direction: column; gap: 10px; }
+    .do-section + .do-section { margin-top: 2px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .do-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted); }
+    .do-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .do-row-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+    .do-row-label { font-size: 13px; color: var(--text-primary); }
+    .do-row-sub { font-size: 11px; color: var(--text-muted); }
+    /* Toggle switch */
+    .do-switch { position: relative; width: 40px; height: 22px; flex: 0 0 auto; }
+    .do-switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+    .do-switch .do-slider { position: absolute; inset: 0; background: var(--bg-hover); border: 1px solid var(--border); border-radius: 999px; transition: background .15s, border-color .15s; }
+    .do-switch .do-slider::before { content: ''; position: absolute; left: 2px; top: 1px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
+    .do-switch input:checked + .do-slider { background: var(--accent); border-color: var(--accent); }
+    .do-switch input:checked + .do-slider::before { transform: translateX(18px); }
+    /* Segmented control (header layout / switcher type) */
+    .do-seg { display: flex; gap: 4px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+    .do-seg button { flex: 1; padding: 6px 10px; border: none; background: transparent; color: var(--text-secondary); font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer; font-family: var(--font); transition: background .12s, color .12s; }
+    .do-seg button:hover { color: var(--text-primary); }
+    .do-seg button.active { background: var(--accent); color: #fff; }
+    /* Theme dropdown with palette previews */
+    .do-theme { position: relative; }
+    .do-theme-trigger { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); cursor: pointer; font-family: var(--font); color: var(--text-primary); font-size: 13px; }
+    .do-theme-trigger .do-theme-name { flex: 1; text-align: left; font-weight: 600; }
+    .do-caret { color: var(--text-muted); font-size: 10px; }
+    .do-sw-row { display: flex; gap: 3px; }
+    .do-sw { width: 13px; height: 13px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.18); flex: 0 0 auto; }
+    .do-theme-menu { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; max-height: 280px; overflow-y: auto; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); padding: 5px; display: none; flex-direction: column; gap: 2px; }
+    .do-theme-menu.open { display: flex; }
+    .do-theme-opt { display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: none; background: transparent; border-radius: 7px; cursor: pointer; font-family: var(--font); color: var(--text-primary); font-size: 13px; text-align: left; }
+    .do-theme-opt:hover { background: var(--bg-hover); }
+    .do-theme-opt.active { background: var(--accent-light); }
+    .do-theme-opt .do-theme-name { flex: 1; }
+    /* Fun theme picker — a grid of mini dashboard previews (hover to preview live, click to apply). */
+    #theme-modal .modal-box { max-width: 520px; }
+    .theme-picker-hint { font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+    .theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+    .theme-card { position: relative; border: 2px solid transparent; border-radius: 12px; padding: 6px; background: var(--bg-secondary); cursor: pointer; font-family: var(--font); display: flex; flex-direction: column; gap: 6px; transition: border-color .12s, transform .08s; }
+    .theme-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .theme-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent-light); }
+    .theme-mini { height: 54px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(0,0,0,.15); display: flex; flex-direction: column; }
+    .theme-mini-bar { height: 14px; display: flex; align-items: center; padding: 0 5px; }
+    .theme-mini-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .theme-mini-body { flex: 1; padding: 6px 5px; display: flex; flex-direction: column; gap: 5px; justify-content: center; }
+    .theme-mini-tiles { display: flex; gap: 4px; }
+    .theme-mini-tile { flex: 1; height: 13px; border-radius: 3px; }
+    .theme-mini-line { height: 4px; border-radius: 2px; width: 68%; opacity: .85; }
+    .theme-card-name { font-size: 11px; font-weight: 600; color: var(--text-primary); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .theme-surprise { display: flex; align-items: center; gap: 6px; justify-content: center; width: 100%; padding: 9px; margin-top: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: border-color .12s, color .12s; }
+    .theme-surprise:hover { border-color: var(--accent); color: var(--accent); }
+    .theme-auto { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; margin-bottom: 10px; border: 2px solid transparent; border-radius: 10px; background: var(--bg-secondary); color: var(--text-primary); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: border-color .12s; }
+    .theme-auto:hover { border-color: var(--accent); }
+    .theme-auto.active { border-color: var(--accent); box-shadow: inset 0 0 0 2px var(--accent-light); }
+    .theme-auto-sw { width: 28px; height: 20px; border-radius: 5px; border: 1px solid rgba(0,0,0,.15); flex: 0 0 auto; background: linear-gradient(135deg, #f4f4f6 0 50%, #18181b 50% 100%); }
+    .theme-tabs { margin-bottom: 12px; }
+    .theme-empty { grid-column: 1 / -1; font-size: 12px; color: var(--text-muted); padding: 10px 2px; }
+    /* Custom-tab actions (create / AI generate / surprise) + per-card delete. */
+    .theme-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+    .theme-act-btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-family: var(--font); font-size: 12px; font-weight: 600; cursor: pointer; transition: border-color .12s, color .12s; }
+    .theme-act-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .theme-act-btn.full { grid-column: 1 / -1; }
+    .theme-act-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .theme-ai-msg { font-size: 11px; color: var(--text-muted); margin: 0 0 10px; }
+    .theme-ai-input { display: flex; gap: 6px; margin-bottom: 10px; }
+    .theme-ai-input input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-primary); font-family: var(--font); font-size: 12px; }
+    .theme-card-del { position: absolute; top: 0; right: 0; transform: translate(40%, -40%); width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted); font-size: 10px; line-height: 1; cursor: pointer; display: none; align-items: center; justify-content: center; z-index: 3; }
+    .theme-card:hover .theme-card-del { display: flex; }
+    .theme-card-del:hover { background: var(--danger); color: #fff; border-color: var(--danger); }
+    .theme-spin { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-top-color: transparent; border-radius: 50%; animation: theme-spin .7s linear infinite; vertical-align: -1px; }
+    @keyframes theme-spin { to { transform: rotate(360deg); } }
+    /* Inline custom-theme creator. */
+    #theme-create-modal .modal-box { max-width: 420px; width: 92vw; }
+    .tc-field { display: flex; flex-direction: column; gap: 5px; }
+    .tc-name { width: 100%; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-primary); font-family: var(--font); font-size: 13px; }
+    .tc-rows { display: flex; flex-direction: column; gap: 8px; }
+    .tc-row { display: flex; align-items: center; gap: 10px; }
+    .tc-row label { flex: 1; font-size: 13px; color: var(--text-primary); }
+    .tc-row input[type=color] { width: 34px; height: 28px; border: 1px solid var(--border); border-radius: 6px; background: none; cursor: pointer; padding: 0; flex: 0 0 auto; }
+    .tc-row input[type=text] { width: 92px; flex: 0 0 auto; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-family: monospace; font-size: 12px; }
+    .tc-preview { margin-top: 2px; }
+    .tc-preview .theme-mini { height: 64px; }
 
     .modal-icon-row {
       display: flex; align-items: center; gap: 16px;
@@ -1058,9 +1171,11 @@
       <span class="dash-brand-icon"><img src="../icons/logo.png" alt="" style="width:22px;height:22px;object-fit:contain;display:block;"></span>
       <span class="dash-brand-text">
         <span class="dash-brand-name">Auto Dashboard AI</span>
-        <span class="dash-brand-ver" id="app-version">v1.0.24</span>
+        <span class="dash-brand-ver" id="app-version">v1.0.26</span>
       </span>
     </div>
+    <!-- Shown only in Compact header mode (replaces the branding on the left). -->
+    <div class="dash-name-compact" id="dash-name-compact"></div>
   </div>
 
   <div class="topbar-center">
@@ -1068,14 +1183,17 @@
       <div class="dash-name" id="dash-name-display"></div>
     </div>
     <div class="clock" id="clock">00:00</div>
+    <span class="clock-sep" id="clock-sep">–</span>
     <div class="date"  id="date-display"></div>
   </div>
 
   <div class="topbar-right">
     <button class="btn-topbar" id="rearrange-btn">✎ Edit Dashboard</button>
-    <a href="../config/config.html" class="btn-topbar">⚙️ Settings</a>
+    <a href="../config/config.html" class="btn-topbar" id="settings-link">⚙️ Settings</a>
   </div>
 </div>
+<!-- Corner cog — shown only when the Edit Dashboard button is hidden; opens Dashboard Options. -->
+<button class="corner-cog" id="corner-cog" type="button" title="Edit this dashboard — move, resize, lock, and add items (the toolbar's ⚙ opens Dashboard Options)." style="display:none;">⚙️</button>
 
 <!-- ── Tabs switcher (shown only in tabs mode) ──────────────────────────────── -->
 <div id="dash-tabs" class="dash-tabs" style="display:none;">
@@ -1112,10 +1230,15 @@
 
 <!-- ── Rearrange-mode floating tools ─────────────────────────────────────────── -->
 <div id="rearrange-tools" class="rearrange-tools">
+  <span class="rt-grip" id="rt-grip" title="Drag to move this toolbar">⠿</span>
   <button class="rt-btn" id="rt-add-widget" data-tip="Add to dashboard — add a bookmark, a live widget, or a manual item to any section.">➕</button>
+  <span class="rt-sep"></span>
   <button class="rt-btn" id="rt-autoresize" data-tip="Auto-resize groups — shrink each group tightly around its icons to remove empty space inside it.">📐</button>
   <button class="rt-btn" id="rt-snap" data-tip="Snap groups together — close large gaps between groups, packing them neatly without overlapping.">🧲</button>
   <button class="rt-btn" id="rt-undo" data-tip="Undo the last auto-layout change." disabled>↩️</button>
+  <span class="rt-sep"></span>
+  <button class="rt-btn" id="rt-dash-options" data-tip="Dashboard Options — header layout, time/date, and display settings for this dashboard.">⚙️</button>
+  <button class="rt-btn" id="rt-theme" data-tip="Theme — preview and apply a color theme to this dashboard.">🎨</button>
   <span class="rt-sep"></span>
   <button class="rt-btn rt-cancel" id="rt-cancel" data-tip="Cancel — discard your changes and exit editing.">✕</button>
   <button class="rt-btn rt-save" id="rt-save" data-tip="Save — keep your layout changes and exit editing.">✓</button>
@@ -1386,11 +1509,52 @@
   </div>
 </div>
 
+<!-- ── Dashboard Options panel ──────────────────────────────────────────────── -->
+<div class="modal-overlay" id="dash-options-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>⚙️ Dashboard Options</h3>
+      <button class="modal-close-btn" id="dash-options-close">✕</button>
+    </div>
+    <div class="modal-body" id="dash-options-body"></div>
+  </div>
+</div>
+
+<!-- ── Theme picker (read-only live preview) ────────────────────────────────── -->
+<div class="modal-overlay" id="theme-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>🎨 Theme</h3>
+      <button class="modal-close-btn" id="theme-modal-close">✕</button>
+    </div>
+    <div class="modal-body" id="theme-modal-body"></div>
+  </div>
+</div>
+
+<!-- ── Create custom theme (manual, in-page) ────────────────────────────────── -->
+<div class="modal-overlay" id="theme-create-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>🎨 Create custom theme</h3>
+      <button class="modal-close-btn" id="theme-create-close">✕</button>
+    </div>
+    <div class="modal-body" id="theme-create-body"></div>
+    <div class="modal-footer">
+      <div></div>
+      <div class="modal-footer-right">
+        <button class="btn btn-secondary" id="theme-create-cancel">Cancel</button>
+        <button class="btn btn-primary" id="theme-create-save">Save theme</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Shared description tooltip — shown on ℹ button hover -->
 <div class="bm-desc-tooltip" id="bm-desc-tooltip"></div>
 
 <script src="vendor/gridstack-all.js"></script>
 <script src="../widgets/theme-engine.js"></script>
+<script src="../widgets/ai-theme.js"></script>
 <script src="../widgets/endpoints.js"></script>
 <!-- Integration widget classes + their live mounts (used by Add Widgets) -->
 <script src="../widgets/tautulli-widget.js"></script>
