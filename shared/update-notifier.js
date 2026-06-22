@@ -32,11 +32,43 @@
       chrome.storage.local.get(['adaiUpdate', 'adaiUpdateDismissed'], (d) => {
         if (chrome.runtime.lastError) return;
         const u = d && d.adaiUpdate;
+        // Inline "(Update Available - x.x.x)" link next to the version number —
+        // shown whenever a newer version exists, regardless of toast dismissal.
+        if (u && u.available && u.version) renderUpdateLink(u); else removeUpdateLink();
         if (!u || !u.available || !u.version) return;
-        if (d.adaiUpdateDismissed === u.version) return; // user dismissed this one
+        if (d.adaiUpdateDismissed === u.version) return; // user dismissed the toast for this one
         showUpdateToast(u);
       });
     } catch (_) { /* extension context gone — ignore */ }
+  }
+
+  // Repo to open from the inline link / toast fallback.
+  const REPO_URL = 'https://github.com/cwland/Auto-Dashboard-AI';
+
+  // Add (or update) a small "(Update Available - x.x.x)" link beside #app-version,
+  // linking to the GitHub repo in a new tab. Inserted as a sibling so it survives
+  // the various places that reset #app-version's textContent.
+  function renderUpdateLink(info) {
+    const ver = document.getElementById('app-version');
+    if (!ver) return;
+    let link = document.getElementById('adai-update-link');
+    if (!link) {
+      link = document.createElement('a');
+      link.id = 'adai-update-link';
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.style.cssText = 'display:block;margin-top:1px;font-size:11px;font-weight:700;color:var(--accent,#6d28d9);text-decoration:none;white-space:nowrap;';
+      link.addEventListener('mouseenter', () => { link.style.textDecoration = 'underline'; });
+      link.addEventListener('mouseleave', () => { link.style.textDecoration = 'none'; });
+      ver.insertAdjacentElement('afterend', link);
+    }
+    link.href = info.downloadUrl || REPO_URL;
+    link.textContent = `(Update Available - ${info.version})`;
+    link.title = 'A newer version is available — open on GitHub';
+  }
+  function removeUpdateLink() {
+    const link = document.getElementById('adai-update-link');
+    if (link) link.remove();
   }
 
   function showUpdateToast(info) {

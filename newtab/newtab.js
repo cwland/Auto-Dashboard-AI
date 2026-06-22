@@ -1693,8 +1693,8 @@ function renderWidgetModalBody() {
   if (!source.length) {
     body.innerHTML = sample
       ? '<div class="widget-empty">No sample widgets are available.</div>'
-      : '<div class="widget-empty">No action cards are enabled yet.<br>Enable them in ' +
-        '<a href="../config/config.html?tab=integrations">Setup → Action Cards</a>, then come back, ' +
+      : '<div class="widget-empty">No widgets are enabled yet.<br>Enable them in ' +
+        '<a href="../config/config.html?tab=integrations">Setup → Widget Library</a>, then come back, ' +
         'or use the <b>Sample</b> tab to preview widgets with demo data.</div>';
     updateWidgetAddState();
     return;
@@ -2441,7 +2441,7 @@ function buildWidgetSection(wdef) {
     bodyEl.innerHTML =
       '<div class="widget-disabled"><div style="font-size:24px;">⚠️</div>' +
       '<div style="font-weight:600;color:var(--text-secondary);">Service disabled</div>' +
-      '<div>Enable it in <a href="../config/config.html?tab=integrations">Setup → Action Cards</a></div></div>';
+      '<div>Enable it in <a href="../config/config.html?tab=integrations">Setup → Widget Library</a></div></div>';
   } else {
     // Try to mount the real, live widget; fall back to a placeholder if there's
     // no live mount for this integration yet.

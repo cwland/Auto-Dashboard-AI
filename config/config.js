@@ -652,12 +652,27 @@ function applyTheme(theme) {
   else document.documentElement.removeAttribute('data-theme');
 }
 
+// Ordered tokens shown in a full-palette swatch (page → surfaces → border →
+// text levels → accent), so each theme's contrast ladder is visible at a glance.
+const SWATCH_ORDER = ['--bg-primary', '--bg-secondary', '--bg-card', '--bg-hover', '--border', '--text-muted', '--text-secondary', '--text-primary', '--accent'];
+function paletteSwatchHtml(tokens) {
+  return SWATCH_ORDER.map((k) => `<span class="swatch" style="background:${escapeHtml(tokens[k] || '#888')}"></span>`).join('');
+}
+
 function renderThemePicker() {
   const grid = document.getElementById('theme-grid');
   if (!grid) return;
   const current = state.currentSettings.theme || 'auto';
+  const TEng = window.ThemeEngine;
   grid.querySelectorAll('.theme-card').forEach((card) => {
     card.classList.toggle('active', card.dataset.theme === current);
+    // Fill standard cards with the full derived palette (skip the "auto" card,
+    // which keeps its split light/dark swatch).
+    const id = card.dataset.theme;
+    if (id && id !== 'auto' && TEng && TEng.paletteFor) {
+      const sw = card.querySelector('.theme-swatches');
+      if (sw) sw.innerHTML = paletteSwatchHtml(TEng.paletteFor(id));
+    }
   });
   renderCustomThemes();
 }
@@ -683,12 +698,10 @@ const ctNormHex = (v) => TE.normHex(v);
 function injectCustomThemeStyles(themes) { window.ThemeEngine.injectCustomThemeStyles(themes || []); }
 function applyCustomThemeStyles() { injectCustomThemeStyles(state.currentSettings.customThemes || []); }
 
-// Swatches (page bg, card bg, text, accent) for a custom-theme card.
+// Full derived-palette swatches for a custom-theme card.
 function ctSwatches(c) {
-  return `<div class="theme-swatches">` +
-    [c.bgPrimary, c.bgSecondary, c.textPrimary, c.accent]
-      .map((col) => `<span class="swatch" style="background:${escapeHtml(col)}"></span>`).join('') +
-    `</div>`;
+  const tokens = (window.ThemeEngine && window.ThemeEngine.deriveThemeVars) ? window.ThemeEngine.deriveThemeVars(c || {}) : {};
+  return `<div class="theme-swatches">${paletteSwatchHtml(tokens)}</div>`;
 }
 
 function renderCustomThemes() {
@@ -704,8 +717,10 @@ function renderCustomThemes() {
     card.dataset.theme = t.id;
     card.innerHTML = ctSwatches(t.colors || {}) +
       `<div class="theme-name">${escapeHtml(t.name || 'Custom')}</div>` +
+      `<button class="ct-edit" type="button" title="Edit theme" aria-label="Edit theme">✎</button>` +
       `<button class="ct-del" type="button" title="Delete theme" aria-label="Delete theme">✕</button>`;
     card.addEventListener('click', (e) => {
+      if (e.target.closest('.ct-edit')) { e.stopPropagation(); openCustomThemeModal(t); return; }
       if (e.target.closest('.ct-del')) { e.stopPropagation(); deleteCustomTheme(t.id); return; }
       state.currentSettings.theme = t.id;
       applyTheme(t.id);
@@ -738,7 +753,7 @@ function addCustomTheme(name, colors, select) {
 }
 
 // ─── Add-theme modal ──────────────────────────────────────────────────────────
-const ctModalState = { aiThemes: [], aiSelected: new Set(), manual: {} };
+const ctModalState = { aiThemes: [], aiSelected: new Set(), manual: {}, editId: null };
 
 // Minimum WCAG AA contrast for body text.
 const CT_MIN_CONTRAST = 4.5;
@@ -747,15 +762,22 @@ function ctTextContrast(c) {
 }
 function ctMissing(c) { return CT_FIELDS.filter(([k]) => !ctValidHex(c[k])).map(([, label]) => label); }
 
-function openCustomThemeModal() {
+function openCustomThemeModal(edit) {
   ctModalState.aiThemes = []; ctModalState.aiSelected = new Set();
-  ctModalState.manual = {}; CT_FIELDS.forEach(([k, , def]) => { ctModalState.manual[k] = def; });
+  ctModalState.editId = (edit && edit.id) || null;
+  ctModalState.manual = {};
+  CT_FIELDS.forEach(([k, , def]) => { ctModalState.manual[k] = (edit && edit.colors && edit.colors[k]) || def; });
   document.getElementById('ct-prompt').value = '';
-  document.getElementById('ct-name').value = '';
+  document.getElementById('ct-name').value = edit ? (edit.name || '') : '';
   document.getElementById('ct-ai-warn').textContent = '';
   document.getElementById('ct-palettes').innerHTML = '';
+  const saveBtn = document.getElementById('ct-save-manual'); if (saveBtn) saveBtn.textContent = edit ? 'Save Changes' : 'Save Theme';
+  const titleEl = document.querySelector('#custom-theme-modal .modal-header h3'); if (titleEl) titleEl.textContent = edit ? 'Edit Custom Theme' : 'Add Custom Theme';
   buildManualRows();
-  setCtMode('ai');
+  // The AI tab only makes sense when creating a new theme — hide it while editing.
+  const aiTab = document.querySelector('.ct-tab[data-ctmode="ai"]');
+  if (aiTab) aiTab.style.display = edit ? 'none' : '';
+  setCtMode(edit ? 'manual' : 'ai');
   document.getElementById('custom-theme-modal').classList.add('visible');
 }
 function closeCustomThemeModal() { document.getElementById('custom-theme-modal').classList.remove('visible'); }
@@ -817,7 +839,18 @@ function saveManualTheme() {
   if (missing.length) { refreshManualPreview(); return; }
   const name = (document.getElementById('ct-name').value || '').trim() || 'Custom';
   const colors = {}; CT_FIELDS.forEach(([k]) => { colors[k] = ctNormHex(c[k]); });
-  addCustomTheme(name, colors, true);
+  if (ctModalState.editId) {
+    const t = (state.currentSettings.customThemes || []).find((x) => x.id === ctModalState.editId);
+    if (t) {
+      t.name = name.slice(0, 24); t.colors = colors;
+      applyCustomThemeStyles();
+      if (state.currentSettings.theme === t.id) applyTheme(t.id);   // live-refresh if active
+      renderThemePicker();
+      updateSaveBar();
+    }
+  } else {
+    addCustomTheme(name, colors, true);
+  }
   closeCustomThemeModal();
 }
 
@@ -5850,6 +5883,7 @@ function setupDashboardSetup() {
   });
 
   document.getElementById('create-dashboard-btn')?.addEventListener('click', openWizard);
+  document.getElementById('create-blank-dashboard-btn')?.addEventListener('click', createBlankDashboardQuick);
 }
 
 // ─── Dashboard creation wizard ────────────────────────────────────────────────
@@ -5880,6 +5914,7 @@ function openWizard() {
   // Step 2 defaults: fresh selection, folder mode, hidden max-sections.
   const folderRadio = document.querySelector('input[name="wiz-org"][value="folder"]');
   if (folderRadio) folderRadio.checked = true;
+  wizUpdateDynamicAvailability();
   const maxRow = document.getElementById('wiz-maxsec-row'); if (maxRow) maxRow.style.display = 'none';
   const maxSec = document.getElementById('wiz-maxsec'); if (maxSec) maxSec.value = '8';
   const selErr = document.getElementById('wiz-sel-err'); if (selErr) selErr.style.display = 'none';
@@ -5896,6 +5931,26 @@ function openWizard() {
   setTimeout(() => document.getElementById('wiz-title')?.focus(), 50);
 }
 function closeWizard() { document.getElementById('dash-wizard').classList.remove('open'); }
+
+// Grey out the "Dynamic AI categorization" option when no AI provider is set up,
+// and show a notice. If it was selected, fall back to folder names.
+function wizUpdateDynamicAvailability() {
+  const ai = activeAI(state.savedSettings);
+  const hasAI = !!(ai && ai.apiKey);
+  const dyn = document.querySelector('input[name="wiz-org"][value="dynamic"]');
+  const note = document.getElementById('wiz-dynamic-note');
+  if (dyn) {
+    dyn.disabled = !hasAI;
+    const card = dyn.closest('.wiz-org-card');
+    if (card) card.classList.toggle('wiz-org-disabled', !hasAI);
+    if (!hasAI && dyn.checked) {
+      const folder = document.querySelector('input[name="wiz-org"][value="folder"]');
+      if (folder) folder.checked = true;
+      const row = document.getElementById('wiz-maxsec-row'); if (row) row.style.display = 'none';
+    }
+  }
+  if (note) note.style.display = hasAI ? 'none' : '';
+}
 
 function wizGoTo(n) {
   wizard.step = n;
@@ -5915,6 +5970,7 @@ function wizGoTo(n) {
   // Step 3 (processing) auto-advances, so hide the Back/Next footer there.
   const foot = document.querySelector('.wiz-foot');
   if (foot) foot.style.display = n === 3 ? 'none' : '';
+  if (n === 2) wizUpdateDynamicAvailability();
   if (n === 4) renderWizWidgetPanel();   // optional "Add Widgets" panel (create flow)
 }
 
@@ -5930,10 +5986,9 @@ function wizValidateStep(n) {
     wizard.data.theme = document.getElementById('wiz-theme').value.trim();
   }
   if (n === 2) {
-    if (state.selectedBookmarkIds.size === 0) {
-      const se = document.getElementById('wiz-sel-err'); if (se) se.style.display = 'block';
-      return false;
-    }
+    // Bookmark selection is optional — with none selected the dashboard is
+    // created without bookmark sections (just widgets, or fully blank).
+    const se = document.getElementById('wiz-sel-err'); if (se) se.style.display = 'none';
     wizard.data.orgMethod = document.querySelector('input[name="wiz-org"]:checked')?.value || 'folder';
     wizard.data.maxSections = Math.max(1, Math.min(30, parseInt(document.getElementById('wiz-maxsec').value, 10) || 8));
     wizard.data.selectedIds = new Set(state.selectedBookmarkIds);
@@ -5943,11 +5998,25 @@ function wizValidateStep(n) {
 
 function wizNext() {
   if (!wizValidateStep(wizard.step)) return;
-  if (wizard.step === 2) { wizGoTo(3); wizProcess(); return; }  // start processing
+  if (wizard.step === 2) {
+    // No bookmarks selected → skip the AI/folder processing step and go straight
+    // to the preview/widgets step with an empty structure.
+    if (!wizard.data.selectedIds || wizard.data.selectedIds.size === 0) {
+      wizard.data.structure = [];
+      wizGoTo(4); renderWizPreview();
+      return;
+    }
+    wizGoTo(3); wizProcess(); return;   // start processing
+  }
   if (wizard.step === 4) { wizGenerate(); return; }             // final generation
   if (wizard.step < WIZ_STEPS) wizGoTo(wizard.step + 1);
 }
-function wizBack() { if (wizard.step > 1) wizGoTo(wizard.step - 1); }
+function wizBack() {
+  // From the preview step, if we skipped processing (no bookmarks), go back to
+  // the organization step rather than the (skipped) processing step.
+  if (wizard.step === 4 && (!wizard.data.selectedIds || wizard.data.selectedIds.size === 0)) { wizGoTo(2); return; }
+  if (wizard.step > 1) wizGoTo(wizard.step - 1);
+}
 
 // ─── Wizard step 3: processing ────────────────────────────────────────────────
 function wizProgress(status, pct, msg) {
@@ -6465,7 +6534,7 @@ async function wizGenerate() {
   const secs = wizard.data.structure || [];
   const bookmarks = [];
   secs.forEach((s) => s.bookmarks.forEach((b) => bookmarks.push(Object.assign({}, b, { folder: s.name }))));
-  if (!bookmarks.length) { showToast('Add at least one bookmark first'); return; }
+  // A dashboard may be created with no bookmarks (widgets only, or fully blank).
 
   // Edit mode: update the existing dashboard in place (keep id + createdAt).
   if (wizard.editId) {
@@ -6507,12 +6576,71 @@ async function wizGenerate() {
   closeWizard();
   renderDashboardList();
   showToast('Dashboard created ✓');
+  openCreatedDashboard(dashboard.id);
+}
+
+// Open a freshly-created dashboard in a new tab so the user lands on it.
+function openCreatedDashboard(id) {
+  try { chrome.tabs.create({ url: chrome.runtime.getURL(`newtab/newtab.html?dash=${id}`) }); } catch (_) {}
+}
+
+// Build a blank dashboard object with a unique default name.
+function buildBlankDashboard() {
+  const base = 'New Dashboard';
+  const names = new Set((state.dashboards || []).map((d) => d.name));
+  let name = base, i = 2;
+  while (names.has(name)) { name = `${base} ${i++}`; }
+  return {
+    id: `dash_${Date.now()}`, name, description: '', theme: '',
+    createdAt: Date.now(), bookmarks: [], sectionOrder: [],
+    defaultShape: 'rounded', showText: true, widgets: [], autoArrange: true,
+  };
+}
+
+// Entry-point shortcut: create an empty dashboard immediately and open it.
+async function createBlankDashboardQuick() {
+  const dashboard = buildBlankDashboard();
+  state.dashboards.push(dashboard);
+  if (state.dashboards.length === 1) state.defaultDashboardId = dashboard.id;
+  await saveDashboards();
+  renderDashboardList();
+  showToast('Blank dashboard created ✓');
+  openCreatedDashboard(dashboard.id);
+}
+
+// Create an empty dashboard straight from the Details step (no bookmarks/widgets).
+async function wizCreateBlank() {
+  const title = document.getElementById('wiz-title').value.trim();
+  const err = document.getElementById('wiz-title-err');
+  if (!title) { if (err) err.style.display = 'block'; document.getElementById('wiz-title').focus(); return; }
+  if (err) err.style.display = 'none';
+  const dashboard = {
+    id: `dash_${Date.now()}`,
+    name: title,
+    description: document.getElementById('wiz-desc').value.trim(),
+    theme: document.getElementById('wiz-theme').value.trim(),
+    createdAt: Date.now(),
+    bookmarks: [],
+    sectionOrder: [],
+    defaultShape: 'rounded',
+    showText: true,
+    widgets: [],
+    autoArrange: true,
+  };
+  state.dashboards.push(dashboard);
+  if (state.dashboards.length === 1) state.defaultDashboardId = dashboard.id;
+  await saveDashboards();
+  closeWizard();
+  renderDashboardList();
+  showToast('Blank dashboard created ✓');
+  openCreatedDashboard(dashboard.id);
 }
 
 function setupWizard() {
   document.getElementById('wiz-close')?.addEventListener('click', closeWizard);
   document.getElementById('wiz-back')?.addEventListener('click', wizBack);
   document.getElementById('wiz-next')?.addEventListener('click', wizNext);
+  document.getElementById('wiz-blank-btn')?.addEventListener('click', wizCreateBlank);
   // Bookmark search (step 2) + clear.
   const bmSearch = document.getElementById('wiz-bm-search');
   if (bmSearch) bmSearch.addEventListener('input', () => wizFilterTree(bmSearch.value));
@@ -6942,7 +7070,7 @@ function renderWizWidgetPanel() {
     const e = document.createElement('div'); e.className = 'wiz-wp-empty';
     e.innerHTML = sample
       ? 'No sample widgets available.'
-      : 'No action cards are enabled yet — enable some in <a href="?tab=integrations">Setup → Action Cards</a> to add live widgets, or use the <b>Sample</b> tab to add demo widgets.';
+      : 'No widgets are enabled yet — enable some in <a href="?tab=integrations">Setup → Widget Library</a> to add live widgets, or use the <b>Sample</b> tab to add demo widgets.';
     panel.appendChild(e); updateCount(); return;
   }
 

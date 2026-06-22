@@ -159,24 +159,33 @@
     /* ── Getting Started ─────────────────────────────────────────────────── */
     .gs-hero {
       text-align: center;
-      margin-bottom: 40px;
+      margin-bottom: 24px;
     }
 
-    .gs-hero-icon { font-size: 52px; margin-bottom: 14px; }
+    .gs-hero-icon { margin-bottom: 8px; }
+    .gs-hero-icon img { width: 44px !important; height: 44px !important; }
 
     .gs-hero h1 {
-      font-size: 26px;
+      font-size: 21px;
       font-weight: 700;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
     }
 
     .gs-hero p {
       color: var(--text-secondary);
-      font-size: 15px;
-      max-width: 480px;
+      font-size: 13.5px;
+      max-width: 460px;
       margin: 0 auto;
-      line-height: 1.6;
+      line-height: 1.5;
     }
+
+    /* ── Privacy & Security ──────────────────────────────────────────────── */
+    .privacy-doc section { margin-bottom: 22px; }
+    .privacy-doc h2 { font-size: 16px; font-weight: 700; margin: 0 0 6px; color: var(--text-primary); }
+    .privacy-doc p { color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin: 0 0 8px; }
+    .privacy-doc ul { margin: 6px 0 0; padding-left: 20px; }
+    .privacy-doc li { color: var(--text-secondary); font-size: 14px; line-height: 1.6; margin-bottom: 6px; }
+    .privacy-doc code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
 
     .gs-steps { display: flex; flex-direction: column; gap: 16px; }
 
@@ -757,8 +766,12 @@
     .theme-card { border:1px solid var(--border); border-radius:var(--radius); padding:10px; cursor:pointer; background:var(--bg-secondary); transition:border-color .15s, transform .12s, box-shadow .15s; }
     .theme-card:hover { border-color:var(--accent); transform:translateY(-1px); }
     .theme-card.active { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-light); }
-    .theme-swatches { display:flex; gap:4px; margin-bottom:8px; }
-    .theme-swatches .swatch { flex:1; height:26px; border-radius:5px; border:1px solid rgba(128,128,128,.25); }
+    /* Full-palette swatch — many thin bars so the whole contrast ladder shows. */
+    .theme-swatches { display:flex; gap:2px; margin-bottom:8px; border-radius:5px; overflow:hidden; border:1px solid rgba(128,128,128,.25); }
+    .theme-swatches .swatch { flex:1; height:24px; min-width:0; }
+    /* The Auto card keeps its larger split swatches. */
+    .theme-swatches.theme-swatches-auto { gap:4px; border:none; }
+    .theme-swatches.theme-swatches-auto .swatch { border-radius:5px; border:1px solid rgba(128,128,128,.25); }
     .theme-name { font-size:12.5px; font-weight:600; color:var(--text-primary); }
 
     /* ── Custom themes ──────────────────────────────────────────────────── */
@@ -770,6 +783,11 @@
       display:flex; align-items:center; justify-content:center; transition:opacity .15s, background .15s; }
     .ct-card:hover .ct-del { opacity:1; }
     .ct-del:hover { background:var(--danger); }
+    .ct-edit { position:absolute; top:6px; right:30px; width:20px; height:20px; border:none; border-radius:6px;
+      background:rgba(0,0,0,.28); color:#fff; font-size:11px; line-height:1; cursor:pointer; opacity:0;
+      display:flex; align-items:center; justify-content:center; transition:opacity .15s, background .15s; }
+    .ct-card:hover .ct-edit { opacity:1; }
+    .ct-edit:hover { background:var(--accent); }
     #custom-theme-grid:empty::after { content:'No custom themes yet — click “Add custom theme”.'; grid-column:1/-1;
       font-size:12px; color:var(--text-muted); padding:6px 2px; }
 
@@ -886,6 +904,10 @@
     .wiz-org-card input { margin-top:3px; accent-color:var(--accent); flex:0 0 auto; }
     .wiz-org-title { font-weight:700; font-size:14px; }
     .wiz-org-desc { font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+    .wiz-org-card.wiz-org-disabled { opacity:.5; cursor:not-allowed; }
+    .wiz-org-card.wiz-org-disabled:hover { border-color:var(--border); background:transparent; }
+    .wiz-org-note { font-size:12px; color:var(--warning,#f59e0b); margin-top:6px; }
+    .wiz-blank-row { display:flex; align-items:center; gap:12px; margin-top:18px; padding-top:16px; border-top:1px solid var(--border); }
     .wiz-sel-head { display:flex; align-items:center; justify-content:space-between; margin:18px 0 8px; }
     #wiz-tree-mount .bookmark-tree { max-height:300px; overflow-y:auto; }
 
@@ -1010,14 +1032,17 @@
       <button class="tab-btn" data-tab="how-to-use">
         <span class="tab-icon">📖</span> How to Use
       </button>
+      <button class="tab-btn" data-tab="privacy">
+        <span class="tab-icon">🔒</span> Privacy
+      </button>
       <button class="tab-btn" data-tab="settings">
         <span class="tab-icon">⚙️</span> Settings
       </button>
       <button class="tab-btn" data-tab="dashboards">
-        <span class="tab-icon">📊</span> Dashboards
+        <span class="tab-icon">🗂️</span> Dashboards
       </button>
       <button class="tab-btn" data-tab="integrations">
-        <span class="tab-icon">🧩</span> Action Cards
+        <span class="tab-icon">🧩</span> Widget Library
       </button>
     </nav>
   </header>
@@ -1034,9 +1059,9 @@
     <div class="doc-content">
 
       <div class="gs-hero">
-        <div class="gs-hero-icon"><img src="../icons/logo.png" alt="" style="width:64px;height:64px;object-fit:contain;display:inline-block;"></div>
+        <div class="gs-hero-icon"><img src="../icons/logo.png" alt="" style="object-fit:contain;display:inline-block;"></div>
         <h1>Welcome to Auto Dashboard AI</h1>
-        <p>Turn your bookmarks into a beautiful, AI-enriched dashboard that appears every time you open a new tab. Setup takes about two minutes.</p>
+        <p>Turn bookmarks into an AI-organized new-tab dashboard. Setup takes about two minutes.</p>
       </div>
 
       <div class="gs-steps">
@@ -1098,6 +1123,59 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <!-- Tab: Privacy & Security                                                -->
+  <!-- ══════════════════════════════════════════════════════════════════════ -->
+  <div class="tab-panel" id="tab-privacy">
+    <div class="doc-content">
+      <div class="gs-hero">
+        <div class="gs-hero-icon" style="font-size:40px;">🔒</div>
+        <h1>Privacy &amp; Security</h1>
+        <p>This extension runs entirely in your browser. It has no backend servers and collects no analytics — it only talks to the services you set up.</p>
+      </div>
+
+      <div class="privacy-doc">
+        <section>
+          <h2>No data collection</h2>
+          <p>Auto Dashboard AI has no servers of its own and sends <strong>no telemetry or analytics</strong> anywhere. Your bookmarks, dashboards, and usage stay on your device. The only outbound connections are the ones you explicitly configure: your chosen <strong>AI provider</strong>, the <strong>services your widgets connect to</strong>, and — only if you turn it on — your own <strong>GitHub Gist</strong> for backup.</p>
+        </section>
+
+        <section>
+          <h2>Where your settings &amp; API keys are stored</h2>
+          <p>All settings, dashboards, and credentials — AI provider API keys, widget/integration tokens, your GitHub token, and your backup passphrase — are stored <strong>locally in your browser</strong> (<code>chrome.storage.local</code>) on this device. They are never uploaded anywhere except as described in “Backups” below, and the GitHub token and passphrase are never uploaded at all.</p>
+        </section>
+
+        <section>
+          <h2>AI provider &amp; data retention</h2>
+          <p>When you use an AI feature (organizing bookmarks into sections, generating theme palettes), the data needed for that request — bookmark titles, URLs and descriptions, or your theme prompt — is sent <strong>directly from your browser to the AI provider you selected</strong> (e.g. OpenRouter, OpenAI, Anthropic, Google, Groq), along with your API key for that provider.</p>
+          <p>What the provider logs or retains is governed by <strong>that provider's own data-retention and privacy policy</strong>, not by this app. Please review your provider's terms. The app sends only what's required for the action you triggered and keeps no copies on any server. If you never use the AI features, no bookmark data is sent to any provider.</p>
+        </section>
+
+        <section>
+          <h2>Backups &amp; encryption</h2>
+          <p>Backup is <strong>optional and off by default</strong>. If you enable Gist backup, your settings and dashboards are uploaded to a <strong>private gist on your own GitHub account</strong>.</p>
+          <ul>
+            <li><strong>Encrypted before it leaves your browser.</strong> Backups are encrypted client-side with <strong>AES-256-GCM</strong>, using a key derived from your passphrase via <strong>PBKDF2-SHA256</strong>. A passphrase is required to turn on sync, so the synced contents are always encrypted. (Only a tiny version/schema header is left unencrypted.)</li>
+            <li><strong>Your token and passphrase are never uploaded.</strong> The GitHub token and the backup passphrase stay on your device only — they are stripped from the backup payload. So even if the gist were exposed, the data is encrypted and your credentials aren't in it.</li>
+            <li><strong>Your other API keys are inside the backup.</strong> Integration and AI keys are part of your settings, so they're included <em>within</em> the encrypted backup. Anyone who has <em>both</em> your gist contents <em>and</em> your passphrase could read them — keep the passphrase private, and share it only with your own devices.</li>
+            <li><strong>Use a strong, unique passphrase</strong> and keep your gist private. You can also use Export/Import to move an (encrypted) backup file manually.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Widget connections — HTTPS vs HTTP</h2>
+          <p>Live widgets connect <strong>from your browser directly to the service URLs you enter</strong> (Proxmox, Tautulli, etc.), using the credentials you provide. The connection's safety depends on the URL scheme:</p>
+          <ul>
+            <li><strong>HTTPS (recommended):</strong> the entire connection — including API tokens and passwords — is <strong>encrypted in transit</strong>. Always prefer it.</li>
+            <li><strong>HTTP (risky):</strong> the connection is <strong>unencrypted</strong>. Your API tokens and data travel in clear text and can be read by anyone on the network path (other devices on your LAN, routers, your ISP). Only use HTTP on a network you fully trust, and switch to HTTPS whenever the service supports it.</li>
+            <li><strong>Self-signed HTTPS certificates:</strong> some self-hosted services use them — you may need to open the service's URL once in your browser and accept the certificate. The connection is still encrypted.</li>
+          </ul>
+          <p>Tokens are sent only to the host you configured for that widget, and only when the widget refreshes.</p>
+        </section>
       </div>
     </div>
   </div>
@@ -1532,7 +1610,7 @@
   <div class="tab-panel" id="tab-integrations">
 
     <div class="int-search">
-      <input type="text" id="int-search" placeholder="Search action cards…" autocomplete="off">
+      <input type="text" id="int-search" placeholder="Search widgets…" autocomplete="off">
       <button type="button" class="int-search-clear" id="int-search-clear" title="Clear search" aria-label="Clear search">✕</button>
     </div>
     <div class="int-toolbar">
@@ -3571,7 +3649,10 @@
     <div class="dash-setup">
       <div class="dash-setup-head">
         <div class="dash-setup-title">Your Dashboards</div>
-        <button class="btn btn-primary btn-lg" id="create-dashboard-btn">+ Create Dashboard</button>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button class="btn btn-secondary btn-lg" id="create-blank-dashboard-btn">+ Blank Dashboard</button>
+          <button class="btn btn-primary btn-lg" id="create-dashboard-btn">+ Create Dashboard</button>
+        </div>
       </div>
       <div id="dashboard-list" class="dashboard-list"></div>
     </div>
@@ -3754,6 +3835,10 @@
             <input class="input" type="text" id="wiz-theme" placeholder="e.g. dev tools, media, finance — or a short sentence" autocomplete="off">
             <p class="wiz-hint">Comma-separated keywords or a short sentence. Used as context when the AI organizes your bookmarks.</p>
           </div>
+          <div class="wiz-blank-row">
+            <button class="btn btn-ghost" id="wiz-blank-btn" type="button">Create a blank dashboard</button>
+            <span class="wiz-hint" style="margin:0;">Start empty — add widgets &amp; bookmarks later.</span>
+          </div>
         </section>
                         <section class="wiz-step" id="wiz-step-2" style="display:none;">
           <div class="wiz-org-cols">
@@ -3762,6 +3847,7 @@
               <div class="wiz-org">
                 <label class="wiz-org-card"><input type="radio" name="wiz-org" value="folder" checked><div><div class="wiz-org-title">📁 Use folder names</div><div class="wiz-org-desc">Your bookmark folders become dashboard sections. Bookmarks not in a folder go to “Other.”</div></div></label>
                 <label class="wiz-org-card"><input type="radio" name="wiz-org" value="dynamic"><div><div class="wiz-org-title">✨ Dynamic AI categorization</div><div class="wiz-org-desc">AI groups bookmarks by title, URL, description &amp; your theme into meaningful sections.</div></div></label>
+                <div class="wiz-org-note" id="wiz-dynamic-note" style="display:none;">⚠ No AI provider is set up — add one in Settings → AI Provider to enable AI categorization.</div>
               </div>
               <div class="form-group" id="wiz-maxsec-row" style="display:none;margin-top:14px;">
                 <label class="label" for="wiz-maxsec">Maximum number of sections</label>
