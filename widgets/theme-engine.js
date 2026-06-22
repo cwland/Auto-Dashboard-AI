@@ -46,18 +46,18 @@
     const accent = c.accent || '#6366f1';
     const dark = lum(bgP) < 0.4;
     const ar = hexToRgb(accent);
-    // Page background: light themes are very pale, so item cards (near-white)
-    // wouldn't stand out against the authored page. Deepen the light page a
-    // touch toward the text colour to give cards a clearly visible surface to
-    // sit on. Dark pages are already deep, so leave them.
-    const page = dark ? bgP : mix(bgP, txt, 0.07);
-    // Raised surface (card) and hover are tinted shades of the surface, not flat
-    // white/grey: in dark themes they step lighter; in light themes the card
-    // steps toward white (lightest, so it pops off the deepened page) and hover
-    // dips toward text.
-    const card = dark ? mix(bgS, '#ffffff', 0.07) : mix(bgS, '#ffffff', 0.65);
-    const hover = dark ? mix(bgS, txt, 0.11) : mix(bgS, txt, 0.07);
-    const textSecondary = c.textSecondary || mix(txt, txtMuted, 0.45);
+    // Any token the caller supplies is used as-is; the rest are derived. This
+    // lets an AI-generated theme specify the whole palette, while standard /
+    // manual themes (core colours only) still get a derived contrast ladder.
+    const hasCard = validHex(c.bgCard);
+    // Page background: when the card is derived from a very pale light surface it
+    // wouldn't stand out, so deepen the light page a touch toward the text. If
+    // the card is explicitly given (full palette), trust it and don't deepen.
+    const page = (dark || hasCard) ? bgP : mix(bgP, txt, 0.07);
+    const card = hasCard ? normHex(c.bgCard) : (dark ? mix(bgS, '#ffffff', 0.07) : mix(bgS, '#ffffff', 0.65));
+    const hover = validHex(c.bgHover) ? normHex(c.bgHover) : (dark ? mix(bgS, txt, 0.11) : mix(bgS, txt, 0.07));
+    const textSecondary = validHex(c.textSecondary) ? normHex(c.textSecondary) : mix(txt, txtMuted, 0.45);
+    const accentHover = validHex(c.accentHover) ? normHex(c.accentHover) : mix(accent, dark ? '#ffffff' : '#000000', 0.14);
     return {
       '--bg-primary': page,
       '--bg-secondary': bgS,
@@ -69,7 +69,7 @@
       '--text-secondary': textSecondary,
       '--text-muted': txtMuted,
       '--accent': accent,
-      '--accent-hover': mix(accent, dark ? '#ffffff' : '#000000', 0.14),
+      '--accent-hover': accentHover,
       '--accent-light': `rgba(${ar.r}, ${ar.g}, ${ar.b}, 0.13)`,
       '--success-light': 'rgba(34,197,94,0.13)',
       '--warning-light': 'rgba(245,158,11,0.13)',

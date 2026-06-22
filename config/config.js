@@ -683,12 +683,27 @@ function renderThemePicker() {
 // derived. The full set is injected as html[data-theme="custom-xxxx"] rules.
 const CT_FIELDS = [
   ['bgPrimary', 'Page background', '#0f0f13'],
-  ['bgSecondary', 'Card / surface', '#1a1a24'],
+  ['bgSecondary', 'Panel / surface', '#1a1a24'],
   ['textPrimary', 'Text', '#e2e8f0'],
   ['textMuted', 'Muted text', '#a8bac8'],
   ['border', 'Borders', '#2a2a3e'],
   ['accent', 'Accent', '#6366f1'],
 ];
+// Optional palette fields — left on "Auto" they're derived from the core colors;
+// override any of them for full control. Each maps to a derived CSS token.
+const CT_OPT_FIELDS = [
+  ['bgCard', 'Item card'],
+  ['bgHover', 'Hover surface'],
+  ['textSecondary', 'Secondary text'],
+  ['accentHover', 'Accent hover'],
+];
+const CT_OPT_TOKEN = { bgCard: '--bg-card', bgHover: '--bg-hover', textSecondary: '--text-secondary', accentHover: '--accent-hover' };
+// The 6 core colors from the manual state (what derivation needs).
+function ctCoreColors() { const o = {}; CT_FIELDS.forEach(([k]) => { o[k] = ctModalState.manual[k]; }); return o; }
+// The derived value for an optional field, given the current core colors.
+function ctDerivedOpt(key) {
+  try { return (window.ThemeEngine.deriveThemeVars(ctCoreColors())[CT_OPT_TOKEN[key]]) || ''; } catch (_) { return ''; }
+}
 
 // Pure color/derivation helpers live in the shared theme-engine.js.
 const TE = (typeof window !== 'undefined' && window.ThemeEngine) || {};
@@ -753,7 +768,7 @@ function addCustomTheme(name, colors, select) {
 }
 
 // ─── Add-theme modal ──────────────────────────────────────────────────────────
-const ctModalState = { aiThemes: [], aiSelected: new Set(), manual: {}, editId: null };
+const ctModalState = { aiThemes: [], aiSelected: new Set(), manual: {}, optAuto: {}, editId: null };
 
 // Minimum WCAG AA contrast for body text.
 const CT_MIN_CONTRAST = 4.5;
@@ -765,8 +780,15 @@ function ctMissing(c) { return CT_FIELDS.filter(([k]) => !ctValidHex(c[k])).map(
 function openCustomThemeModal(edit) {
   ctModalState.aiThemes = []; ctModalState.aiSelected = new Set();
   ctModalState.editId = (edit && edit.id) || null;
-  ctModalState.manual = {};
+  ctModalState.manual = {}; ctModalState.optAuto = {};
   CT_FIELDS.forEach(([k, , def]) => { ctModalState.manual[k] = (edit && edit.colors && edit.colors[k]) || def; });
+  // Optional fields: an explicit value (e.g. from an AI theme) starts as a custom
+  // override; otherwise the field is "Auto" (derived from the core colors).
+  CT_OPT_FIELDS.forEach(([k]) => {
+    const has = !!(edit && edit.colors && ctValidHex(edit.colors[k]));
+    ctModalState.optAuto[k] = !has;
+    ctModalState.manual[k] = has ? ctNormHex(edit.colors[k]) : ctDerivedOpt(k);
+  });
   document.getElementById('ct-prompt').value = '';
   document.getElementById('ct-name').value = edit ? (edit.name || '') : '';
   document.getElementById('ct-ai-warn').textContent = '';
@@ -796,6 +818,7 @@ function setCtMode(mode) {
 function buildManualRows() {
   const wrap = document.getElementById('ct-color-rows');
   wrap.innerHTML = '';
+  // Core (required) colors.
   CT_FIELDS.forEach(([key, label]) => {
     const row = document.createElement('div');
     row.className = 'ct-color-row';
@@ -806,8 +829,48 @@ function buildManualRows() {
       `<input type="text" value="${val}" data-ctk="${key}" maxlength="7" spellcheck="false">`;
     const [picker, , text] = row.children;
     picker.addEventListener('input', () => {
-      ctModalState.manual[key] = picker.value; text.value = picker.value; refreshManualPreview();
+      ctModalState.manual[key] = picker.value; text.value = picker.value; updateAutoOptionals(); refreshManualPreview();
     });
+    text.addEventListener('input', () => {
+      const v = text.value.trim();
+      if (ctValidHex(v)) { const n = ctNormHex(v); ctModalState.manual[key] = n; picker.value = n; }
+      updateAutoOptionals(); refreshManualPreview();
+    });
+    wrap.appendChild(row);
+  });
+
+  // Optional (full-palette) colors, each with an Auto/derive toggle.
+  const head = document.createElement('div');
+  head.className = 'ct-opt-head';
+  head.textContent = 'Advanced — leave on Auto to derive from the colors above';
+  wrap.appendChild(head);
+
+  CT_OPT_FIELDS.forEach(([key, label]) => {
+    const auto = ctModalState.optAuto[key] !== false;
+    const val = ctNormHex(ctModalState.manual[key] || ctDerivedOpt(key) || '#000000');
+    const row = document.createElement('div');
+    row.className = 'ct-opt-row';
+    row.innerHTML =
+      `<span class="ct-opt-name">${escapeHtml(label)}</span>` +
+      `<label class="ct-opt-auto"><input type="checkbox" data-auto="${key}"${auto ? ' checked' : ''}> Auto</label>` +
+      `<input type="color" value="${val}" data-optk="${key}" aria-label="${escapeHtml(label)}"${auto ? ' disabled' : ''}>` +
+      `<input type="text" value="${val}" data-optk="${key}" maxlength="7" spellcheck="false"${auto ? ' disabled' : ''}>`;
+    const chk = row.querySelector('input[type="checkbox"]');
+    const picker = row.querySelector('input[type="color"]');
+    const text = row.querySelector('input[type="text"]');
+    chk.addEventListener('change', () => {
+      ctModalState.optAuto[key] = chk.checked;
+      if (chk.checked) {                       // back to derived
+        const d = ctDerivedOpt(key);
+        ctModalState.manual[key] = d; picker.value = ctNormHex(d || '#000000'); text.value = d;
+        picker.disabled = true; text.disabled = true;
+      } else {                                  // become a custom override (seed with current)
+        picker.disabled = false; text.disabled = false;
+        ctModalState.manual[key] = picker.value;
+      }
+      refreshManualPreview();
+    });
+    picker.addEventListener('input', () => { ctModalState.manual[key] = picker.value; text.value = picker.value; refreshManualPreview(); });
     text.addEventListener('input', () => {
       const v = text.value.trim();
       if (ctValidHex(v)) { const n = ctNormHex(v); ctModalState.manual[key] = n; picker.value = n; }
@@ -817,12 +880,38 @@ function buildManualRows() {
   });
   refreshManualPreview();
 }
+
+// When core colors change, refresh the displayed value of any Auto optional.
+function updateAutoOptionals() {
+  CT_OPT_FIELDS.forEach(([key]) => {
+    if (ctModalState.optAuto[key] === false) return;
+    const d = ctDerivedOpt(key);
+    ctModalState.manual[key] = d;
+    const wrap = document.getElementById('ct-color-rows');
+    const picker = wrap.querySelector(`input[type="color"][data-optk="${key}"]`);
+    const text = wrap.querySelector(`input[type="text"][data-optk="${key}"]`);
+    if (picker) picker.value = ctNormHex(d || '#000000');
+    if (text) text.value = d;
+  });
+}
+
+// Effective colors = core + any non-Auto optional overrides (what gets saved).
+function ctEffectiveColors() {
+  const colors = {}; CT_FIELDS.forEach(([k]) => { colors[k] = ctNormHex(ctModalState.manual[k]); });
+  CT_OPT_FIELDS.forEach(([k]) => { if (ctModalState.optAuto[k] === false && ctValidHex(ctModalState.manual[k])) colors[k] = ctNormHex(ctModalState.manual[k]); });
+  return colors;
+}
 function refreshManualPreview() {
   const c = ctModalState.manual;
   const prev = document.getElementById('ct-manual-prev');
+  // Preview from the fully-derived palette so the card reflects Auto/override.
+  let pal = {};
+  try { pal = window.ThemeEngine.deriveThemeVars(ctEffectiveColors()); } catch (_) {}
+  const page = pal['--bg-primary'] || c.bgPrimary;
+  const card = pal['--bg-card'] || c.bgSecondary;
   prev.innerHTML =
-    `<span class="seg" style="background:${escapeHtml(c.bgPrimary)};color:${escapeHtml(c.textPrimary)}">Page</span>` +
-    `<span class="seg" style="background:${escapeHtml(c.bgSecondary)};color:${escapeHtml(c.textPrimary)}">Card</span>` +
+    `<span class="seg" style="background:${escapeHtml(page)};color:${escapeHtml(c.textPrimary)}">Page</span>` +
+    `<span class="seg" style="background:${escapeHtml(card)};color:${escapeHtml(c.textPrimary)}">Card</span>` +
     `<span class="seg" style="background:${escapeHtml(c.accent)};color:#fff">Accent</span>`;
   const warn = document.getElementById('ct-manual-warn');
   const missing = ctMissing(c);
@@ -838,7 +927,7 @@ function saveManualTheme() {
   const missing = ctMissing(c);
   if (missing.length) { refreshManualPreview(); return; }
   const name = (document.getElementById('ct-name').value || '').trim() || 'Custom';
-  const colors = {}; CT_FIELDS.forEach(([k]) => { colors[k] = ctNormHex(c[k]); });
+  const colors = ctEffectiveColors();   // core + any non-Auto optional overrides
   if (ctModalState.editId) {
     const t = (state.currentSettings.customThemes || []).find((x) => x.id === ctModalState.editId);
     if (t) {
@@ -869,10 +958,12 @@ async function generateAiPalettes() {
   warn.style.color = 'var(--text-muted)';
   warn.innerHTML = '<span class="ct-spinner"></span>Generating accessible palettes…';
   const sys = 'You are a UI color designer. Return ONLY valid JSON: an array of exactly 3 objects, no prose, no markdown fences. ' +
-    'Each object: {"name":string,"bgPrimary":hex,"bgSecondary":hex,"textPrimary":hex,"textMuted":hex,"border":hex,"accent":hex}. ' +
-    'bgPrimary=page background, bgSecondary=card/surface (slightly different from bgPrimary), textPrimary=body text, ' +
-    'textMuted=secondary text, border=subtle separators, accent=primary action color. ' +
-    'CRITICAL accessibility: textPrimary must have a WCAG contrast ratio of at least 4.7:1 against BOTH bgPrimary and bgSecondary. ' +
+    'Each object has ALL of these keys (every value a hex color, except name): ' +
+    '{"name":string,"bgPrimary":hex,"bgSecondary":hex,"bgCard":hex,"bgHover":hex,"border":hex,"textPrimary":hex,"textSecondary":hex,"textMuted":hex,"accent":hex,"accentHover":hex}. ' +
+    'Roles: bgPrimary=page background; bgSecondary=panel/section surface (one step above the page); bgCard=raised item card — it MUST be clearly distinct from bgPrimary so cards visibly stand out; bgHover=hover state for cards/rows; ' +
+    'border=subtle separators; textPrimary=body text; textSecondary=secondary text; textMuted=least-prominent text; accent=primary action color; accentHover=accent hover (a slightly darker or lighter accent). ' +
+    'Build a clear elevation ladder: bgPrimary, bgSecondary and bgCard must each be visibly different. For a DARK theme the page is darkest and cards are lighter; for a LIGHT theme the page is a soft tint and cards are near-white. ' +
+    'CRITICAL accessibility: textPrimary must have a WCAG contrast ratio of at least 4.7:1 against bgPrimary, bgSecondary AND bgCard; textMuted at least 3:1 against bgCard. ' +
     'Give each palette a short evocative name. The 3 palettes should be distinct interpretations.';
   const user = `Theme description: "${desc}". Generate 3 distinct, accessible palettes.`;
   try {
@@ -901,11 +992,16 @@ function parseAiPalettes(raw) {
   let arr;
   try { arr = JSON.parse(s); } catch (_) { return []; }
   if (!Array.isArray(arr)) return [];
+  // Required core roles + optional full-palette extras. Extras are kept when the
+  // AI provides valid hex; anything missing is filled in by the theme engine.
+  const REQ = CT_FIELDS.map(([k]) => k);
+  const OPT = ['bgCard', 'bgHover', 'textSecondary', 'accentHover'];
   return arr.map((o) => {
     const colors = {};
-    CT_FIELDS.forEach(([k]) => { colors[k] = ctValidHex(o[k]) ? ctNormHex(o[k]) : null; });
+    REQ.forEach((k) => { if (ctValidHex(o[k])) colors[k] = ctNormHex(o[k]); });
+    OPT.forEach((k) => { if (ctValidHex(o[k])) colors[k] = ctNormHex(o[k]); });
     return { name: String(o.name || 'Custom').slice(0, 24), colors };
-  }).filter((t) => CT_FIELDS.every(([k]) => t.colors[k]));
+  }).filter((t) => REQ.every((k) => t.colors[k]));
 }
 function renderAiPalettes() {
   const wrap = document.getElementById('ct-palettes');
@@ -924,8 +1020,8 @@ function renderAiPalettes() {
       `</div>` +
       `<div class="ct-pal-prev">` +
         `<span class="seg" style="background:${c.bgPrimary};color:${c.textPrimary}">Page</span>` +
-        `<span class="seg" style="background:${c.bgSecondary};color:${c.textPrimary}">Card</span>` +
-        `<span class="seg" style="background:${c.bgSecondary};color:${c.textMuted}">Muted</span>` +
+        `<span class="seg" style="background:${c.bgCard || c.bgSecondary};color:${c.textPrimary}">Card</span>` +
+        `<span class="seg" style="background:${c.bgCard || c.bgSecondary};color:${c.textMuted}">Muted</span>` +
         `<span class="seg" style="background:${c.accent};color:#fff">Accent</span>` +
       `</div>`;
     el.addEventListener('click', () => {
@@ -957,7 +1053,7 @@ function setupCustomThemeModal() {
   const addBtn = document.getElementById('add-custom-theme');
   if (!addBtn || addBtn.dataset.wired) return;
   addBtn.dataset.wired = '1';
-  addBtn.addEventListener('click', openCustomThemeModal);
+  addBtn.addEventListener('click', () => openCustomThemeModal());
   document.getElementById('ct-close')?.addEventListener('click', closeCustomThemeModal);
   document.getElementById('ct-cancel')?.addEventListener('click', closeCustomThemeModal);
   document.getElementById('custom-theme-modal')?.addEventListener('click', (e) => {

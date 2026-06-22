@@ -280,18 +280,30 @@ function renderSwitcher() {
   if (dashSidebar) dashSidebar.style.display = 'none';
 
   // The top tab/search bar shows when search is on OR there are tabs to show.
-  // Search sits centered in it; tabs are left-justified and grow right.
-  const listEl = document.getElementById('dash-tabs-list');
-  if (listEl) {
-    listEl.innerHTML = '';
+  // Tabs build left-justified; the search sits at a fixed mid position, so tabs
+  // fill to its left first and any remainder continues to its right. Whatever
+  // still doesn't fit collects in the More menu. layoutTabs() distributes them.
+  const leftEl = document.getElementById('dash-tabs-left');
+  const rightEl = document.getElementById('dash-tabs-list');
+  const moreWrap = document.getElementById('dash-more');
+  dashTabBtns = [];
+  if (leftEl && rightEl) {
+    leftEl.innerHTML = '';
+    rightEl.innerHTML = '';
     if (showTabs) {
       list.forEach((d) => {
         const t = document.createElement('button');
         t.className = 'dash-tab' + (d.id === state.activeDashboardId ? ' active' : '');
         t.textContent = d.name;
+        t.title = d.name;
         t.addEventListener('click', () => switchDashboard(d.id));
-        listEl.appendChild(t);
+        leftEl.appendChild(t);
+        dashTabBtns.push({ btn: t, id: d.id, name: d.name });
       });
+      setupTabOverflow();
+      requestAnimationFrame(layoutTabs);
+    } else if (moreWrap) {
+      moreWrap.style.display = 'none';
     }
   }
   const sw = document.getElementById('search-wrapper');
@@ -330,6 +342,112 @@ function renderSwitcher() {
 
 // Kept for the init call site.
 function populateSwitcher() { renderSwitcher(); }
+
+// ─── Dashboard tab overflow ("More" menu) ──────────────────────────────────
+// Tabs stay on a single row; any that don't fit move into a dropdown. The
+// active tab is always kept visible. Recomputed on resize via a ResizeObserver.
+let dashTabBtns = [];          // [{ btn, id, name }]
+let _tabOverflowBound = false;
+
+function setupTabOverflow() {
+  if (_tabOverflowBound) return;
+  _tabOverflowBound = true;
+  const moreBtn = document.getElementById('dash-tab-more');
+  const bar = document.getElementById('dash-tabs');
+  if (moreBtn) moreBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleMoreMenu(); });
+  document.addEventListener('click', (e) => { if (!e.target.closest('#dash-more')) closeMoreMenu(); });
+  if (bar && 'ResizeObserver' in window) {
+    const ro = new ResizeObserver(() => { if (ro._raf) cancelAnimationFrame(ro._raf); ro._raf = requestAnimationFrame(layoutTabs); });
+    ro.observe(bar);
+  } else {
+    window.addEventListener('resize', () => requestAnimationFrame(layoutTabs));
+  }
+}
+function closeMoreMenu() {
+  const menu = document.getElementById('dash-more-menu');
+  const btn = document.getElementById('dash-tab-more');
+  if (menu) menu.style.display = 'none';
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+function toggleMoreMenu() {
+  const menu = document.getElementById('dash-more-menu');
+  const btn = document.getElementById('dash-tab-more');
+  if (!menu) return;
+  const open = menu.style.display === 'flex';
+  menu.style.display = open ? 'none' : 'flex';
+  if (btn) btn.setAttribute('aria-expanded', String(!open));
+}
+
+function layoutTabs() {
+  const leftEl = document.getElementById('dash-tabs-left');
+  const rightEl = document.getElementById('dash-tabs-list');
+  const moreWrap = document.getElementById('dash-more');
+  const moreBtn = document.getElementById('dash-tab-more');
+  const menu = document.getElementById('dash-more-menu');
+  if (!leftEl || !rightEl || !moreWrap || !moreBtn || !menu) return;
+  if (!dashTabBtns.length) { moreWrap.style.display = 'none'; return; }
+
+  const GAP = 4;
+  const activeId = state.activeDashboardId;
+  const w = (t) => t.btn.offsetWidth + GAP;
+
+  // Reset: pull every tab back into the left zone, all visible, More hidden,
+  // so we can measure natural widths against the fixed left-zone width.
+  dashTabBtns.forEach((t) => {
+    t.btn.style.display = '';
+    if (t.btn.parentElement !== leftEl) leftEl.appendChild(t.btn);
+  });
+  moreWrap.style.display = 'none';
+  menu.innerHTML = '';
+
+  // 1) Fill the left zone left-to-right until the next tab won't fit.
+  const leftAvail = leftEl.clientWidth;
+  let used = 0;
+  let i = 0;
+  for (; i < dashTabBtns.length; i++) {
+    const nextW = w(dashTabBtns[i]);
+    if (used + nextW <= leftAvail) { used += nextW; }
+    else break;
+  }
+  const leftCount = i;                       // tabs [0, leftCount) stay on the left
+  const rest = dashTabBtns.slice(leftCount); // remaining go right (then overflow)
+
+  // 2) Place the remainder in the right zone (left-justified). If they don't all
+  //    fit, reserve room for the More button and push the tail into the menu.
+  const rightTotal = rest.reduce((a, t) => a + w(t), 0);
+  let right = rest;
+  let overflow = [];
+  if (rightTotal > rightEl.clientWidth) {
+    moreWrap.style.display = '';
+    const moreW = moreBtn.offsetWidth + GAP + 8;
+    const avail = rightEl.clientWidth - moreW;
+    let ru = 0;
+    right = [];
+    for (let j = 0; j < rest.length; j++) {
+      const nextW = w(rest[j]);
+      if (ru + nextW <= avail) { ru += nextW; right.push(rest[j]); }
+      else { overflow = rest.slice(j); break; }
+    }
+  }
+
+  // 3) Move the right-zone tabs out of the left zone; hide overflow tabs.
+  right.forEach((t) => rightEl.appendChild(t.btn));
+  overflow.forEach((t) => { t.btn.style.display = 'none'; });
+
+  // 4) Build the More menu (overflow is already in dashboard order).
+  let activeInMenu = false;
+  overflow.forEach((t) => {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'dash-more-item' + (t.id === activeId ? ' active' : '');
+    item.textContent = t.name;
+    item.title = t.name;
+    if (t.id === activeId) activeInMenu = true;
+    item.addEventListener('click', () => { closeMoreMenu(); switchDashboard(t.id); });
+    menu.appendChild(item);
+  });
+  moreBtn.classList.toggle('has-active', activeInMenu);
+}
 
 // ─── Render ───────────────────────────────────────────────────────────────────
 

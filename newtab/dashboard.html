@@ -205,23 +205,45 @@
     .dash-brand-name { font-size: 14px; font-weight: 700; color: var(--text-primary); white-space: nowrap; }
     .dash-brand-ver  { font-size: 10px; color: var(--text-muted); }
 
-    /* Tab/search bar — tabs left-justified (grow right), search centered. */
+    /* Tab/search bar — single row; its own surface, distinct from the header
+       (--bg-secondary) above and the content (--bg-primary) below. */
     .dash-tabs {
       display: flex; align-items: center; gap: 12px;
       min-height: 50px; padding: 7px 24px; border-bottom: 1px solid var(--border);
-      background: var(--bg-secondary);
+      background: var(--bg-card); flex-shrink: 0;
     }
-    .dash-tabs-list { flex: 1 1 0; min-width: 0; display: flex; gap: 4px; align-items: center; flex-wrap: wrap; justify-content: flex-start; }
-    .dash-tabs .search-wrapper { flex: 0 0 auto; width: 360px; max-width: 42vw; }
-    .dash-tabs-right { flex: 1 1 0; display: flex; align-items: center; justify-content: flex-end; }
+    /* Two equal tab zones flank the centered search: tabs sit on BOTH sides of
+       it and hug it; overflow collects in the More menu at the far right. */
+    .dash-tabs-list { min-width: 0; display: flex; gap: 4px; align-items: center; flex-wrap: nowrap; overflow: hidden; }
+    .dash-tabs-list.dash-zone-left  { flex: 1 1 0; justify-content: flex-start; }
+    .dash-tabs-list.dash-zone-right { flex: 1 1 0; justify-content: flex-start; }
+    .dash-tabs .search-wrapper { flex: 0 0 auto; width: min(320px, 38vw); min-width: 180px; max-width: 42vw; }
+    /* Overflow "More" menu (appears only when tabs don't fit on one row). */
+    .dash-more { position: relative; flex: 0 0 auto; }
+    .dash-tab-more { padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 700; line-height: 1;
+      color: var(--text-secondary); border: none; background: transparent; white-space: nowrap; }
+    .dash-tab-more:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .dash-tab-more.has-active { color: var(--accent); }
+    .dash-more-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 60;
+      min-width: 190px; max-height: 60vh; overflow-y: auto; display: none; flex-direction: column; gap: 2px;
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.28); padding: 6px; }
+    .dash-more-item { text-align: left; padding: 8px 11px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 500;
+      color: var(--text-secondary); border: none; background: transparent; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dash-more-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+    .dash-more-item.active { background: var(--accent-light); color: var(--accent); font-weight: 700; }
+    .dash-tabs-right { flex: 0 0 auto; min-width: 0; display: flex; align-items: center; }
     .dash-tab {
-      padding: 6px 14px; border-radius: 8px 8px 0 0; cursor: pointer;
+      position: relative;
+      padding: 7px 14px; border-radius: 8px; cursor: pointer; flex: 0 0 auto;
       font-size: 13px; font-weight: 500; color: var(--text-secondary);
-      border: 1px solid transparent; border-bottom: none; background: transparent;
-      white-space: nowrap;
+      border: none; background: transparent; white-space: nowrap;
+      transition: background .15s, color .15s;
     }
     .dash-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
-    .dash-tab.active { background: var(--bg-card); color: var(--accent); border-color: var(--border); }
+    .dash-tab.active { background: var(--accent-light); color: var(--accent); font-weight: 700; }
+    /* Straight accent underline (a flat bar, so it doesn't curve with the corners). */
+    .dash-tab.active::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: 0; height: 2px; background: var(--accent); border-radius: 0; }
 
     /* Sidebar switcher (left list). */
     .dash-sidebar {
@@ -1057,11 +1079,16 @@
 
 <!-- ── Tabs switcher (shown only in tabs mode) ──────────────────────────────── -->
 <div id="dash-tabs" class="dash-tabs" style="display:none;">
-  <div class="dash-tabs-list" id="dash-tabs-list"></div>
+  <div class="dash-tabs-list dash-zone-left" id="dash-tabs-left"></div>
   <div class="search-wrapper" id="search-wrapper">
     <span class="search-icon">🔍</span>
     <input type="text" id="search-input" placeholder="Search bookmarks…" autocomplete="off">
     <div class="search-results" id="search-results"></div>
+  </div>
+  <div class="dash-tabs-list dash-zone-right" id="dash-tabs-list"></div>
+  <div class="dash-more" id="dash-more" style="display:none;">
+    <button class="dash-tab-more" id="dash-tab-more" type="button" aria-haspopup="true" aria-expanded="false" title="More dashboards">⋯</button>
+    <div class="dash-more-menu" id="dash-more-menu" role="menu"></div>
   </div>
   <div class="dash-tabs-right">
     <div class="dashboard-switcher" id="switcher-wrapper" style="display:none;">
