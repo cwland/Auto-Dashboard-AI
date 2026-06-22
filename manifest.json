@@ -3,10 +3,8 @@
   "name": "Auto Dashboard AI",
   "version": "1.0.26",
   "description": "Auto-generate beautiful dashboards from your bookmarks with AI-powered descriptions and icons.",
-  "permissions": ["bookmarks", "storage", "tabs", "favicon", "alarms"],
+  "permissions": ["bookmarks", "storage", "favicon", "alarms"],
   "host_permissions": [
-    "https://raw.githubusercontent.com/*",
-    "https://api.openweathermap.org/*",
     "http://*/*",
     "https://*/*"
   ],

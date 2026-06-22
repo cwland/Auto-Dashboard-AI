@@ -1,6 +1,6 @@
 # Auto Dashboard AI
 
-A Chrome extension that auto-generates beautiful new-tab dashboards from your bookmarks, enriched with AI-powered descriptions and icons via [OpenRouter](https://openrouter.ai).
+A Chrome extension that turns your browser bookmarks into clean, customizable dashboards. Your bookmark folders become dashboard sections you can arrange, theme, and extend with live widgets. Optional AI can help fill in names, descriptions, icons, and color themes — but it's never required.
 
 ## Purpose
 
@@ -22,14 +22,16 @@ It's also a deliberate learning project — a way to build a real application pr
 
 ## Features
 
-- **AI-enriched bookmarks** — descriptions, clean names, and icons fetched or inferred for every bookmark
 - **Folder-organized layout** — your existing bookmark folder structure becomes dashboard sections
+- **Drag-and-drop editing** — rearrange icons and sections, resize sections, and add items in Edit mode
 - **Icon shapes** — choose Square, Rounded, Circle, or Squircle for icons, set as a dashboard default and overridable per-bookmark
 - **Show/hide labels** — toggle the text shown below icons on or off for a cleaner, icon-only look
 - **Multiple dashboards** — create and switch between different dashboard versions; set one as default
-- **New Tab override** — your default dashboard appears every time you open a new tab
-- **Smart icon resolution** — tries each site's real favicon first, falls back to the AI's best-guess brand icon, then a neutral generic icon if nothing matches (with an editable custom emoji option per bookmark)
+- **Open from the toolbar** — click the extension icon to open your default dashboard in a tab
+- **Smart icon resolution** — tries each site's real favicon first, then a brand-icon guess, then a neutral generic icon if nothing matches (with an editable custom emoji option per bookmark)
 - **Live search** — press `/` or type to filter bookmarks across all sections
+- **Themes** — many built-in light and dark themes, plus custom themes you can build by hand
+- **Optional AI assist** — if you add an API key, AI can fill in clean names, descriptions, icons, and generate color themes
 - **Tautulli widget** — connect a [Tautulli](https://tautulli.com/) server to preview live Plex stream activity (poster art, stream/transcode details, progress and ETA), with a seamless infinite carousel when active streams exceed your configured visible count
 - **Uptime Kuma widget** — point at an [Uptime Kuma](https://github.com/louislam/uptime-kuma) status page (no API key needed) for an at-a-glance health summary: average 24-hour uptime with a color-coded ring, plus total / up / down / paused monitor counts and an optional per-monitor list. Try `widgets/uptime-kuma-demo.html` for a clickable offline preview
 - **Sonarr & Radarr widgets** — connect [Sonarr](https://sonarr.tv/) and/or [Radarr](https://radarr.video/) to see upcoming releases from your library, each as either a compact upcoming-releases list or a month calendar grid (toggle inside the widget). Episodes show `SxxExx` badges; movies appear once per release type (in cinemas / digital / physical). Try `widgets/arr-calendar-demo.html` for a clickable offline preview
@@ -66,56 +68,78 @@ It's also a deliberate learning project — a way to build a real application pr
 
 ## Getting Started
 
-AI is **optional**. You can build and use a full dashboard without an API key — turn AI on later if you want it to do the busywork for you.
+You can build and use a complete dashboard **without AI** — the steps below are all you need. AI is entirely optional and only automates the busywork; if you want it, see [Using AI](#using-ai-optional) at the end.
 
-### 1. Create your first dashboard
+### Create a dashboard
 
-1. Click the extension icon → **Create / Update Dashboard**.
-2. Choose how to start:
+1. Click the extension icon and choose **Create / Update Dashboard**.
+2. Pick a starting point:
    - **From bookmarks** — select bookmarks and/or folders from the tree on the left. Your folder structure becomes the dashboard's sections.
-   - **Blank dashboard** — start empty and add items yourself later (in Edit mode).
-3. Give the dashboard a name, pick a default icon shape, and choose whether labels show below icons.
-4. Create it:
-   - With AI off, the dashboard is created right away using each site's favicon.
-   - With AI on, click **✨ Generate Dashboard** and the AI adds clean names, descriptions, and best-guess icons (see step 2 below).
-5. The new dashboard opens automatically. Open **Settings → Dashboards** to set one as **Default** so it appears on every new tab.
+   - **Blank** — start empty and add items yourself afterward (in Edit mode).
+3. Name the dashboard, pick a default icon shape (Square / Rounded / Circle / Squircle), and choose whether labels show beneath icons.
+4. Create it. Without AI, the dashboard is built immediately using each site's favicon (with a neutral fallback icon when a site has none).
+5. The new dashboard opens automatically. Click the extension icon any time to reopen it; in **Settings → Dashboards** you can set one dashboard as the **Default** that opens.
 
-Once a dashboard exists you can refine it in **Edit mode** (the ✎ button, top-right): drag to rearrange, resize sections, add bookmarks or widgets, and open **Dashboard Options** (⚙) and the **Theme** picker (🎨).
+That's it — you have a working dashboard. See **[Using your dashboard](#using-your-dashboard)** below to arrange, theme, and tweak it. If you'd like AI to fill in names, descriptions, and icons for you, that's covered in [Using AI](#using-ai-optional).
 
-### 2. (Optional) Turn on AI
+## Using your dashboard
 
-AI enriches a dashboard with clean names, descriptions, and inferred icons, and can generate color themes for you. To enable it:
+### Everyday use
 
-1. Get a free or paid API key from [openrouter.ai/keys](https://openrouter.ai/keys) (OpenRouter gives you one key for many providers; you can also use OpenAI, Anthropic, Google, and others directly).
-2. Open **Settings → AI**, paste the key, and click **Validate**, then **Save Settings**.
-3. Pick a model (the dropdown is pre-populated with good defaults):
+- **Open a bookmark** — click any icon (opens in a new tab; configurable per item).
+- **Search** — press `/` or click the search box to filter bookmarks across all sections; press `Escape` to clear.
+- **Switch dashboards** — use the switcher at the top. Its style (tabs across the top, a left sidebar, or a dropdown) is set in **Dashboard Options → Dashboard Switcher**.
+- **Hover details** — hovering a bookmark shows its description and URL in a popup at the bottom (this can be turned off in Dashboard Options).
 
-| Model | Speed | Cost | Notes |
-|---|---|---|---|
-| Gemini Flash 1.5 | ⚡ Fast | $ | Recommended default |
-| GPT-4o Mini | Fast | $ | Good balance |
-| Claude 3 Haiku | Fast | $ | High quality |
-| Llama 3.1 8B | Fast | Free | Free tier |
-| Mistral 7B | Fast | Free | Free tier |
+### Edit mode
 
-With AI configured you can use **✨ Generate Dashboard** when creating a dashboard, and **Generate with AI** / **Surprise me** in the Theme picker. Without a key those AI actions stay disabled, and everything else continues to work normally.
+Click **✎ Edit Dashboard** (top-right) to enter Edit mode. A floating toolbar appears — drag it anywhere by the grip (⠿) on its left. From it you can:
 
-## Usage
+- **➕ Add** a bookmark, a live widget, or a manual item to any section.
+- **📐 Auto-resize** sections tightly around their icons, **🧲 Snap** sections together to close gaps, and **↩️ Undo** the last auto-layout change.
+- **⚙️ Dashboard Options** and **🎨 Theme** (see below).
+- **✕ Cancel** to discard changes or **✓ Save** to keep them.
 
-### New Tab Dashboard
+While editing, drag icons to rearrange them (within or across sections), drag sections to move them, and drag a section's edge to resize it — a section only snaps back if you make it too small to show its icons. Each icon shows a small **ℹ** (top-left) to edit its name, description, icon, emoji, or shape, and an **✕** (top-right) to remove it.
 
-- **Clock & date** — displayed in the top center
-- **Search** — press `/` or click the search bar; press `Escape` to clear
-- **Switch dashboards** — use the dropdown in the top-right (appears when you have 2+ dashboards)
-- **Click any bookmark** — opens in a new tab
-- **Edit a bookmark** — hover a card and click the ℹ button to update its name, description, icon, emoji, or shape; use **Delete Item** to remove it from the dashboard
-- **Edit the dashboard** — click the ✎ icon next to the dashboard name to rename it, toggle labels on/off, or change the default icon shape
+### Dashboard Options (⚙)
 
-### Managing Dashboards
+A floating panel whose changes **save automatically** (no Save button) and apply live. It does not dim the dashboard, so you can see your changes immediately. Options include:
 
-- Open **Settings → Dashboards** to create, delete, rename, or change the default dashboard
-- Click **Edit** on any saved dashboard to rename it, toggle text labels, or change its default icon shape
-- You can create multiple themed dashboards (e.g., Work, Personal, Research) and switch between them
+- **Header Layout** — **Full** (logo, name, clock/date) or **Compact** (branding hidden, dashboard name on the left, time and date on one centered line).
+- **Show Time / Show Date** — toggle the clock and date independently.
+- **Show Edit Dashboard Button** — when off, a small ⚙ in the top-right corner takes its place.
+- **Show Settings Button**, **Search**, and **Link Hover Popup** — show/hide each.
+- **Dashboard Switcher** — choose Tabs, Sidebar, or Dropdown.
+
+### Themes (🎨)
+
+The Theme picker previews and applies a color theme to the dashboard. While it's open the dashboard goes read-only so you can preview accurately. Themes are grouped into **Light**, **Dark**, and **Custom** tabs (plus **Auto**, which follows your system light/dark); click any theme to apply and save it. On the **Custom** tab you can:
+
+- **+ Create custom theme** — pick your colors by hand, with a live preview.
+- **✨ Generate with AI** / **🎲 Surprise me** — generate a palette from a description, or a random one (requires AI).
+- **Delete** a custom theme via the **✕** on its card (with confirmation).
+
+### Managing dashboards
+
+- Open **Settings → Dashboards** to create, rename, reorder, delete, or change the default dashboard.
+- Create as many dashboards as you like (e.g., Work, Personal, Home Lab) and switch between them from the dashboard.
+- Everything — dashboards, settings, and custom themes — can be exported to a file or synced to a private GitHub Gist (see **Backup & Sync** in Settings) so you can restore it on another computer or browser.
+
+## Using AI (optional)
+
+AI is a convenience layer, not a requirement — everything above works without it. If you'd like it to do the busywork, it can fill in clean names, short descriptions, and inferred icons for your bookmarks, and generate color themes from a description. Without a key, these actions are simply disabled and nothing else changes.
+
+To enable it:
+
+1. Add an API key in **Settings → AI**. You can bring your own key from any supported provider — [OpenRouter](https://openrouter.ai/keys) (one key for many models), OpenAI, Anthropic, Google, Mistral, Meta, Groq, Cohere, Together AI, Fireworks AI, DeepSeek, or xAI.
+2. Paste the key, click **Validate**, then **Save Settings**.
+3. Pick a model (the dropdown is pre-populated with sensible defaults — fast/cheap options work well here).
+
+Then you can:
+
+- **✨ Generate Dashboard** when creating a dashboard — the AI processes your selected bookmarks in batches and adds names, descriptions, and best-guess icons. (Only the bookmark URLs, titles, and folder names are sent to your chosen provider.)
+- **Generate with AI** or **🎲 Surprise me** in the Theme picker — describe a vibe (or let it invent one) and get a full, accessible color theme.
 
 ## Versioning
 
@@ -150,7 +174,7 @@ auto-dashboard-ai/
 │   ├── config.html        # Settings & dashboard management UI
 │   └── config.js          # Settings logic, bookmark tree, AI processing
 ├── newtab/
-│   ├── newtab.html        # New tab dashboard page
+│   ├── newtab.html        # Dashboard page (also dashboard.html for explicit opens)
 │   └── newtab.js          # Dashboard rendering and search
 ├── popup/
 │   ├── popup.html         # Extension toolbar popup
@@ -172,7 +196,8 @@ auto-dashboard-ai/
 |---|---|
 | `bookmarks` | Read your bookmark tree to populate the dashboard |
 | `storage` | Save settings, API key, and dashboard data locally |
-| `tabs` | Open config/dashboard pages when needed |
+| `favicon` | Resolve each site's favicon for bookmark icons |
+| `alarms` | Schedule the periodic Gist auto-sync check |
 | `host_permissions` | Reach the OpenWeatherMap API (weather widget) and your self-hosted servers (Tautulli, Uptime Kuma, Sonarr, Radarr, Overseerr/Jellyseerr, Pi-hole, AdGuard Home, Plex, UniFi, SABnzbd, qBittorrent, Transmission, PeaNUT, Umami, Speedtest Tracker, ntfy, Audiobookshelf, Navidrome, Prowlarr, Tracearr, Glances, dash., Unraid, OpenMediaVault, TrueNAS, Proxmox, PBS, Beszel, Home Assistant, Nextcloud, OPNsense, and any iCal feed). These can run on any local IP/port, so broad `http(s)://*/*` access is requested; requests are only ever made to the OpenWeatherMap endpoint and the server URLs you configure |
 
 ## Tautulli widget

@@ -2691,6 +2691,14 @@ async function saveSettings() {
     clockFormat:         state.currentSettings.clockFormat,
     dateVisible:         state.currentSettings.dateVisible,
     dateFormat:          state.currentSettings.dateFormat,
+    // Per-dashboard header/display options managed from the dashboard's Options
+    // panel — preserved here so saving in Settings never wipes them.
+    showTime:            state.currentSettings.showTime,
+    showDate:            state.currentSettings.showDate,
+    headerLayout:        state.currentSettings.headerLayout,
+    showEditButton:      state.currentSettings.showEditButton,
+    showSettingsButton:  state.currentSettings.showSettingsButton,
+    showLinkHover:       state.currentSettings.showLinkHover,
     weatherEnabled:      state.currentSettings.weatherEnabled,
     weatherProvider:     state.currentSettings.weatherProvider,
     weatherApiKey:       state.currentSettings.weatherApiKey,

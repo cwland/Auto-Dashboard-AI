@@ -667,13 +667,9 @@ async function gistReconcile() {
 
 // Tell any open dashboard pages to reload so they show the just-loaded config.
 function notifyConfigReplaced() {
+  // Open dashboard pages listen for this and reload themselves (newtab.js), so
+  // no tab scan is needed — which lets us avoid the "tabs" permission entirely.
   try { chrome.runtime.sendMessage({ type: 'configReplaced' }, () => void chrome.runtime.lastError); } catch (_) {}
-  try {
-    const base = chrome.runtime.getURL('newtab/');
-    chrome.tabs.query({}, (tabs) => {
-      (tabs || []).forEach((t) => { if (t.url && t.url.startsWith(base)) { try { chrome.tabs.reload(t.id); } catch (_) {} } });
-    });
-  } catch (_) {}
 }
 
 // Mark the local config as edited (bumps localTs) — but only for a REAL change,

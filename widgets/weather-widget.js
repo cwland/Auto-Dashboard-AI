@@ -60,6 +60,9 @@
     85: 'Snow showers', 86: 'Snow showers', 95: 'Thunderstorm', 96: 'Thunderstorm, hail', 99: 'Thunderstorm, hail',
   };
   const wmoText = (code) => WMO_TEXT[+code] || '';
+  // Escape the one externally-sourced free-text string (OpenWeatherMap's
+  // weather description) before it goes into innerHTML.
+  const escHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   // Open-Meteo returns naive local-time ISO strings (timezone=auto); format the
   // clock parts directly so the displayed time matches the city, not the browser.
   const isoHM = (iso) => {
@@ -350,7 +353,7 @@
            <div class="ww-cur-emoji">${c.emoji}</div>
            <div class="ww-cur-temp">${c.temp}${u.temp}</div>
            <div class="ww-cur-main">
-             <div class="ww-cur-cond">${c.condition}</div>
+             <div class="ww-cur-cond">${escHtml(c.condition)}</div>
              <div class="ww-cur-feels">Feels like ${c.feels}${u.temp}</div>
            </div>
          </div>
@@ -510,7 +513,7 @@
            <div class="wwc-cur-emoji">${c.emoji}</div>
            <div class="wwc-cur-temp">${c.temp}${u.temp}</div>
            <div class="wwc-cur-main">
-             <div class="wwc-cur-cond">${c.condition}</div>
+             <div class="wwc-cur-cond">${escHtml(c.condition)}</div>
              <div class="wwc-cur-feels">Feels like ${c.feels}${u.temp}</div>
            </div>
            <div class="wwc-cur-hl"><span><b>${c.high}${u.temp}</b> H</span><span>${c.low}${u.temp} L</span></div>

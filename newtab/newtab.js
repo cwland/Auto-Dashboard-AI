@@ -2709,8 +2709,13 @@ function setupRearrangeToolsMenu() {
   // The bar starts top-center (CSS) and can be dragged by its grip handle.
   makeDraggable(document.getElementById('rt-grip'), menu);
 
-  // Hover description tooltips.
+  // Accessible name for the grip (drag handle).
+  const grip = document.getElementById('rt-grip');
+  if (grip && !grip.getAttribute('aria-label')) grip.setAttribute('aria-label', 'Drag to move this toolbar');
+
+  // Hover description tooltips + screen-reader labels (data-tip isn't announced).
   menu.querySelectorAll('.rt-btn').forEach((b) => {
+    if (b.dataset.tip && !b.getAttribute('aria-label')) b.setAttribute('aria-label', b.dataset.tip);
     b.addEventListener('mouseenter', () => {
       if (!tip || !b.dataset.tip) return;
       tip.textContent = b.dataset.tip;
@@ -2848,6 +2853,13 @@ function doRowEl(label, controlEl, sub) {
   }
   row.appendChild(text);
   row.appendChild(controlEl);
+  // Accessibility: give the control an accessible name from the row label.
+  const inp = controlEl.querySelector && controlEl.querySelector('input');
+  if (inp && !inp.getAttribute('aria-label')) inp.setAttribute('aria-label', label);
+  if (controlEl.classList && controlEl.classList.contains('do-seg')) {
+    controlEl.setAttribute('role', 'group');
+    controlEl.setAttribute('aria-label', label);
+  }
   return row;
 }
 function doSwitchEl(checked, onChange) {
@@ -3254,7 +3266,7 @@ function buildThemePicker() {
   const aiRow = document.createElement('div');
   aiRow.className = 'theme-ai-input'; aiRow.style.display = 'none';
   const aiInput = document.createElement('input');
-  aiInput.type = 'text'; aiInput.placeholder = 'Describe a theme — e.g. “sunset over the ocean”';
+  aiInput.type = 'text'; aiInput.placeholder = 'Describe a theme — e.g. “sunset over the ocean”'; aiInput.setAttribute('aria-label', 'Describe a theme for AI to generate');
   const aiGo = document.createElement('button');
   aiGo.type = 'button'; aiGo.className = 'theme-act-btn'; aiGo.textContent = 'Generate';
   aiRow.appendChild(aiInput); aiRow.appendChild(aiGo);
@@ -3412,8 +3424,8 @@ function renderThemeCreate() {
   TC_FIELDS.forEach(([key, label]) => {
     const row = document.createElement('div'); row.className = 'tc-row';
     const lab = document.createElement('label'); lab.textContent = label;
-    const pick = document.createElement('input'); pick.type = 'color'; pick.value = _tcColors[key];
-    const text = document.createElement('input'); text.type = 'text'; text.value = _tcColors[key]; text.maxLength = 7; text.spellcheck = false;
+    const pick = document.createElement('input'); pick.type = 'color'; pick.value = _tcColors[key]; pick.setAttribute('aria-label', label);
+    const text = document.createElement('input'); text.type = 'text'; text.value = _tcColors[key]; text.maxLength = 7; text.spellcheck = false; text.setAttribute('aria-label', label + ' hex value');
     pick.addEventListener('input', () => { _tcColors[key] = pick.value; text.value = pick.value; refreshTcPreview(); });
     text.addEventListener('input', () => {
       const v = text.value.trim();
