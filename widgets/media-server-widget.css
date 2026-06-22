@@ -55,7 +55,10 @@
 }
 .ms-widget .ms-row {
   display: grid;
-  grid-template-columns: 26px 1fr auto;
+  /* Fixed-width user column so the avatar + name block shares one left edge on
+     every row — otherwise an `auto` column right-aligns each block by its own
+     content width and the names drift horizontally row-to-row. */
+  grid-template-columns: 26px minmax(0, 1fr) 150px;
   align-items: start;           /* top-align so titles line up row-to-row */
   gap: 12px;
   padding: 10px 12px;
@@ -83,7 +86,7 @@
   background: var(--ms-accent);
 }
 .ms-widget .ms-row-user {
-  display: flex; align-items: center; gap: 8px; max-width: 150px;
+  display: flex; align-items: center; gap: 8px; width: 100%;
 }
 .ms-widget .ms-avatar {
   width: 26px; height: 26px; border-radius: 50%;

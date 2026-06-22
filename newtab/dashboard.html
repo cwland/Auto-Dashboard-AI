@@ -137,7 +137,10 @@
       transition: all 0.15s; display: flex; align-items: center;
       gap: 6px; white-space: nowrap; text-decoration: none;
     }
-    .btn-topbar:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
+    .btn-topbar:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); border-color: var(--accent); }
+    /* Disabled (e.g. the Edit Dashboard button shown as a live preview while
+       already editing) — dimmed and non-interactive. */
+    .btn-topbar:disabled { opacity: 0.45; cursor: default; }
     .btn-topbar.active { background: var(--accent); color: #fff; border-color: var(--accent); }
     /* Save button while rearranging — accent, with an unsaved-changes dot.
        Uses a two-class selector so it beats the light-mode .btn-topbar override. */
@@ -350,7 +353,7 @@
        widget (edit mode), centered right on the border corner (part in/part out). */
     .grid-lock { display: none; }
     body.rearrange-mode .grid-stack .grid-lock {
-      position: absolute; top: 0; left: 0; transform: translate(-50%, -50%); z-index: 9;
+      position: absolute; top: 0; left: 0; transform: translate(0, -50%); z-index: 9;
       display: inline-flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; padding: 0; border-radius: 50%;
       border: 1px solid var(--border); background: transparent;
@@ -365,10 +368,11 @@
     .grid-stack-item.locked .folder-header { cursor: default; }
     .grid-stack-item.locked .widget-drag { opacity: 0.3; cursor: default; }
 
-    /* Delete control — straddles the TOP-RIGHT corner (edit mode). */
+    /* Delete control — sits just inside the TOP-RIGHT corner (edit mode),
+       tucked in so it never overlaps an adjacent card's lock control. */
     .widget-del { display: none; }
     body.rearrange-mode .grid-stack .widget-del {
-      position: absolute; top: 0; right: 0; transform: translate(50%, -50%); z-index: 9;
+      position: absolute; top: 0; right: 0; transform: translate(0, -50%); z-index: 9;
       display: inline-flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; padding: 0; border-radius: 50%;
       border: 1px solid var(--border); background: var(--bg-secondary);
@@ -751,9 +755,10 @@
     }
     .bookmark-card:active { transform: translateY(0); }
 
-    /* Card action button (the remove ✕) — straddles the TOP-RIGHT corner. */
+    /* Card action button (the remove ✕) — sits just inside the TOP-RIGHT
+       corner, tucked in so it doesn't overlap the neighbour card's info button. */
     .card-actions {
-      position: absolute; top: 0; right: 0; transform: translate(50%, -50%);
+      position: absolute; top: 0; right: 0; transform: translate(0, -50%);
       display: flex; gap: 4px;
       opacity: 0; pointer-events: none;
       transition: opacity 0.15s; z-index: 6;
@@ -832,10 +837,11 @@
     body.rearrange-mode .bookmark-card:hover { transform: none; box-shadow: none; }
     /* Rearrange mode: hide the info button, always reveal the remove (✕) button */
     body.rearrange-mode .card-actions { opacity: 1; pointer-events: all; }
-    /* Edit mode: info button straddles the TOP-LEFT corner of the card. */
+    /* Edit mode: info button sits just inside the TOP-LEFT corner of the card,
+       tucked in so it doesn't overlap the neighbour card's remove (✕) button. */
     body.rearrange-mode .card-info-btn {
       display: inline-flex; position: absolute; left: 0; top: 0; right: auto; bottom: auto;
-      transform: translate(-50%, -50%);
+      transform: translate(0, -50%);
       z-index: 7; opacity: 1; pointer-events: all;
     }
     body.rearrange-mode .card-remove-btn { display: flex; }

@@ -2800,10 +2800,13 @@ function refreshHeaderDisplay() {
   const showEdit = settings.showEditButton !== false;       // default true
   const showSettings = settings.showSettingsButton !== false; // default true
 
-  // Edit Dashboard button — also hidden while editing (the floating toolbar
-  // drives editing, so the old "Editing Dashboard" label served no purpose).
+  // Edit Dashboard button — visibility follows the "Show Edit Dashboard Button"
+  // toggle directly so the change previews live in the Dashboard Options panel
+  // (which is only reachable while editing). While editing the button is left
+  // disabled (set in enterRearrangeMode), so it shows as a non-interactive
+  // preview rather than letting you re-enter edit mode.
   const editBtn = document.getElementById('rearrange-btn');
-  if (editBtn) editBtn.style.display = (showEdit && !state.rearrangeMode) ? '' : 'none';
+  if (editBtn) editBtn.style.display = showEdit ? '' : 'none';
 
   // Settings button.
   const settingsLink = document.getElementById('settings-link');
@@ -2813,13 +2816,34 @@ function refreshHeaderDisplay() {
   // there's always a way to reach edit mode. Its visibility reacts immediately
   // to the toggles (same as the Settings button), including while editing.
   const cornerCog = document.getElementById('corner-cog');
+  const topRight = document.querySelector('.topbar-right');
   if (cornerCog) {
     const showCog = (!showEdit || !showSettings);
     cornerCog.style.display = showCog ? 'flex' : 'none';
-    // Vertically center it within the header band (browser top ↔ tab bar).
+    // The cog is fixed in the top-right margin; reserve space so any still-visible
+    // header button shifts left and doesn't sit underneath it.
+    if (topRight) topRight.style.paddingRight = showCog ? '44px' : '';
+    // Align the cog with the top-right button row so it sits in the top-right
+    // corner in BOTH Full and Compact layouts. (Centering it in the header band
+    // dropped it to the vertical middle of the taller Full header.) Prefer a
+    // visible top-right button as the anchor; fall back to the header padding.
     if (showCog && topbar) {
-      const h = topbar.getBoundingClientRect().height;
-      if (h) cornerCog.style.top = Math.max(6, Math.round(h / 2 - cornerCog.offsetHeight / 2)) + 'px';
+      let center = null;
+      const ref = [editBtn, settingsLink].find((b) => b && b.style.display !== 'none');
+      if (ref) {
+        const r = ref.getBoundingClientRect();
+        if (r.height) center = r.top + r.height / 2;
+      }
+      if (center == null) {
+        const tr = topbar.getBoundingClientRect();
+        if (topbar.classList.contains('header-compact')) {
+          center = tr.top + tr.height / 2;
+        } else {
+          const padTop = parseFloat(getComputedStyle(topbar).paddingTop) || 14;
+          center = tr.top + padTop + 15;   // ~center of the top button row
+        }
+      }
+      cornerCog.style.top = Math.max(6, Math.round(center - cornerCog.offsetHeight / 2)) + 'px';
     }
   }
 }
@@ -2987,6 +3011,16 @@ function renderDashOptions() {
   if (!body) return;
   body.innerHTML = '';
 
+  // ── Dashboard Type (switcher style) — kept at the top so the Tabs/Sidebar/
+  // Dropdown choice is the first thing in the panel. ──
+  const typeSec = doSectionEl('Dashboard Switcher');
+  typeSec.appendChild(doSegmentEl(
+    [{ label: 'Tabs', value: 'tabs' }, { label: 'Sidebar', value: 'sidebar' }, { label: 'Dropdown', value: 'dropdown' }],
+    settings.dashboardSwitcher || 'dropdown',
+    (v) => dashOptSet('dashboardSwitcher', v)
+  ));
+  body.appendChild(typeSec);
+
   // ── Header: layout + time/date ──
   const disp = doSectionEl('Header');
   disp.appendChild(doRowEl(
@@ -3033,15 +3067,6 @@ function renderDashOptions() {
     'Show bookmark details in a popup at the bottom-center on hover.'
   ));
   body.appendChild(vis);
-
-  // ── Dashboard Type (switcher style) ──
-  const typeSec = doSectionEl('Dashboard Switcher');
-  typeSec.appendChild(doSegmentEl(
-    [{ label: 'Tabs', value: 'tabs' }, { label: 'Sidebar', value: 'sidebar' }, { label: 'Dropdown', value: 'dropdown' }],
-    settings.dashboardSwitcher || 'dropdown',
-    (v) => dashOptSet('dashboardSwitcher', v)
-  ));
-  body.appendChild(typeSec);
   // (Theme selection lives in its own modal — the 🎨 button in the edit toolbar.)
 }
 
@@ -3469,8 +3494,10 @@ function enterRearrangeMode() {
   state.rearrangeMode     = true;
   state.rearrangeModified = false;
   document.body.classList.add('rearrange-mode');
-  // The Edit button is hidden while editing (Save/Cancel live in the floating
-  // tools menu); refreshHeaderDisplay hides the button + corner cog for us.
+  // Save/Cancel live in the floating tools menu while editing. The Edit button
+  // is disabled (not hidden) so it still reflects the "Show Edit Dashboard
+  // Button" toggle live in the Dashboard Options panel, as a non-interactive
+  // preview, without letting you re-enter edit mode.
   rearrangeBtn.disabled = true;
   rearrangeSaveBtn.classList.remove('has-changes');
   refreshHeaderDisplay();
