@@ -354,7 +354,7 @@
        widget (edit mode), centered right on the border corner (part in/part out). */
     .grid-lock { display: none; }
     body.rearrange-mode .grid-stack .grid-lock {
-      position: absolute; top: 0; left: 0; transform: translate(0, -50%); z-index: 9;
+      position: absolute; top: auto; bottom: 0; left: 0; transform: translate(0, 50%); z-index: 9;
       display: inline-flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; padding: 0; border-radius: 50%;
       border: 1px solid var(--border); background: transparent;
@@ -527,46 +527,34 @@
     /* Lift the hovered card above neighbouring sections while it pops out. */
     .grid-stack .bookmark-card:hover { z-index: 20; }
 
-    /* ── Nested icon GridStack (each bookmark is a 1×1 node) ─────────────────── */
-    .folder-section .icon-grid { width: 100%; flex: 0 0 auto; background-image: none !important; }
-    /* The grid item itself is invisible chrome — the bookmark card is the visual. */
-    .icon-grid > .grid-stack-item > .grid-stack-item-content {
-      padding: 0 !important; margin: 0 !important; border: none !important;
-      background: transparent !important; box-shadow: none !important; overflow: visible !important;
-      display: block !important;
+    /* ── Icon grid (plain CSS grid of fixed-size cards; SortableJS drag-reorder) ─ */
+    /* Fixed-size cells via auto-fill, so they reflow as the section is resized, and
+       justify-content:center so leftover width is split EVENLY on both sides. No
+       JS lays this out — there's nothing to snap back or re-animate on release. */
+    .folder-section .icon-grid {
+      display: grid;
+      gap: 6px;
+      width: 100%;
+      flex: 0 0 auto;
+      align-content: start;
+      justify-content: center;
+      background-image: none !important;
+      grid-template-columns: repeat(auto-fill, 96px);
+      grid-auto-rows: 112px;
     }
-    body.rearrange-mode .icon-grid > .grid-stack-item > .grid-stack-item-content {
-      border: none !important; box-shadow: none !important; background: transparent !important;
-    }
+    .folder-section[data-iconsize="small"] .icon-grid { grid-template-columns: repeat(auto-fill, 64px);  grid-auto-rows: 66px; }
+    .folder-section[data-iconsize="large"] .icon-grid { grid-template-columns: repeat(auto-fill, 128px); grid-auto-rows: 146px; }
+    .icon-node { box-sizing: border-box; min-width: 0; }
     .icon-node .bookmark-card { width: 100%; height: 100%; box-sizing: border-box; margin: 0; }
-    /* While resizing, the icon grid becomes a fixed-cell CSS grid so icons keep
-       their size and wrap into place (no stretch); restored to gridstack on release. */
-    .icon-grid.gs-reflow { display: grid !important; gap: 6px; height: auto !important; align-content: start; justify-content: center; grid-template-columns: repeat(auto-fill, 96px); grid-auto-rows: 112px; }
-    .icon-grid.gs-reflow > .grid-stack-item,
-    .icon-grid.gs-reflow > .grid-stack-item > .grid-stack-item-content {
-      position: static !important; transform: none !important; inset: auto !important;
-      left: auto !important; top: auto !important; width: auto !important; height: auto !important; min-height: 0 !important;
-    }
-    .icon-grid.gs-reflow > .grid-stack-placeholder { display: none !important; }
-    .icon-grid.gs-reflow .bookmark-card { width: 100% !important; height: 100% !important; }
-    .folder-section[data-iconsize="small"]  .icon-grid.gs-reflow { grid-template-columns: repeat(auto-fill, 64px);  grid-auto-rows: 66px; }
-    .folder-section[data-iconsize="large"]  .icon-grid.gs-reflow { grid-template-columns: repeat(auto-fill, 128px); grid-auto-rows: 146px; }
-    /* The pinned (fixed-width) icon grid is centered so leftover section width is
-       balanced instead of all on the right. */
-    .folder-section .icon-grid { margin: 0 auto; }
-    /* Icons move instantly (no transition), so releasing a resize doesn't make
-       them animate back from their old positions; and they never look faded. */
-    .icon-grid .grid-stack-item, .icon-grid .grid-stack-item > .grid-stack-item-content { transition: none !important; animation: none !important; opacity: 1 !important; }
-    /* Icons are a fixed size (set by S/M/L) — never show a resize handle on them. */
-    .icon-grid .ui-resizable-handle { display: none !important; }
-    body.rearrange-mode .icon-grid .grid-stack-item { cursor: grab; }
-    .icon-grid .grid-stack-item.ui-draggable-dragging { z-index: 10000; cursor: grabbing; }
-    .icon-grid .grid-stack-item.ui-draggable-dragging .bookmark-card { box-shadow: 0 14px 36px rgba(0,0,0,.4); }
-    /* Drop slot shown while dragging an icon. */
-    .icon-grid > .grid-stack-placeholder > .placeholder-content {
-      border: 2px dashed var(--accent); background-color: var(--accent-light) !important;
-      border-radius: var(--radius); opacity: 1; margin: 0;
-    }
+    /* Stop the browser's native image-drag from competing with Sortable. */
+    .icon-node img { -webkit-user-drag: none; user-select: none; }
+    body.rearrange-mode .icon-node { cursor: grab; }
+    /* SortableJS drag states. */
+    .icon-node.icon-chosen { cursor: grabbing; }
+    .icon-node.icon-ghost { opacity: .4; }
+    .icon-node.icon-ghost .bookmark-card { border: 2px dashed var(--accent); background: var(--accent-light); }
+    .icon-node.sortable-drag .bookmark-card,
+    .icon-node.icon-fallback .bookmark-card { box-shadow: 0 14px 36px rgba(0,0,0,.4); }
 
     /* Responsive section content — icons/columns scale with the section's width.
        The data-iconsize value is chosen per section in Edit Mode (S/M/L). */
@@ -1605,6 +1593,7 @@
 <div class="bm-desc-tooltip" id="bm-desc-tooltip"></div>
 
 <script src="vendor/gridstack-all.js"></script>
+<script src="vendor/Sortable.min.js"></script>
 <script src="../widgets/theme-engine.js"></script>
 <script src="../widgets/ai-theme.js"></script>
 <script src="../widgets/endpoints.js"></script>

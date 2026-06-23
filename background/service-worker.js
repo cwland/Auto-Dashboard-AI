@@ -114,7 +114,17 @@ function syncGroupSections(dash) {
     names = dash.sectionOrder.filter((s) => present.has(s));
     order.forEach((s) => { if (!names.includes(s)) names.push(s); });
   }
-  return names.map((name) => ({ name, bookmarks: groups.get(name) || [] }));
+  // Within each section, mirror the icons' on-screen order (bm.order), so the
+  // bookmark-bar copy matches the dashboard. Items without an order keep their
+  // insertion order (stable sort). This is the same ordering the board uses.
+  return names.map((name) => {
+    const items = (groups.get(name) || []).slice().sort((a, b) => {
+      const ao = Number.isFinite(a.order) ? a.order : 1e9;
+      const bo = Number.isFinite(b.order) ? b.order : 1e9;
+      return ao - bo;
+    });
+    return { name, bookmarks: items };
+  });
 }
 
 async function bmGet(id) {

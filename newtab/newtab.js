@@ -527,7 +527,7 @@ function renderDashboard(dashId) {
 let gridInstance = null;
 let mountedWidgets = [];   // live integration widget instances on the board
 let widgetObserver = null; // resizes widget groupings to fit their content
-let iconGrids = [];        // nested GridStacks (one per section) holding the bookmark icons
+let iconSortables = [];    // SortableJS instances (one per section) for icon drag-reorder
 let gridInteracting = false; // true while the user is dragging/resizing an item
 const BASE_COLS = 24;   // snap density at the default canvas (the coordinate baseline)
 // Live column count. A wider canvas ADDS columns of the SAME size (more snap
@@ -692,7 +692,7 @@ function sectionMinW(name, iconSize, cellW) {
 
 // Consistent breathing room between the last icon row and the section's bottom
 // edge — the same at every icon size and row count.
-const SECTION_BOTTOM_GAP = 16;
+const SECTION_BOTTOM_GAP = 30;
 
 // Size a section so its icon grid is fully visible AND leaves a consistent gap
 // below the last row. We measure the REAL gap (frame bottom − last card bottom)
@@ -801,28 +801,11 @@ function setupWidgetAutoFit() {
 // its current width. Shrinking the width pushes the required height up, so a
 // section can never be made too small to hold every icon — or to hide its name.
 function sectionMinCells(el) {
-  const node = el.gridstackNode;
-  const gridStackEl = el.closest('.grid-stack');
-  if (!node || !gridStackEl) return null;
-  const cellW = gridStackEl.clientWidth / GRID_COLS || 1;
-  const size = storedIconSize(el.dataset.folder);
-  const spec = ICON_SIZES[size] || ICON_SIZES.medium;
-  const minW = sectionMinW(el.dataset.folder, size, cellW);
-
-  // Measure the ACTUAL icon content height at the current width (the bottom of
-  // the last card), rather than estimating rows. This lets a section shrink to
-  // exactly below its icons, regardless of icon size / column count. The grid is
-  // flex:1 so its own height stretches — we measure the cards, not the box.
-  const bmGrid = el.querySelector('.bookmark-grid');
-  const cards = bmGrid ? bmGrid.querySelectorAll('.bookmark-card') : [];
-  let contentH = spec.rowPx;  // fallback when nothing's laid out yet
-  if (cards.length && bmGrid) {
-    const gridTop = bmGrid.getBoundingClientRect().top;
-    const last = cards[cards.length - 1];
-    contentH = Math.max(0, last.getBoundingClientRect().bottom - gridTop) + 6; // + small bottom pad
-  }
-  const minH = Math.max(GRID_MIN_H, Math.ceil((HEADER_PX + contentH) / GRID_CELL));
-  return { minW, minH };
+  if (!el.gridstackNode || !el.closest('.grid-stack')) return null;
+  // The floor is "fits every icon at the current width" — so a hand-resize can't
+  // be dragged smaller than the icons need (no clipping), but can grow freely.
+  const { needH, minWcells } = iconSectionNeedCells(el);
+  return { minW: minWcells, minH: needH };
 }
 
 // ─── Rearrange-mode auto-layout tools ─────────────────────────────────────────
@@ -896,25 +879,21 @@ function autoResizeGroupings() {
   gridInstance.batchUpdate();
   document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(tightenSection);
   gridInstance.commit();
-  // Icon sections: auto-resize overrides hand-sizing, so clear the manual flag,
-  // compact the icons to the top-left (removing internal gaps), then re-fit each
-  // section's height tightly to its icons.
+  // Icon sections: auto-resize overrides hand-sizing, so clear the manual flag and
+  // shrink each section's WIDTH to wrap its icons in a tidy near-square block, then
+  // snap the HEIGHT to fit (the CSS grid reflows the columns automatically).
   document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach((el) => {
     delete el.dataset.manualSize;
     const gridEl = el.querySelector('.icon-grid');
-    const g = gridEl && gridEl.gridstack;
-    if (!g) return;
-    try { g.compact(); } catch (_) {}
-    // Shrink the section WIDTH to wrap tightly around its icons (auto-resize only
-    // adjusted height before, leaving wide sections with empty space).
-    const nodes = (g.engine && g.engine.nodes) ? g.engine.nodes : [];
-    let usedCols = 1;
-    nodes.forEach((n) => { usedCols = Math.max(usedCols, (n.x || 0) + (n.w || 1)); });
+    if (!gridEl) return;
+    const n = gridEl.querySelectorAll(':scope > .icon-node').length || 1;
     const size = storedIconSize(el.dataset.folder);
     const spec = ICON_CELL[size] || ICON_CELL.medium;
     const gridStackEl = el.closest('.grid-stack');
     const cellW = (gridStackEl && gridStackEl.clientWidth / GRID_COLS) || 1;
-    const contentW = usedCols * spec.w + (usedCols + 1) * ICON_GRID_MARGIN;
+    // Aim for a roughly square arrangement of the icons.
+    const perRow = Math.max(1, Math.ceil(Math.sqrt(n)));
+    const contentW = perRow * spec.w + (perRow + 1) * ICON_GRID_GAP;
     const needW = Math.min(GRID_COLS, Math.max(
       sectionMinW(el.dataset.folder, size, cellW),
       Math.ceil((contentW + CONTENT_PAD_X) / cellW),
@@ -923,7 +902,7 @@ function autoResizeGroupings() {
   });
   syncGridAttrs();
   requestAnimationFrame(() => {
-    document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach((el) => relayoutIconGrid(el.dataset.folder));
+    fitAllIconSections(true);   // the auto-resize button tightens to content
     syncGridAttrs();
     markRearrangeChanged();
   });
@@ -989,11 +968,9 @@ function setSectionIconSize(name, size) {
     delete el.dataset.manualSize;   // allow the section to re-fit to the new icon size
     applyIconSize(el, size);
     updateTextPosButtons(el, name);   // Small forces "No Text"; M/L restores the choice
-    // New icon size → re-flow columns, shrink the width to wrap the icons (no
-    // right-hand gap), then re-flow + fit height for the new width.
+    // New icon size → the CSS grid reflows its columns automatically (data-iconsize
+    // changed); just re-fit the section height for the new cell size.
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      relayoutIconGrid(name);
-      fitSectionWidthToIcons(el);
       relayoutIconGrid(name);
       syncGridAttrs();
     }));
@@ -1354,26 +1331,22 @@ function renderDashboardGrid(dash, folderNames, groups) {
   // past the point where every icon fits.
   gridInstance.on('resizestart', (e, el) => {
     gridInteracting = true; setSectionLiveMin(el);
-    // While resizing a bookmark section, switch its icon grid to a plain
-    // fixed-cell CSS grid (.gs-reflow) so the icons keep their size and just wrap
-    // into place as the area changes — no stretching, and no gridstack calls
-    // mid-drag (which previously broke the pointer release).
-    if (el && el.dataset && el.dataset.folder) {
-      const ig = el.querySelector('.icon-grid');
-      if (ig) { ig.style.width = ''; ig.classList.add('gs-reflow'); }   // fluid while reflowing
-    }
+    // Icon sections need nothing special: the CSS grid inside reflows live as the
+    // section's width changes during the drag (fixed-size cells just re-wrap).
   });
   gridInstance.on('resize', (e, el) => setSectionLiveMin(el));
   gridInstance.on('resizestop', (e, el) => {
     gridInteracting = false;
     // A manually-resized widget keeps its size (auto-fit no longer touches it).
     if (el.dataset.widget) { el.dataset.manualSize = '1'; syncGridAttrs(); return; }
-    // A resized section keeps the user's chosen size: leave the reflow preview and
-    // re-flow its nested icon grid (real positions for the new width).
+    // Icon section: a bigger hand-set size sticks, but it can NEVER end up smaller
+    // than the icons need — snap it back up to fit (grow-only). Done immediately and
+    // again on the next frame (after the node's dimensions settle), then refresh the
+    // min attributes so the next resize is clamped too.
     if (el.dataset.folder) {
       el.dataset.manualSize = '1';
-      const ig = el.querySelector('.icon-grid'); if (ig) ig.classList.remove('gs-reflow');
-      requestAnimationFrame(() => { relayoutIconGrid(el.dataset.folder); syncGridAttrs(); });
+      fitSectionForIconGrid(el);
+      requestAnimationFrame(() => { fitSectionForIconGrid(el); setSectionLiveMin(el); syncGridAttrs(); });
       return;
     }
     enforceSectionMin(el);
@@ -1453,184 +1426,135 @@ const ICON_CELL = {
   medium: { w: 96,  h: 112 },
   large:  { w: 128, h: 146 },
 };
-const ICON_GRID_MARGIN = 6;
+const ICON_GRID_GAP = 6;
 
-// Pixel width for a `cols`-wide icon grid so each gridstack cell equals the icon
-// size (instead of stretching to fill the section). Keeps icons a fixed size and
-// matches the resize-preview (.gs-reflow) so they don't snap bigger on release.
-function iconGridPxWidth(cols, folder) {
-  const spec = ICON_CELL[storedIconSize(folder)] || ICON_CELL.medium;
-  return cols * spec.w + (cols + 1) * ICON_GRID_MARGIN;
-}
-
-// The bundled gridstack.min.css ships width/left rules only for 12 columns; make
-// sure the rules exist for any column count a nested grid needs.
-function ensureGridColCss(cols) {
-  const id = 'gs-col-' + cols;
-  if (document.getElementById(id)) return;
-  const el = document.createElement('style'); el.id = id;
-  let css = `.gs-${cols}>.grid-stack-item{width:${100 / cols}%}`;
-  for (let i = 1; i <= cols; i++) css += `.gs-${cols}>.grid-stack-item[gs-w="${i}"]{width:${(i * 100) / cols}%}`;
-  for (let i = 1; i < cols; i++) css += `.gs-${cols}>.grid-stack-item[gs-x="${i}"]{left:${(i * 100) / cols}%}`;
-  el.textContent = css;
-  document.head.appendChild(el);
-}
+// Icons are laid out by a plain CSS grid (fixed-size cells, auto-fill, centered —
+// see the .icon-grid rules in the page CSS). The cells never stretch, they reflow
+// as the section is resized, and leftover space is split evenly (justify-content:
+// center). SortableJS supplies drag-to-reorder within and across sections; it does
+// NOT lay anything out, so nothing "snaps back" on release. (iconSortables holds
+// one Sortable instance per section — declared near the top of the file.)
 
 function destroyIconGrids() {
-  iconGrids.forEach((g) => { try { g.destroy(false); } catch (_) {} });
-  iconGrids = [];
+  iconSortables.forEach((s) => { try { s.destroy(); } catch (_) {} });
+  iconSortables = [];
 }
 
-// Columns + square cell for a section's icon grid, derived from its pixel width.
-function iconGridMetrics(gridEl, folder) {
-  const w = gridEl.clientWidth || 200;
-  const spec = ICON_CELL[storedIconSize(folder)] || ICON_CELL.medium;
-  const cols = Math.max(1, Math.floor((w + ICON_GRID_MARGIN) / (spec.w + ICON_GRID_MARGIN)));
-  return { cols, cell: spec.h };   // row height = the taller dimension (icon + label)
-}
-
-// Build a nested GridStack for every section once the outer grid has laid out.
-function initIconGrids() {
-  destroyIconGrids();
-  document.querySelectorAll('.folder-section .icon-grid').forEach((gridEl) => {
-    const folder = gridEl.dataset.folder;
-    const { cols, cell } = iconGridMetrics(gridEl, folder);
-    ensureGridColCss(cols);
-    let g;
-    try {
-      g = GridStack.init({
-        column: cols, cellHeight: cell, margin: ICON_GRID_MARGIN,
-        float: false, animate: false, acceptWidgets: '.icon-node',
-        disableOneColumnMode: true, staticGrid: !state.rearrangeMode,
-      }, gridEl);
-    } catch (_) { return; }
-    g._folder = folder;
-    iconGrids.push(g);
-    g.on('change', () => { persistIconPositions(g); fitSectionForIconGrid(gridEl); });
-    g.on('added', (e, nodes) => onIconsAdded(g, nodes));
-    gridEl.style.width = iconGridPxWidth(cols, folder) + 'px';   // fixed-size cells (no stretch)
-    fitSectionForIconGrid(gridEl);
-    requestAnimationFrame(() => centerIconGrid(gridEl));
+// Render order for a folder's icons: by saved bm.order, else the stored array
+// order (legacy layouts without an order keep their existing order).
+function orderedFolderBookmarks(list) {
+  return list.slice().sort((a, b) => {
+    const ao = Number.isFinite(a.order) ? a.order : 1e9;
+    const bo = Number.isFinite(b.order) ? b.order : 1e9;
+    return ao - bo;
   });
 }
 
-// Center the icon grid inside its section so the empty space is split EVENLY on
-// the left and right. We measure the icons' real bounding box (rather than trust
-// the pinned grid width, which can be a hair wider than the icons) and set the
-// left margin so left-gap === right-gap. `margin:auto` alone leaves a residual
-// gap on the right because the grid box is slightly wider than its contents.
-function centerIconGrid(gridEl) {
-  if (!gridEl) return;
-  const parent = gridEl.parentElement;
-  if (!parent) { gridEl.style.marginLeft = ''; gridEl.style.marginRight = ''; return; }
-  // Center the pinned grid BOX in the section's content box. The box width is
-  // known synchronously (we just set it) and a single-column grid is internally
-  // symmetric (gridstack insets each cell's content by `margin` on both sides),
-  // so centering the box gives equal left/right gaps at every icon size. We avoid
-  // measuring item offsets — those depend on gridstack's transform/positioning
-  // and were drifting differently per size.
-  const cs = getComputedStyle(parent);
-  const avail = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
-  const gridW = gridEl.offsetWidth;
-  if (!gridW || !avail) { gridEl.style.marginLeft = ''; gridEl.style.marginRight = ''; return; }
-  const left = Math.max(0, (avail - gridW) / 2);
-  gridEl.style.marginLeft = left + 'px';
-  gridEl.style.marginRight = '0';
-}
-
-// Save x/y for every icon back onto its bookmark.
-function persistIconPositions(g) {
+// Persist each icon's on-screen order (and its folder, for cross-section drags)
+// after a reorder.
+function persistIconOrder() {
   const dash = getActiveDash();
   if (!dash || !Array.isArray(dash.bookmarks)) return;
-  let touched = false;
-  (g.engine ? g.engine.nodes : []).forEach((n) => {
-    const id = n.el && n.el.dataset.bmId;
-    if (!id) return;
-    const bm = dash.bookmarks.find((b) => b.id === id);
-    if (bm && (bm.gx !== n.x || bm.gy !== n.y || bm.folder !== g._folder)) {
-      bm.gx = n.x; bm.gy = n.y; bm.folder = g._folder; touched = true;
-    }
-  });
-  if (touched) { chromeSet({ dashboards: state.dashboards }); markRearrangeChanged(); }
-}
-
-// An icon dragged in from another section — re-home its bookmark to this folder.
-function onIconsAdded(g, nodes) {
-  const dash = getActiveDash();
-  if (!dash) return;
-  nodes.forEach((n) => {
-    const id = n.el && n.el.dataset.bmId;
-    const bm = id && dash.bookmarks.find((b) => b.id === id);
-    if (bm) { bm.folder = g._folder; bm.gx = n.x; bm.gy = n.y; }
+  document.querySelectorAll('.folder-section .icon-grid').forEach((gridEl) => {
+    const folder = gridEl.dataset.folder;
+    [...gridEl.querySelectorAll(':scope > .icon-node')].forEach((node, i) => {
+      const bm = dash.bookmarks.find((b) => b.id === node.dataset.bmId);
+      if (bm) { bm.folder = folder; bm.order = i; }
+    });
   });
   chromeSet({ dashboards: state.dashboards });
   markRearrangeChanged();
 }
 
-// Size the OUTER section item so the nested icon grid (header + its rows) fits.
-function fitSectionForIconGrid(gridEl) {
-  if (!gridInstance || !gridEl) return;
-  const item = gridEl.closest('.grid-stack-item[data-folder]');
-  const g = gridEl.gridstack;
-  if (!item || !g) return;
-  const rows = Math.max(1, g.getRow());
-  const cell = g.getCellHeight() || ICON_CELL.medium;
-  const headerEl = item.querySelector('.folder-header');
-  const headerPx = headerEl ? headerEl.getBoundingClientRect().height : HEADER_PX;
-  const needPx = headerPx + rows * cell + ICON_GRID_MARGIN * (rows + 1) + 18;
+// The cells (cols/rows) a section needs to show its header + every icon at the
+// current width. COMPUTED from the section's width (in board cells) and the icon
+// count — never measured from the live DOM, which raced with GridStack's width
+// animation (icons briefly in one row) and made sections too short.
+function iconSectionNeedCells(item) {
+  const gridEl = item.querySelector('.icon-grid');
+  const size = storedIconSize(item.dataset.folder);
+  const cell = ICON_CELL[size] || ICON_CELL.medium;
+  const gridStackEl = item.closest('.grid-stack');
+  const cellW = (gridStackEl && gridStackEl.clientWidth / GRID_COLS) || (boardWidthPx() / GRID_COLS) || 1;
+  const wCells = item.gridstackNode ? item.gridstackNode.w : (parseInt(item.getAttribute('gs-w'), 10) || GRID_MIN_W);
+  const areaW = Math.max(cell.w, wCells * cellW - CONTENT_PAD_X);
+  const cols = Math.max(1, Math.floor((areaW + ICON_GRID_GAP) / (cell.w + ICON_GRID_GAP)));
+  const count = gridEl ? (gridEl.querySelectorAll(':scope > .icon-node').length || 1) : 1;
+  const rows = Math.ceil(count / cols);
+  const header = item.querySelector('.folder-header');
+  const headerPx = (header && header.getBoundingClientRect().height) || HEADER_PX;
+  const needPx = headerPx + rows * cell.h + (rows + 1) * ICON_GRID_GAP + SECTION_BOTTOM_GAP;
   const needH = Math.max(GRID_MIN_H, Math.ceil(needPx / GRID_CELL));
-  if (item.gridstackNode && item.gridstackNode.h === needH) return;
-  // A hand-resized section keeps the size the user chose: only grow it back up
-  // when it's too small to show every icon — never shrink it to content-fit.
-  if (item.dataset.manualSize === '1' && item.gridstackNode && item.gridstackNode.h > needH) return;
+  // Never narrower than one icon (the fixed-size card would overflow the frame).
+  const minWcells = Math.min(GRID_COLS, Math.max(GRID_MIN_W, Math.ceil((cell.w + CONTENT_PAD_X) / cellW)));
+  return { needH, minWcells };
+}
+
+// Size the OUTER section to fit its icons. By default this is GROW-ONLY: a section
+// is enlarged when it's too small to show every icon, but a hand-set (or saved)
+// size is otherwise left alone — it never "snaps back" to a tight fit. Pass
+// shrink=true (the auto-resize button, or an icon-size change) to tighten it to
+// the exact content height.
+function fitSectionForIconGrid(elOrGrid, shrink) {
+  if (!gridInstance || !elOrGrid) return;
+  const item = (elOrGrid.classList && elOrGrid.classList.contains('grid-stack-item'))
+    ? elOrGrid
+    : (elOrGrid.closest && elOrGrid.closest('.grid-stack-item[data-folder]'));
+  if (!item || !item.gridstackNode || !item.querySelector('.icon-grid')) return;
+  const { needH, minWcells } = iconSectionNeedCells(item);
+  const targetH = shrink ? needH : Math.max(item.gridstackNode.h, needH);
+  const targetW = Math.max(item.gridstackNode.w, minWcells);
+  if (item.gridstackNode.h === targetH && item.gridstackNode.w === targetW) return;
   const wasStatic = !state.rearrangeMode;
   if (wasStatic) gridInstance.setStatic(false);
-  try { gridInstance.update(item, { h: needH }); } catch (_) {}
+  try { gridInstance.update(item, { w: targetW, h: targetH }); } catch (_) {}
   if (wasStatic) gridInstance.setStatic(true);
 }
 
-// Enable/disable dragging for all icon grids (mirrors edit mode).
+function fitAllIconSections(shrink) {
+  document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]')
+    .forEach((el) => fitSectionForIconGrid(el, shrink));
+}
+
+// Attach SortableJS to every section's icon grid (shared group → drag across
+// sections). The CSS grid handles all layout; Sortable only moves DOM nodes.
+function initIconGrids() {
+  destroyIconGrids();
+  if (typeof Sortable === 'undefined') return;
+  const editing = !!state.rearrangeMode;
+  document.querySelectorAll('.folder-section .icon-grid').forEach((gridEl) => {
+    let s;
+    try {
+      s = Sortable.create(gridEl, {
+        group: 'dashboard-icons',
+        draggable: '.icon-node',
+        animation: 150,
+        disabled: !editing,
+        ignore: '',                 // the whole card drags (don't exclude its <img>)
+        filter: '.card-actions',    // …but the ℹ/✕ buttons still click, not drag
+        ghostClass: 'icon-ghost',
+        chosenClass: 'icon-chosen',
+        fallbackClass: 'icon-fallback',
+        onEnd: () => { persistIconOrder(); fitAllIconSections(); },
+      });
+    } catch (_) { return; }
+    iconSortables.push(s);
+  });
+  fitAllIconSections();                                  // grow-only: preserve saved sizes
+  enforceAllSectionMins();                               // set gs-min-w/h so resize is clamped from the start
+  requestAnimationFrame(() => { fitAllIconSections(); enforceAllSectionMins(); });
+}
+
+// Enable/disable icon dragging to mirror edit mode.
 function setIconGridsStatic(staticOn) {
-  iconGrids.forEach((g) => { try { g.setStatic(staticOn); } catch (_) {} });
+  iconSortables.forEach((s) => { try { s.option('disabled', !!staticOn); } catch (_) {} });
 }
 
-// Shrink a section's WIDTH so it wraps tightly around its icons (no trailing
-// empty columns / right-hand gap), without reordering them.
-function fitSectionWidthToIcons(el) {
-  if (!gridInstance || !el) return;
-  const gridEl = el.querySelector('.icon-grid');
-  const g = gridEl && gridEl.gridstack;
-  if (!g) return;
-  const nodes = (g.engine && g.engine.nodes) ? g.engine.nodes : [];
-  let usedCols = 1;
-  nodes.forEach((n) => { usedCols = Math.max(usedCols, (n.x || 0) + (n.w || 1)); });
-  const size = storedIconSize(el.dataset.folder);
-  const spec = ICON_CELL[size] || ICON_CELL.medium;
-  const gridStackEl = el.closest('.grid-stack');
-  const cellW = (gridStackEl && gridStackEl.clientWidth / GRID_COLS) || 1;
-  const contentW = usedCols * spec.w + (usedCols + 1) * ICON_GRID_MARGIN;
-  const needW = Math.min(GRID_COLS, Math.max(
-    sectionMinW(el.dataset.folder, size, cellW),
-    Math.ceil((contentW + CONTENT_PAD_X) / cellW),
-  ));
-  if (!el.gridstackNode || el.gridstackNode.w !== needW) {
-    try { gridInstance.update(el, { w: needW }); } catch (_) {}
-  }
-}
-
-// Recompute one section's icon-grid columns/cell after a width or icon-size change.
+// After an icon-size change the CSS grid has already reflowed its columns; tighten
+// the section to the new content height (shrink=true).
 function relayoutIconGrid(folder) {
-  const gridEl = document.querySelector(`.folder-section .icon-grid[data-folder="${CSS.escape(folder)}"]`);
-  const g = gridEl && gridEl.gridstack;
-  if (!gridEl || !g) return;
-  gridEl.style.width = '';                       // reset to measure the section's available width
-  gridEl.style.marginLeft = ''; gridEl.style.marginRight = '';
-  const { cols, cell } = iconGridMetrics(gridEl, folder);
-  ensureGridColCss(cols);
-  try { g.cellHeight(cell); if (g.getColumn() !== cols) g.column(cols, 'list'); } catch (_) {}
-  gridEl.style.width = iconGridPxWidth(cols, folder) + 'px';   // fixed-size cells (icons don't stretch)
-  fitSectionForIconGrid(gridEl);
-  requestAnimationFrame(() => centerIconGrid(gridEl));
+  const item = document.querySelector(`.grid-stack > .grid-stack-item[data-folder="${CSS.escape(folder)}"]`);
+  if (item) fitSectionForIconGrid(item, true);
 }
 
 function buildFolderSection(folderName, bookmarks) {
@@ -1645,28 +1569,21 @@ function buildFolderSection(folderName, bookmarks) {
     <span class="folder-name">${escapeHtml(getFolderDisplayName(folderName))}</span>
   `;
 
-  // Nested GridStack of icon nodes — each bookmark is its own 1×1 grid item, so
-  // moving icons (within and across sections) uses GridStack's native drag,
-  // exactly like Homarr. Saved positions come from bm.gx / bm.gy.
+  // Icons are a plain CSS grid of fixed-size cards (fixed size, auto-fill, centered
+  // — see the .icon-grid CSS). SortableJS handles drag-to-reorder within and across
+  // sections; saved order comes from bm.order.
   const grid = document.createElement('div');
-  grid.className = 'grid-stack icon-grid';
+  grid.className = 'icon-grid';
   grid.dataset.folder = folderName;
-  bookmarks.forEach((bm) => {
-    const item = document.createElement('div');
-    item.className = 'grid-stack-item icon-node';
-    item.dataset.bmId = bm.id;
-    item.setAttribute('gs-w', '1');
-    item.setAttribute('gs-h', '1');
-    item.setAttribute('gs-no-resize', 'true');   // fixed size — set via S/M/L only, never by dragging
-    if (Number.isFinite(bm.gx)) item.setAttribute('gs-x', bm.gx);
-    if (Number.isFinite(bm.gy)) item.setAttribute('gs-y', bm.gy);
-    const content = document.createElement('div');
-    content.className = 'grid-stack-item-content';
-    content.appendChild(buildBookmarkCard(bm));
-    item.appendChild(content);
-    grid.appendChild(item);
+  orderedFolderBookmarks(bookmarks).forEach((bm) => {
+    const node = document.createElement('div');
+    node.className = 'icon-node';
+    node.dataset.bmId = bm.id;
+    node.appendChild(buildBookmarkCard(bm));
+    grid.appendChild(node);
   });
 
+  section.dataset.iconsize = storedIconSize(folderName);   // CSS picks the cell size
   section.appendChild(header);
   section.appendChild(grid);
   return section;
@@ -2497,8 +2414,9 @@ async function removeSection(name) {
   if (Array.isArray(dash.sectionOrder)) dash.sectionOrder = dash.sectionOrder.filter((n) => n !== name);
   if (dash.layout) delete dash.layout[name];
 
-  // Tear down the nested icon grid for this section so its timers/instance go.
-  iconGrids = iconGrids.filter((g) => { if (g._folder === name) { try { g.destroy(false); } catch (_) {} return false; } return true; });
+  // Tear down the Sortable instance for this section.
+  const secGrid = document.querySelector(`.grid-stack > .grid-stack-item[data-folder="${CSS.escape(name)}"] .icon-grid`);
+  iconSortables = iconSortables.filter((s) => { if (s.el === secGrid) { try { s.destroy(); } catch (_) {} return false; } return true; });
 
   // Remove ONLY this item from the grid — no full re-render, so everything else
   // stays exactly where it is.
