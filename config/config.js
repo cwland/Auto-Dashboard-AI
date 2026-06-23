@@ -1169,11 +1169,7 @@ function applySettingsToUI() {
   const dateSection = document.getElementById('date-format-section');
   if (dateSection) dateSection.style.display = 'block';
 
-  // Startup & new-tab toggles (both default off)
-  const ntToggle = document.getElementById('newtab-override-toggle');
-  if (ntToggle) ntToggle.checked = s.newTabOverride === true;
-  const startToggle = document.getElementById('open-on-startup-toggle');
-  if (startToggle) startToggle.checked = s.openOnStartup === true;
+  // General settings — bookmark-bar toggle (default off)
   const syncBmToggle = document.getElementById('sync-bookmarks-toggle');
   if (syncBmToggle) syncBmToggle.checked = s.syncBookmarks === true;
   const gistToggle = document.getElementById('gist-sync-toggle');
@@ -1185,11 +1181,9 @@ function applySettingsToUI() {
   const passEl = document.getElementById('backup-passphrase');
   if (passEl) passEl.value = s.backupPassphrase || '';
   if (typeof updateGistControls === 'function') updateGistControls();
-  const searchToggle = document.getElementById('search-enabled-toggle');
-  if (searchToggle) searchToggle.checked = s.searchEnabled !== false;
   const switcherStyle = s.dashboardSwitcher || 'dropdown';
-  const switcherRadio = document.querySelector(`input[name="switcher-style"][value="${switcherStyle}"]`);
-  if (switcherRadio) switcherRadio.checked = true;
+  document.querySelectorAll('#switcher-seg button').forEach((b) =>
+    b.classList.toggle('active', b.dataset.val === switcherStyle));
 
   // Date format
   const dateFormatEl = document.getElementById('date-format-select');
@@ -1658,15 +1652,7 @@ function setupSettingsListeners() {
 
   // (Time/Date visibility moved to each dashboard's Options panel.)
 
-  // Startup & new-tab toggles
-  const ntToggle = document.getElementById('newtab-override-toggle');
-  if (ntToggle) ntToggle.addEventListener('change', () => {
-    state.currentSettings.newTabOverride = ntToggle.checked; updateSaveBar();
-  });
-  const startToggle = document.getElementById('open-on-startup-toggle');
-  if (startToggle) startToggle.addEventListener('change', () => {
-    state.currentSettings.openOnStartup = startToggle.checked; updateSaveBar();
-  });
+  // General settings — bookmark-bar toggle
   const syncBmToggle = document.getElementById('sync-bookmarks-toggle');
   if (syncBmToggle) syncBmToggle.addEventListener('change', () => {
     state.currentSettings.syncBookmarks = syncBmToggle.checked; updateSaveBar();
@@ -1724,13 +1710,30 @@ function setupSettingsListeners() {
       if (f) importConfig(f);
     });
   }
-  const searchToggle = document.getElementById('search-enabled-toggle');
-  if (searchToggle) searchToggle.addEventListener('change', () => {
-    state.currentSettings.searchEnabled = searchToggle.checked; updateSaveBar();
+  // "Use as Home page" — show the dashboard's chrome-extension:// URL (same on
+  // every device because the extension ID is pinned in the manifest) with a copy
+  // button, so the user can paste it into the browser's Home-button setting.
+  const homeUrlEl = document.getElementById('homepage-url');
+  if (homeUrlEl) {
+    const extId = (chrome.runtime && chrome.runtime.id) || '';
+    homeUrlEl.value = `chrome-extension://${extId}/newtab/dashboard.html`;
+  }
+  const homeCopyBtn = document.getElementById('homepage-copy-btn');
+  if (homeCopyBtn && homeUrlEl) homeCopyBtn.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(homeUrlEl.value); }
+    catch (_) { homeUrlEl.select(); try { document.execCommand('copy'); } catch (e) {} }
+    const orig = homeCopyBtn.textContent;
+    homeCopyBtn.textContent = 'Copied ✓';
+    setTimeout(() => { homeCopyBtn.textContent = orig; }, 1500);
   });
-  document.querySelectorAll('input[name="switcher-style"]').forEach((r) => {
-    r.addEventListener('change', () => {
-      if (r.checked) { state.currentSettings.dashboardSwitcher = r.value; updateSaveBar(); }
+
+  // Dashboard switcher style — segmented control (matches the in-dashboard one).
+  document.querySelectorAll('#switcher-seg button').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#switcher-seg button').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      state.currentSettings.dashboardSwitcher = b.dataset.val;
+      updateSaveBar();
     });
   });
 
@@ -6065,6 +6068,7 @@ function openWizard() {
   const maxSec = document.getElementById('wiz-maxsec'); if (maxSec) { maxSec.value = '8'; maxSec.style.display = 'none'; }
   const typeFull = document.querySelector('input[name="wiz-type"][value="full"]'); if (typeFull) typeFull.checked = true;
   const canvasEl = document.getElementById('wiz-canvas'); if (canvasEl) canvasEl.value = '1280';
+  const layoutEl = document.getElementById('wiz-layout'); if (layoutEl) layoutEl.value = 'fixed';
   const selErr = document.getElementById('wiz-sel-err'); if (selErr) selErr.style.display = 'none';
   // Reset icon shape → Rounded, show-text → on.
   selectShapeOption('wiz-shape-picker', 'rounded');
@@ -6143,6 +6147,7 @@ function wizValidateStep(n) {
     wizard.data.theme = document.getElementById('wiz-theme').value.trim();
     wizard.data.dashType = document.querySelector('input[name="wiz-type"]:checked')?.value || 'full';
     wizard.data.boardDesignWidth = parseInt(document.getElementById('wiz-canvas')?.value, 10) || 1280;
+    wizard.data.layoutMode = document.getElementById('wiz-layout')?.value === 'fit' ? 'fit' : 'fixed';
   }
   if (n === 2) {
     wizard.data.orgMethod = document.querySelector('input[name="wiz-org"]:checked')?.value || 'plain';
@@ -7060,6 +7065,7 @@ async function wizGenerate() {
     defaultShape: getSelectedShape('wiz-shape-picker', 'rounded'),
     showText: document.getElementById('wiz-text-toggle')?.checked !== false,
     boardDesignWidth: wizard.data.boardDesignWidth || 1280,   // canvas/palette size
+    layoutMode: wizard.data.layoutMode || 'fixed',            // Fixed Canvas | Fit to Page
     widgets: Array.isArray(wizard.data.widgets) ? wizard.data.widgets : [],
     // One-time flag: the dashboard view compacts the freshly-placed sections to
     // the top on first render (removing the gaps left by pre-render height
@@ -7148,6 +7154,7 @@ async function wizCreateBlank() {
     defaultShape: 'rounded',
     showText: true,
     boardDesignWidth: parseInt(document.getElementById('wiz-canvas')?.value, 10) || 1280,
+    layoutMode: document.getElementById('wiz-layout')?.value === 'fit' ? 'fit' : 'fixed',
     widgets: [],
     autoArrange: true,
   };

@@ -1,5 +1,5 @@
 {
-  "version": "1.0.25",
+  "version": "1.2.0",
   "notes": "Proxmox dashboards (Health, System Logs, Backup Logs, Storage, VMs & LXCs, Overview), redesigned themes with full-palette swatches and editable custom themes, the renamed Widget Library, a new Privacy page, and dashboard-creation improvements (blank dashboards, optional bookmarks, auto-open).",
   "downloadUrl": "https://github.com/cwland/Auto-Dashboard-AI/releases"
 }

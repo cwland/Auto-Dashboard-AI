@@ -742,6 +742,12 @@
     }
     .radio-hint { color: var(--text-muted); font-size: 12px; }
 
+    /* Segmented control — matches the dashboard-options switcher used elsewhere. */
+    .seg { display: inline-flex; gap: 4px; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 3px; }
+    .seg button { padding: 6px 16px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer; font-family: inherit; transition: background .12s, color .12s; }
+    .seg button:hover { color: var(--text-primary); }
+    .seg button.active { background: var(--accent); color: #fff; }
+
     /* ── Shape picker (matches newtab.html pattern) ───────────────────────── */
     .shape-picker { display: flex; gap: 10px; }
     .shape-option {
@@ -1124,7 +1130,7 @@
       <a class="logo-icon" href="../newtab/dashboard.html" title="Open your dashboard"><img src="../icons/logo.png" alt="Auto Dashboard AI" style="width:24px;height:24px;object-fit:contain;display:block;"></a>
       <div>
         <div class="logo-name">Auto Dashboard AI</div>
-        <div class="logo-ver" id="app-version">v1.0.26</div>
+        <div class="logo-ver" id="app-version">v1.2.0</div>
       </div>
     </div>
 
@@ -1418,7 +1424,7 @@
       <div class="set-subnav" role="tablist">
         <button class="set-subtab active" type="button" data-sub="ai">🤖 AI Provider</button>
         <button class="set-subtab" type="button" data-sub="theme">🎨 Theme</button>
-        <button class="set-subtab" type="button" data-sub="startup">🚀 Startup &amp; New Tab</button>
+        <button class="set-subtab" type="button" data-sub="startup">⚙️ General Settings</button>
         <button class="set-subtab" type="button" data-sub="clock">🕐 Clock &amp; Date</button>
         <button class="set-subtab" type="button" data-sub="backup">💾 Backup</button>
       </div>
@@ -1533,33 +1539,11 @@
       </div>
 
       <div class="set-sub" id="set-sub-startup">
-      <!-- Startup & New Tab -->
+      <!-- General Settings -->
       <div class="card">
-        <div class="section-title">🚀 Startup &amp; New Tab</div>
+        <div class="section-title">⚙️ General Settings</div>
 
         <div class="toggle-row">
-          <div>
-            <label class="label" style="margin-bottom:2px;">Show dashboard on new tab</label>
-            <p style="font-size:12px;color:var(--text-muted);margin:0;">Replace the browser's new-tab page with your default dashboard. When off, new tabs show a simple page with a button to open it.</p>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="newtab-override-toggle">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-
-        <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
-          <div>
-            <label class="label" style="margin-bottom:2px;">Open dashboard on browser start</label>
-            <p style="font-size:12px;color:var(--text-muted);margin:0;">Automatically open your default dashboard in a new tab each time the browser launches.</p>
-          </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="open-on-startup-toggle">
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-
-        <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
           <div>
             <label class="label" style="margin-bottom:2px;">Sync dashboards to bookmark bar</label>
             <p style="font-size:12px;color:var(--text-muted);margin:0;">Automatically mirror your dashboard links into a <strong>Dashboard AI</strong> folder on the browser bookmark bar (Dashboard → Section → Bookmark). Dashboards are the source of truth — manual changes inside that folder are overwritten on the next sync.</p>
@@ -1570,24 +1554,22 @@
           </label>
         </div>
 
-        <div class="toggle-row" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
-          <div>
-            <label class="label" style="margin-bottom:2px;">Show search bar</label>
-            <p style="font-size:12px;color:var(--text-muted);margin:0;">Show the search box on the dashboard. As you type, matches from the active dashboard appear in a dropdown.</p>
+        <div class="form-group" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);">
+          <label class="label">Dashboard switcher style</label>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">How to switch between dashboards on the new-tab page (only active dashboards are shown).</p>
+          <div class="seg" id="switcher-seg">
+            <button type="button" data-val="tabs">Tabs</button>
+            <button type="button" data-val="sidebar">Sidebar</button>
+            <button type="button" data-val="dropdown">Dropdown</button>
           </div>
-          <label class="toggle-switch">
-            <input type="checkbox" id="search-enabled-toggle" checked>
-            <span class="toggle-slider"></span>
-          </label>
         </div>
 
         <div class="form-group" style="margin-top:18px;padding-top:18px;border-top:1px solid var(--border);margin-bottom:0;">
-          <label class="label">Dashboard switcher style</label>
-          <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">How to switch between dashboards on the new-tab page (only active dashboards are shown).</p>
-          <div class="radio-group">
-            <label class="radio-option"><input type="radio" name="switcher-style" value="dropdown"> Dropdown menu</label>
-            <label class="radio-option"><input type="radio" name="switcher-style" value="tabs"> Tabs across the top</label>
-            <label class="radio-option"><input type="radio" name="switcher-style" value="sidebar"> List on the left side</label>
+          <label class="label">🏠 Use as Home page</label>
+          <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">Browsers don't let an extension set your Home button automatically. Copy this address and paste it into <b>Settings → Appearance → Home button → Enter custom web address</b>. The extension ID is pinned, so this address is identical on every device.</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <input class="input input-mono" type="text" id="homepage-url" readonly style="flex:1;min-width:280px;">
+            <button type="button" class="btn btn-secondary" id="homepage-copy-btn">Copy</button>
           </div>
         </div>
       </div>
@@ -3917,18 +3899,25 @@
               <input class="input" type="text" id="wiz-theme" placeholder="e.g. Homelab, food" autocomplete="off">
             </div>
             <div class="form-group">
-              <label class="label" for="wiz-canvas">Canvas size <span class="wiz-opt">(palette)</span></label>
+              <label class="label" for="wiz-canvas">Canvas size <span class="wiz-opt">(match your monitor)</span></label>
               <select class="input" id="wiz-canvas">
-                <option value="1280">1280 px — Compact (default)</option>
-                <option value="1366">1366 px — Laptop</option>
-                <option value="1440">1440 px</option>
-                <option value="1600">1600 px</option>
-                <option value="1920">1920 px — Full HD</option>
-                <option value="2560">2560 px — 1440p</option>
-                <option value="3440">3440 px — Ultrawide</option>
-                <option value="3840">3840 px — 4K</option>
+                <option value="1280">1280 px — Compact / small laptop (default)</option>
+                <option value="1366">1366 px — 13–14" laptop</option>
+                <option value="1440">1440 px — 15" laptop / small monitor</option>
+                <option value="1600">1600 px — 20" monitor</option>
+                <option value="1920">1920 px — Full HD · 24" monitor</option>
+                <option value="2560">2560 px — 1440p · 27" monitor</option>
+                <option value="3440">3440 px — Ultrawide · 34"</option>
+                <option value="3840">3840 px — 4K monitor</option>
               </select>
             </div>
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label class="label" for="wiz-layout">Layout mode</label>
+            <select class="input" id="wiz-layout">
+              <option value="fixed">Fixed Canvas — scroll if larger than screen (default)</option>
+              <option value="fit">Fit to Page — scale the whole dashboard to fit the window</option>
+            </select>
           </div>
           <div class="form-group" style="margin-bottom:0;">
             <label class="label">Dashboard Type</label>

@@ -146,6 +146,7 @@ async function init() {
   setupEditModal();
   setupDashEditModal();
   refreshHeaderDisplay();   // apply edit/settings button + corner-cog visibility
+  window.addEventListener('resize', scheduleBoardScale);   // re-scale Fit-to-Page on viewport change
   // Weather is now provided by the three add-to-board weather widgets (no top
   // panel), so there's no global weather fetch here anymore.
 }
@@ -554,6 +555,18 @@ const GRID_MIN_H = 12;  // minimum section height (rows) ≈ 96px
 const DEFAULT_DESIGN_WIDTH = 1280;
 // Canvas widths offered by the resolution palette (common screen widths).
 const DESIGN_WIDTH_PRESETS = [1280, 1366, 1440, 1600, 1920, 2560, 3440, 3840];
+// Recommended screen for each canvas width — pick the one matching the monitor you
+// design ON (in Fit to Page that screen shows it ~1:1; smaller screens scale down).
+const CANVAS_HINTS = {
+  1280: 'Compact / small laptop',
+  1366: '13–14" laptop',
+  1440: '15" laptop / small monitor',
+  1600: '20" monitor',
+  1920: 'Full HD · 24" monitor',
+  2560: '1440p · 27" monitor',
+  3440: 'Ultrawide · 34"',
+  3840: '4K monitor',
+};
 // Fixed horizontal cell/snap size, derived from the default canvas. A wider
 // canvas keeps this size and just gets more columns (see syncGridCols).
 const BASE_CELL_PX = DEFAULT_DESIGN_WIDTH / BASE_COLS;
@@ -580,16 +593,93 @@ function syncGridCols() {
   GRID_COLS = boardColsForCanvas();
   return GRID_COLS;
 }
-// The board always renders at ACTUAL size (1:1) — the cell/snap size never
-// changes between machines or between edit and view. The board is left-aligned;
-// if it's wider/taller than the screen, the dashboard area's scrollbars let the
-// user reach the rest (rather than the whole thing being scaled to fit, which
-// would shrink the cells and look inconsistent with edit mode).
+// ── Layout mode (per-dashboard, with a global default) ──────────────────────
+// 'fixed'  — Fixed Canvas (default): the board renders at ACTUAL size (1:1) and
+//            the dashboard area scrolls if it's larger than the screen.
+// 'fit'    — Fit to Page: the whole board is uniformly scaled (CSS transform) so
+//            it fits the viewport with no horizontal scroll. Capped at 100% (never
+//            upscaled) and centered horizontally when there's spare width.
+// GridStack reads the CSS transform when computing drag/resize coordinates, so
+// editing works while scaled (Option A) — no coordinate breakage.
+function dashLayoutMode() {
+  const dash = (typeof getActiveDash === 'function') ? getActiveDash() : null;
+  return (dash && dash.layoutMode) || (settings && settings.layoutMode) || 'fixed';
+}
+
+// Set the ACTIVE dashboard's layout mode and re-apply scaling immediately.
+function setDashLayoutMode(mode) {
+  const dash = getActiveDash();
+  if (!dash) return;
+  dash.layoutMode = mode;
+  try { chromeSet({ dashboards: state.dashboards }); } catch (_) {}
+  applyBoardZoom();
+}
+
+// Apply the active dashboard's layout mode to EVERY dashboard, and make it the
+// global default for dashboards created later.
+function applyLayoutModeToAll() {
+  const mode = dashLayoutMode();
+  const canvas = boardDesignWidth();
+  state.dashboards.forEach((d) => { d.layoutMode = mode; d.boardDesignWidth = canvas; });
+  if (settings) { settings.layoutMode = mode; settings.boardDesignWidth = canvas; try { saveSettings(); } catch (_) {} }
+  try { chromeSet({ dashboards: state.dashboards }); } catch (_) {}
+  renderDashboard(state.activeDashboardId);   // active board may need a relayout if its canvas changed
+  try { showToast('Applied layout mode + canvas size to all dashboards ✓'); } catch (_) {}
+}
+
+// Apply the current layout mode to the rendered board. In Fixed Canvas this is a
+// no-op (1:1, scrolls). In Fit to Page it scales the board to fit the viewport.
 function applyBoardZoom() {
-  const gridEl = document.querySelector('.dashboard-area.grid-mode > .grid-stack');
-  if (!gridEl) return;
+  const area = document.querySelector('.dashboard-area.grid-mode');
+  const gridEl = area && area.querySelector('.grid-stack');
+  if (!area || !gridEl) return;
   gridEl.style.zoom = '';
+  if (dashLayoutMode() !== 'fit') {
+    gridEl.style.transform = '';
+    gridEl.style.transformOrigin = '';
+    gridEl.style.marginLeft = '';
+    gridEl.style.marginBottom = '';
+    gridEl.style.margin = '0';
+    area.classList.remove('board-fit');
+    return;
+  }
+  // Fit to Page — scale to the available WIDTH, capped at 100%. On the monitor the
+  // canvas was designed for, the width matches the screen so scale ≈ 1 (looks like
+  // Fixed). On a smaller screen the board shrinks to fit the width (no horizontal
+  // scroll). Height is NOT a scaling factor: a board taller than the viewport just
+  // scrolls vertically — otherwise a tall dashboard would shrink on its own monitor.
+  area.classList.add('board-fit');
+  gridEl.style.transformOrigin = 'top left';
   gridEl.style.margin = '0';
+  const cs = getComputedStyle(area);
+  const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+  const availW = area.clientWidth - padX;
+  const boardW = gridEl.offsetWidth || boardWidthPx();
+  const boardH = gridEl.offsetHeight || gridEl.scrollHeight;
+  if (!boardW || !boardH || availW <= 0) { gridEl.style.transform = ''; return; }
+  const scale = Math.min(availW / boardW, 1);                    // width-driven; never upscale past 100%
+  const offsetX = Math.max(0, (availW - boardW * scale) / 2);    // center any spare width
+  gridEl.style.marginLeft = offsetX + 'px';
+  // transform:scale doesn't shrink the layout box, so compensate the bottom so the
+  // vertical scroll height matches the SCALED height (no scrolling past the board).
+  gridEl.style.marginBottom = (-(boardH * (1 - scale))) + 'px';
+  gridEl.style.transform = `scale(${scale})`;
+}
+
+// Recompute the Fit-to-Page scale (debounced) on viewport/content changes.
+let _boardScaleRAF = 0;
+function scheduleBoardScale() {
+  if (_boardScaleRAF) cancelAnimationFrame(_boardScaleRAF);
+  _boardScaleRAF = requestAnimationFrame(() => { _boardScaleRAF = 0; try { applyBoardZoom(); } catch (_) {} });
+}
+let _boardScaleObserver = null;
+// Watch the board's content height (widgets/icons settling) so the scale updates
+// without a refresh. The viewport width is handled by the window 'resize' hook.
+function observeBoardForScale(gridEl) {
+  if (_boardScaleObserver) { try { _boardScaleObserver.disconnect(); } catch (_) {} }
+  if (typeof ResizeObserver === 'undefined' || !gridEl) return;
+  _boardScaleObserver = new ResizeObserver(() => scheduleBoardScale());
+  try { _boardScaleObserver.observe(gridEl); } catch (_) {}
 }
 
 // Gridstack ships horizontal (left/width %) CSS only for a 12-column grid.
@@ -1223,6 +1313,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
   gridEl.style.width = boardWidthPx() + 'px';
   gridEl.style.margin = '0';
   dashboardArea.appendChild(gridEl);
+  observeBoardForScale(gridEl);   // keep Fit-to-Page scale in sync with content height
 
   // Cell width is the fixed snap size (board width / column count), independent of
   // the live window, so the name-aware gs-min-w stamp — and every later fit
@@ -3067,6 +3158,28 @@ function doSwitchEl(checked, onChange) {
   wrap.appendChild(slider);
   return wrap;
 }
+// Per-dashboard canvas-size dropdown for the Dashboard Options panel. Writes the
+// chosen design width to the active dashboard and re-renders the board.
+function doCanvasSelectEl() {
+  const sel = document.createElement('select');
+  sel.className = 'do-select';
+  const cur = boardDesignWidth();
+  const widths = Array.from(new Set([...DESIGN_WIDTH_PRESETS, cur])).sort((a, b) => a - b);
+  sel.innerHTML = widths.map((w) => {
+    const hint = CANVAS_HINTS[w] ? ` — ${CANVAS_HINTS[w]}` : '';
+    const def = w === DEFAULT_DESIGN_WIDTH ? ' (default)' : '';
+    return `<option value="${w}"${w === cur ? ' selected' : ''}>${w}px${hint}${def}</option>`;
+  }).join('');
+  sel.addEventListener('change', () => {
+    const v = Number(sel.value);
+    if (!Number.isFinite(v) || v <= 0) return;
+    const dash = getActiveDash();
+    if (dash) { dash.boardDesignWidth = v; chromeSet({ dashboards: state.dashboards }); }
+    else { settings.boardDesignWidth = v; saveSettings(); }
+    renderDashboard(state.activeDashboardId);   // relayout at the new canvas width, then rescale
+  });
+  return sel;
+}
 function doSegmentEl(options, current, onChange) {
   const seg = document.createElement('div');
   seg.className = 'do-seg';
@@ -3188,6 +3301,37 @@ function renderDashOptions() {
     (v) => dashOptSet('dashboardSwitcher', v)
   ));
   body.appendChild(typeSec);
+
+  // ── Layout (per-dashboard) — Layout Mode + Canvas Size ──
+  const layoutSec = doSectionEl('Layout');
+  layoutSec.appendChild(doRowEl(
+    'Layout Mode',
+    doSegmentEl(
+      [{ label: 'Fixed Canvas', value: 'fixed' }, { label: 'Fit to Page', value: 'fit' }],
+      dashLayoutMode(),
+      (v) => setDashLayoutMode(v)
+    ),
+    'Fixed Canvas keeps the designed size (scroll if larger than the screen). Fit to Page scales the whole dashboard to fit your window (never larger than 100%).'
+  ));
+  layoutSec.appendChild(doRowEl(
+    'Canvas Size',
+    doCanvasSelectEl(),
+    'The width this dashboard is designed at. A wider canvas adds more same-size columns; in Fit to Page it scales to your screen.'
+  ));
+  const applyAllRow = doRowEl(
+    'Apply to all dashboards',
+    (() => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'do-text-btn';
+      b.textContent = 'Apply';
+      b.addEventListener('click', applyLayoutModeToAll);
+      return b;
+    })(),
+    'Use this dashboard’s layout mode and canvas size for every dashboard (and as the default for new ones).'
+  );
+  layoutSec.appendChild(applyAllRow);
+  body.appendChild(layoutSec);
 
   // ── Header: layout + time/date ──
   const disp = doSectionEl('Header');

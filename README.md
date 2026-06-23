@@ -147,6 +147,7 @@ Versions follow the format `major.minor.patch` and increment by `0.0.1` each rel
 
 | Version | Date | Notes |
 |---|---|---|
+| 1.2.0 | 2026-06-23 | Proxmox dashboards (Health, System Logs, Backup Logs, Storage, VMs & LXCs, Overview), redesigned themes with full-palette swatches and editable custom themes, the renamed Widget Library, a new Privacy page, encrypted Gist backup & sync, and dashboard-creation improvements (blank dashboards, optional bookmarks, auto-open). Consolidates releases 1.0.15–1.0.26. |
 | 1.0.14 | 2026-06-16 | Card polish: moved the platform icon below the fields (no longer overlaps text on narrow 3-up cards), restacked the footer so the username always shows with a smaller avatar initial above it, and slowed the carousel slide into a gentle ease-in-out glide |
 | 1.0.13 | 2026-06-16 | Added a configurable Carousel Rotation Speed setting (Very slow → Very fast), defaulting to a relaxed 4s per card. Speed updates the live preview instantly |
 | 1.0.12 | 2026-06-16 | Redesigned the Tautulli session card to match Tautulli's native activity card: blurred backdrop art, left poster, right-aligned grouped labels with white values, platform icon, secure-stream lock, amber progress bar, and a footer with play-state, title, season/episode index, username and a colored user avatar. More compact overall; auto-tightens type on narrow cards |

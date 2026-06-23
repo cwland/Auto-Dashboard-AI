@@ -971,6 +971,12 @@
     .do-seg button { flex: 1; padding: 6px 10px; border: none; background: transparent; color: var(--text-secondary); font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer; font-family: var(--font); transition: background .12s, color .12s; }
     .do-seg button:hover { color: var(--text-primary); }
     .do-seg button.active { background: var(--accent); color: #fff; }
+    .do-text-btn { padding: 6px 14px; border: 1px solid var(--accent); background: transparent; color: var(--accent); font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer; font-family: var(--font); transition: background .12s, color .12s; }
+    .do-text-btn:hover { background: var(--accent); color: #fff; }
+    .do-select { background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary); border-radius: 8px; font-size: 12px; font-weight: 600; font-family: var(--font); padding: 6px 10px; cursor: pointer; }
+    /* Fit-to-Page: the board is scaled to the WIDTH, so never scroll horizontally;
+       a board taller than the window still scrolls vertically. */
+    .dashboard-area.board-fit { overflow-x: hidden; overflow-y: auto; }
     /* Theme dropdown with palette previews */
     .do-theme { position: relative; }
     .do-theme-trigger { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-secondary); cursor: pointer; font-family: var(--font); color: var(--text-primary); font-size: 13px; }
@@ -1204,7 +1210,7 @@
       <span class="dash-brand-icon"><img src="../icons/logo.png" alt="" style="width:22px;height:22px;object-fit:contain;display:block;"></span>
       <span class="dash-brand-text">
         <span class="dash-brand-name">Auto Dashboard AI</span>
-        <span class="dash-brand-ver" id="app-version">v1.0.26</span>
+        <span class="dash-brand-ver" id="app-version">v1.2.0</span>
       </span>
     </div>
     <!-- Shown only in Compact header mode (replaces the branding on the left). -->
@@ -1278,12 +1284,8 @@
   <div class="rt-tip" id="rt-tip"></div>
 </div>
 
-<!-- Resolution palette — top-right of the grid in edit mode; sets the canvas width. -->
-<div class="board-canvas-ctl" id="board-canvas-ctl" title="Canvas width — the resolution the dashboard is laid out for. Wider canvases design for bigger screens; smaller screens scroll here in edit mode and scale to fit when viewing.">
-  <span class="bcc-grip" id="board-canvas-grip" title="Drag to move" aria-label="Drag to move">⠿</span>
-  <span class="bcc-label">Canvas</span>
-  <select class="bcc-select" id="board-canvas-select" aria-label="Canvas width"></select>
-</div>
+<!-- Canvas size is now set per-dashboard in Dashboard Options (the floating edit
+     palette was removed). -->
 
 <!-- ── Add-widgets modal ─────────────────────────────────────────────────────── -->
 <div class="modal-overlay" id="widget-modal">

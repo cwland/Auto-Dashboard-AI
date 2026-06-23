@@ -25,6 +25,29 @@
     const l1 = lum(a), l2 = lum(b);
     return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
   }
+  // Nudge a foreground colour toward black or white (whichever the background
+  // calls for) just until it meets a minimum contrast ratio — preserving the
+  // theme hue when the colour is already close, but guaranteeing it's readable.
+  function ensureReadable(fg, bg, min) {
+    min = min || 4.5;
+    if (contrast(fg, bg) >= min) return fg;
+    const target = lum(bg) < 0.4 ? '#ffffff' : '#0a0a0a';
+    for (let t = 0.12; t <= 1.0001; t += 0.12) {
+      const out = mix(fg, target, t);
+      if (contrast(out, bg) >= min) return out;
+    }
+    return target;
+  }
+  // Make `fg` readable against the WORST of several surfaces it may sit on.
+  function ensureReadableOn(fg, surfaces, min) {
+    let out = fg;
+    for (let i = 0; i < 3; i++) {
+      const worst = surfaces.reduce((w, b) => (contrast(out, b) < contrast(out, w) ? b : w), surfaces[0]);
+      if (contrast(out, worst) >= min) break;
+      out = ensureReadable(out, worst, min);
+    }
+    return out;
+  }
   function validHex(v) { return /^#?[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(String(v || '').trim()); }
   function normHex(v) {
     let h = String(v || '').trim(); if (h[0] !== '#') h = '#' + h;
@@ -63,6 +86,14 @@
                  : (dark ? (c.border || mix(bgS, txt, 0.18)) : mix(bgS, txt, 0.30));
     const textSecondary = validHex(c.textSecondary) ? normHex(c.textSecondary) : mix(txt, txtMuted, dark ? 0.45 : 0.28);
     const accentHover = validHex(c.accentHover) ? normHex(c.accentHover) : mix(accent, dark ? '#ffffff' : '#000000', 0.14);
+    // Readability guard: text sits on the page, the section (bg-secondary) and the
+    // cards, so guarantee each text role has enough contrast against ALL of them.
+    // Themes that already pass (the built-ins) are left untouched; only low-contrast
+    // (often AI- or hand-picked) colours get nudged toward readable.
+    const surfaces = [page, bgS, card];
+    const txtR = ensureReadableOn(txt, surfaces, 4.5);            // body text
+    const txtSecR = ensureReadableOn(textSecondary, surfaces, 3.5); // secondary
+    const txtMutedR = ensureReadableOn(txtMuted, surfaces, 2.8);    // muted/labels
     return {
       '--bg-primary': page,
       '--bg-secondary': bgS,
@@ -70,9 +101,9 @@
       '--bg-hover': hover,
       '--border': border,
       '--border-focus': accent,
-      '--text-primary': txt,
-      '--text-secondary': textSecondary,
-      '--text-muted': txtMuted,
+      '--text-primary': txtR,
+      '--text-secondary': txtSecR,
+      '--text-muted': txtMutedR,
       '--accent': accent,
       '--accent-hover': accentHover,
       '--accent-light': `rgba(${ar.r}, ${ar.g}, ${ar.b}, 0.13)`,

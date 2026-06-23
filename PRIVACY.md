@@ -1,6 +1,6 @@
 # Privacy Policy — Auto Dashboard AI
 
-*Last updated: June 22, 2026 | Version 1.0.26*
+*Last updated: June 22, 2026 | Version 1.2.0*
 
 ## Summary
 
