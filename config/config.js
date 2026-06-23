@@ -5662,6 +5662,35 @@ async function resolveIconUrl(bm) {
   return null;
 }
 
+// Gather several DISTINCT icon candidates for a bookmark (favicon, site icon,
+// brand/logo variants, Google cache) — the ones that actually load — so the
+// review screen can offer alternatives. Returns [{ url, source }], primary first,
+// capped at `max`. URLs are left live (not baked); the chosen one is baked later.
+async function gatherIconCandidates(bm, max = 4) {
+  const out = [];
+  const seen = new Set();
+  const push = (url, source) => { if (url && !seen.has(url)) { seen.add(url); out.push({ url, source }); } };
+  let origin, hostname, pageUrl;
+  try {
+    const u = new URL(bm.url);
+    if (!u.protocol.startsWith('http')) return out;
+    origin = u.origin; hostname = u.hostname; pageUrl = u.href;
+  } catch { return out; }
+  try { const c = await chromeCachedFavicon(pageUrl); if (c) push(c, 'chrome'); } catch (_) {}
+  try { const s = await siteIcon(origin, pageUrl); if (s) push(s, 'site'); } catch (_) {}
+  if (bm.icon_slug) {
+    for (const url of brandIconCandidates(bm.icon_slug)) {
+      if (out.length >= max) break;
+      if (await testImage(url, 3500)) push(url, 'brand');
+    }
+  }
+  if (out.length < max) {
+    const g = `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`;
+    if (await testImage(g, 4000)) push(g, 'google');
+  }
+  return out.slice(0, max);
+}
+
 // Brand-first resolution used by "Refresh missing icons": prefer the AI's
 // brand glyph over a weak favicon fallback. Returns the same shape.
 async function resolveIconBrandFirst(bm) {
@@ -5697,7 +5726,12 @@ async function resolveIcons(bookmarks, concurrency = 8, onProgress = () => {}) {
   const total = bookmarks.length;
 
   async function worker(bm) {
-    const r = await resolveIconUrl(bm);
+    // Collect multiple candidates (for the review screen) and use the first as the
+    // primary. Falls back to resolveIconUrl if candidate gathering finds nothing.
+    let candidates = [];
+    try { candidates = await gatherIconCandidates(bm); } catch (_) { candidates = []; }
+    bm.iconCandidates = candidates;                 // live URLs, primary first
+    const r = candidates[0] || await resolveIconUrl(bm);
     if (r) {
       // Bake the resolved icon into a self-contained data: URI so it survives a
       // backup/restore on any browser — the chrome _favicon cache URL (and other
@@ -5995,12 +6029,11 @@ function setupDashboardSetup() {
   });
 
   document.getElementById('create-dashboard-btn')?.addEventListener('click', openWizard);
-  document.getElementById('create-blank-dashboard-btn')?.addEventListener('click', createBlankDashboardQuick);
 }
 
 // ─── Dashboard creation wizard ────────────────────────────────────────────────
-const WIZ_STEPS = 4;
-const WIZ_LABELS = { 1: 'Details', 2: 'Bookmark organization', 3: 'Processing', 4: 'Preview & edit' };
+const WIZ_STEPS = 6;
+const WIZ_LABELS = { 1: 'Details', 2: 'Organization', 3: 'Bookmarks', 4: 'Processing', 5: 'Sections', 6: 'Widgets' };
 const wizard = { step: 1, data: {}, editId: null };
 
 // Relocate the existing bookmark tree + controls into the wizard (once), so the
@@ -6024,11 +6057,14 @@ function openWizard() {
   const err = document.getElementById('wiz-title-err'); if (err) err.style.display = 'none';
 
   // Step 2 defaults: fresh selection, folder mode, hidden max-sections.
-  const folderRadio = document.querySelector('input[name="wiz-org"][value="folder"]');
-  if (folderRadio) folderRadio.checked = true;
+  const plainRadio = document.querySelector('input[name="wiz-org"][value="plain"]');
+  if (plainRadio) plainRadio.checked = true;
   wizUpdateDynamicAvailability();
   const maxRow = document.getElementById('wiz-maxsec-row'); if (maxRow) maxRow.style.display = 'none';
-  const maxSec = document.getElementById('wiz-maxsec'); if (maxSec) maxSec.value = '8';
+  const maxCat = document.getElementById('wiz-maxcat'); if (maxCat) maxCat.value = '5';
+  const maxSec = document.getElementById('wiz-maxsec'); if (maxSec) { maxSec.value = '8'; maxSec.style.display = 'none'; }
+  const typeFull = document.querySelector('input[name="wiz-type"][value="full"]'); if (typeFull) typeFull.checked = true;
+  const canvasEl = document.getElementById('wiz-canvas'); if (canvasEl) canvasEl.value = '1280';
   const selErr = document.getElementById('wiz-sel-err'); if (selErr) selErr.style.display = 'none';
   // Reset icon shape → Rounded, show-text → on.
   selectShapeOption('wiz-shape-picker', 'rounded');
@@ -6049,18 +6085,21 @@ function closeWizard() { document.getElementById('dash-wizard').classList.remove
 function wizUpdateDynamicAvailability() {
   const ai = activeAI(state.savedSettings);
   const hasAI = !!(ai && ai.apiKey);
-  const dyn = document.querySelector('input[name="wiz-org"][value="dynamic"]');
   const note = document.getElementById('wiz-dynamic-note');
-  if (dyn) {
-    dyn.disabled = !hasAI;
-    const card = dyn.closest('.wiz-org-card');
-    if (card) card.classList.toggle('wiz-org-disabled', !hasAI);
-    if (!hasAI && dyn.checked) {
-      const folder = document.querySelector('input[name="wiz-org"][value="folder"]');
-      if (folder) folder.checked = true;
+  // The two AI-powered options (Dynamic folder structure + AI categorization) are
+  // only shown when an AI provider is set up. Without AI, only plain "Folder
+  // structure" is available.
+  ['folder', 'dynamic'].forEach((val) => {
+    const input = document.querySelector(`input[name="wiz-org"][value="${val}"]`);
+    const card = input && input.closest('.wiz-org-card');
+    if (input) input.disabled = !hasAI;
+    if (card) card.style.display = hasAI ? '' : 'none';
+    if (!hasAI && input && input.checked) {
+      const plain = document.querySelector('input[name="wiz-org"][value="plain"]');
+      if (plain) plain.checked = true;
       const row = document.getElementById('wiz-maxsec-row'); if (row) row.style.display = 'none';
     }
-  }
+  });
   if (note) note.style.display = hasAI ? 'none' : '';
 }
 
@@ -6068,22 +6107,28 @@ function wizGoTo(n) {
   wizard.step = n;
   for (let i = 1; i <= WIZ_STEPS; i++) {
     const el = document.getElementById(`wiz-step-${i}`);
-    if (el) el.style.display = i === n ? ((i === 2 || i === 4) ? 'flex' : 'block') : 'none';
+    if (el) el.style.display = i === n ? ((i === 3 || i === 5 || i === 6) ? 'flex' : 'block') : 'none';
   }
-  // Steps 2 & 4 use a wide, full-height modal (tree / preview need the room).
-  document.querySelector('.wiz-modal')?.classList.toggle('wiz-wide', n === 2 || n === 4);
+  // Steps 3 (tree), 5 (sections) & 6 (widgets) use a wide, full-height modal.
+  document.querySelector('.wiz-modal')?.classList.toggle('wiz-wide', n === 3 || n === 5 || n === 6);
   const editing = !!wizard.editId;
   const titleEl = document.querySelector('.wiz-title');
   if (titleEl) titleEl.textContent = editing ? 'Edit Dashboard' : 'Create Dashboard';
   const ind = document.getElementById('wiz-stepind');
   if (ind) ind.textContent = editing ? 'Rearrange & edit' : `Step ${n} of ${WIZ_STEPS} · ${WIZ_LABELS[n]}`;
-  document.getElementById('wiz-back').disabled = editing || n === 1;
-  document.getElementById('wiz-next').textContent = editing ? 'Save Changes' : (n === WIZ_STEPS ? 'Generate Dashboard' : 'Next');
-  // Step 3 (processing) auto-advances, so hide the Back/Next footer there.
+  // Back is hidden on step 1 (nothing to go back to) and while editing.
+  const backBtn = document.getElementById('wiz-back');
+  if (backBtn) { const hideBack = editing || n === 1; backBtn.style.display = hideBack ? 'none' : ''; backBtn.disabled = hideBack; }
+  const nextBtn = document.getElementById('wiz-next');
+  if (nextBtn) { nextBtn.style.display = ''; nextBtn.textContent = editing ? 'Save Changes' : (n === WIZ_STEPS ? 'Create Dashboard' : 'Next'); }
+  // "Skip Adding Bookmarks" shows only on the bookmark step (create flow).
+  const skipBtn = document.getElementById('wiz-skip');
+  if (skipBtn) skipBtn.style.display = (n === 3 && !editing) ? '' : 'none';
+  // Step 4 (processing) auto-advances, so hide the Back/Next footer there.
   const foot = document.querySelector('.wiz-foot');
-  if (foot) foot.style.display = n === 3 ? 'none' : '';
+  if (foot) foot.style.display = (n === 4) ? 'none' : '';
   if (n === 2) wizUpdateDynamicAvailability();
-  if (n === 4) renderWizWidgetPanel();   // optional "Add Widgets" panel (create flow)
+  if (n === 6) { wizWpOpen = new Set(); renderWizWidgetPanel(); }   // widget selection — all apps collapsed
 }
 
 // Validate + capture the current step's input. Returns false to block advancing.
@@ -6093,40 +6138,66 @@ function wizValidateStep(n) {
     const err = document.getElementById('wiz-title-err');
     if (!title) { if (err) err.style.display = 'block'; document.getElementById('wiz-title').focus(); return false; }
     if (err) err.style.display = 'none';
-    wizard.data.title = title;
+    wizard.data.title = title.slice(0, 25);
     wizard.data.description = document.getElementById('wiz-desc').value.trim();
     wizard.data.theme = document.getElementById('wiz-theme').value.trim();
+    wizard.data.dashType = document.querySelector('input[name="wiz-type"]:checked')?.value || 'full';
+    wizard.data.boardDesignWidth = parseInt(document.getElementById('wiz-canvas')?.value, 10) || 1280;
   }
   if (n === 2) {
+    wizard.data.orgMethod = document.querySelector('input[name="wiz-org"]:checked')?.value || 'plain';
+    const sel = document.getElementById('wiz-maxcat');
+    const raw = (sel && sel.value === 'custom')
+      ? parseInt(document.getElementById('wiz-maxsec').value, 10)
+      : parseInt(sel && sel.value, 10);
+    wizard.data.maxSections = Math.max(1, Math.min(30, raw || 8));
+  }
+  if (n === 3) {
     // Bookmark selection is optional — with none selected the dashboard is
     // created without bookmark sections (just widgets, or fully blank).
     const se = document.getElementById('wiz-sel-err'); if (se) se.style.display = 'none';
-    wizard.data.orgMethod = document.querySelector('input[name="wiz-org"]:checked')?.value || 'folder';
-    wizard.data.maxSections = Math.max(1, Math.min(30, parseInt(document.getElementById('wiz-maxsec').value, 10) || 8));
     wizard.data.selectedIds = new Set(state.selectedBookmarkIds);
   }
   return true;
 }
 
+// Step 3: skip bookmark import → go straight to the preview with no sections.
+function wizSkipBookmarks() {
+  wizard.data.selectedIds = new Set();
+  wizard.data.structure = [];
+  wizGoTo(5); renderWizPreview();
+}
+
 function wizNext() {
   if (!wizValidateStep(wizard.step)) return;
-  if (wizard.step === 2) {
-    // No bookmarks selected → skip the AI/folder processing step and go straight
-    // to the preview/widgets step with an empty structure.
+  // Screen 1 → if "Blank Dashboard" was chosen, create it now and open it;
+  // otherwise continue into the bookmarks/widgets flow.
+  if (wizard.step === 1 && !wizard.editId) {
+    if (wizard.data.dashType === 'blank') { wizCreateBlank(); return; }
+    wizGoTo(2); return;
+  }
+  if (wizard.step === 2) { wizGoTo(3); return; }   // organization → bookmarks
+  if (wizard.step === 3) {
+    // No bookmarks selected → skip processing and go straight to the preview with
+    // an empty structure; otherwise run categorization/icon processing.
     if (!wizard.data.selectedIds || wizard.data.selectedIds.size === 0) {
       wizard.data.structure = [];
-      wizGoTo(4); renderWizPreview();
+      wizGoTo(5); renderWizPreview();
       return;
     }
-    wizGoTo(3); wizProcess(); return;   // start processing
+    wizGoTo(4); wizProcess(); return;   // start processing
   }
-  if (wizard.step === 4) { wizGenerate(); return; }             // final generation
+  // Sections step → editing saves now; creating advances to widget selection.
+  if (wizard.step === 5) {
+    if (wizard.editId) { wizGenerate(); return; }
+    wizGoTo(6); return;
+  }
+  if (wizard.step === 6) { wizGenerate(); return; }             // final generation
   if (wizard.step < WIZ_STEPS) wizGoTo(wizard.step + 1);
 }
 function wizBack() {
-  // From the preview step, if we skipped processing (no bookmarks), go back to
-  // the organization step rather than the (skipped) processing step.
-  if (wizard.step === 4 && (!wizard.data.selectedIds || wizard.data.selectedIds.size === 0)) { wizGoTo(2); return; }
+  if (wizard.step === 6) { wizGoTo(5); return; }   // widgets → sections
+  if (wizard.step === 5) { wizGoTo(3); return; }   // sections → bookmarks (skip processing)
   if (wizard.step > 1) wizGoTo(wizard.step - 1);
 }
 
@@ -6137,8 +6208,10 @@ function wizProgress(status, pct, msg) {
   if (msg !== undefined) { const m = document.getElementById('wiz-proc-msg'); if (m) m.textContent = msg; }
 }
 
-// Group enriched bookmarks (by their .folder = section name) into ordered
-// sections; "Other" always sorts last.
+// Group enriched bookmarks (by their .folder = section name) into sections,
+// sorted ALPHABETICALLY with "Other" always last. Bookmarks within each section
+// are sorted alphabetically by title, and a short internal description is derived
+// (used behind the scenes / in the review screen).
 function buildStructure(bookmarks) {
   const map = new Map();
   bookmarks.forEach((b) => {
@@ -6146,9 +6219,22 @@ function buildStructure(bookmarks) {
     if (!map.has(sec)) map.set(sec, []);
     map.get(sec).push(b);
   });
-  const sections = [...map.entries()].map(([name, bms]) => ({ name, bookmarks: bms }));
-  sections.sort((a, b) => (a.name === 'Other' ? 1 : 0) - (b.name === 'Other' ? 1 : 0));
+  const coll = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+  const sections = [...map.entries()].map(([name, bms]) => {
+    bms.sort((a, b) => coll.compare(a.title || a.url || '', b.title || b.url || ''));
+    return { name, bookmarks: bms, description: deriveSectionDescription(name, bms) };
+  });
+  sections.sort((a, b) => {
+    const ao = a.name === 'Other' ? 1 : 0, bo = b.name === 'Other' ? 1 : 0;
+    return ao - bo || coll.compare(a.name, b.name);   // alphabetical, "Other" last
+  });
   return sections;
+}
+
+// Short internal section description from its bookmark titles (not user-facing).
+function deriveSectionDescription(name, bms) {
+  const names = bms.map((b) => (b.title || '').trim()).filter(Boolean).slice(0, 4);
+  return names.length ? `${bms.length} item${bms.length === 1 ? '' : 's'}: ${names.join(', ')}` : `${bms.length} items`;
 }
 
 // Keep at most `max` non-"Other" sections (by frequency); demote the rest to Other.
@@ -6161,21 +6247,31 @@ function enforceMaxSections(bookmarks, idToSection, max) {
   return out;
 }
 
-// Ask the AI to assign each bookmark to a concise, theme-aware section name.
-// Returns a map of bookmark id → section name. Tolerant of truncated responses:
-// it salvages whatever complete pairs the model returned, and the caller falls
-// back to folder names for any bookmark the AI didn't return.
-async function aiCategorize(bookmarks, maxSections, theme) {
+// Ask the AI to assign each bookmark to a concise section name. `ctx` carries the
+// dashboard name/description/theme for grouping context (any may be empty — when
+// they're all empty the model infers groups purely from each bookmark's title,
+// description and domain). Returns a map of bookmark id → section name. Tolerant
+// of truncated responses: it salvages whatever complete pairs the model returned,
+// and the caller falls back to folder names for any bookmark the AI didn't return.
+async function aiCategorize(bookmarks, maxSections, ctx) {
+  ctx = ctx || {};
+  const hostOf = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+  const ctxLines = [
+    ctx.name ? `Dashboard name: "${ctx.name}"` : '',
+    ctx.description ? `Dashboard description: "${ctx.description}"` : '',
+    ctx.theme ? `Theme/context: "${ctx.theme}"` : '',
+  ].filter(Boolean).join('\n');
   const prompt =
 `Organize these browser bookmarks into at most ${maxSections} dashboard sections.
-${theme ? `Dashboard theme/context: "${theme}". Use it to guide grouping and naming.\n` : ''}Rules:
+${ctxLines ? ctxLines + '\n' : 'No dashboard name/description/theme was given — infer sensible groups from each bookmark\'s title, description and domain.\n'}
+Base each grouping on the bookmark's title, its description, and its domain (host). Rules:
 - Create concise, meaningful section names (1-3 words).
-- Avoid redundant or overlapping sections.
+- Aim for balanced section sizes; avoid redundant or overlapping sections.
 - Do not exceed ${maxSections} sections (the "Other" bucket does not count).
-- Put anything that doesn't fit into a section named exactly "Other".
+- Put anything that doesn't clearly fit into a section named exactly "Other".
 
 Bookmarks:
-${JSON.stringify(bookmarks.map((b) => ({ id: b.id, title: (b.title || '').slice(0, 80), url: b.url, description: (b.description || '').slice(0, 80) })))}
+${JSON.stringify(bookmarks.map((b) => ({ id: b.id, title: (b.title || '').slice(0, 100), host: hostOf(b.url), description: (b.description || '').slice(0, 160) })))}
 
 Return ONLY a compact JSON array: [{"id":"<id>","section":"<name>"}, ...]. No markdown, no commentary.`;
 
@@ -6209,26 +6305,36 @@ async function wizProcess() {
     if (!bookmarks.length) throw new Error('No bookmarks selected.');
 
     const dynamic = wizard.data.orgMethod === 'dynamic';
+    const noAI = wizard.data.orgMethod === 'plain';   // pure folders, no AI at all
     const ai = activeAI(state.savedSettings);
     if (dynamic && !ai.apiKey) {
-      throw new Error('Dynamic categorization needs an AI provider. Set one up in Settings → AI Provider, then try again — or use “Folder names” instead.');
+      throw new Error('Dynamic categorization needs an AI provider. Set one up in Settings → AI Provider, then try again — or use “Folder structure” instead.');
     }
 
-    // 1) Enrich (AI best-effort; falls back to basic metadata per batch on failure).
+    // 1) Enrich. No-AI mode skips the AI pass entirely and uses basic metadata
+    //    (so icons come from favicons only, no AI brand-slug guessing).
     const processed = [];
-    const batches = chunkArray(bookmarks, AI_BATCH_SIZE);
-    for (let i = 0; i < batches.length; i++) {
-      wizProgress('Analyzing bookmarks with AI…', 8 + Math.round((i / batches.length) * 55), `Batch ${i + 1} of ${batches.length}`);
-      let res;
-      try {
-        res = await processBookmarkBatch(batches[i], state.savedSettings);
-      } catch (_) {
-        res = batches[i].map((b) => ({
-          id: b.id, url: b.url, title: (b.title || b.url).slice(0, 35), description: '',
-          category: 'Other', icon_slug: null, icon_emoji: '🔗', folder: b.folder, folderPath: b.folderPath, resolved_icon: null,
-        }));
+    if (noAI) {
+      wizProgress('Reading bookmarks…', 30, '');
+      bookmarks.forEach((b) => processed.push({
+        id: b.id, url: b.url, title: (b.title || b.url).slice(0, 60), description: '',
+        category: 'Other', icon_slug: null, icon_emoji: '🔗', folder: b.folder, folderPath: b.folderPath, resolved_icon: null,
+      }));
+    } else {
+      const batches = chunkArray(bookmarks, AI_BATCH_SIZE);
+      for (let i = 0; i < batches.length; i++) {
+        wizProgress('Analyzing bookmarks with AI…', 8 + Math.round((i / batches.length) * 55), `Batch ${i + 1} of ${batches.length}`);
+        let res;
+        try {
+          res = await processBookmarkBatch(batches[i], state.savedSettings);
+        } catch (_) {
+          res = batches[i].map((b) => ({
+            id: b.id, url: b.url, title: (b.title || b.url).slice(0, 35), description: '',
+            category: 'Other', icon_slug: null, icon_emoji: '🔗', folder: b.folder, folderPath: b.folderPath, resolved_icon: null,
+          }));
+        }
+        processed.push(...res);
       }
-      processed.push(...res);
     }
 
     // 2) Resolve icons (real favicon → brand-icon guess → generic).
@@ -6240,7 +6346,9 @@ async function wizProcess() {
     // 3) Assign sections.
     if (dynamic) {
       wizProgress('Categorizing with AI…', 88, '');
-      const map = await aiCategorize(processed, wizard.data.maxSections, wizard.data.theme);
+      const map = await aiCategorize(processed, wizard.data.maxSections, {
+        name: wizard.data.title, description: wizard.data.description, theme: wizard.data.theme,
+      });
       const enforced = enforceMaxSections(processed, map, wizard.data.maxSections);
       processed.forEach((b) => {
         if (enforced[b.id]) { b.folder = enforced[b.id]; return; }
@@ -6259,7 +6367,7 @@ async function wizProcess() {
     // 4) Build the editable structure and advance.
     wizard.data.structure = buildStructure(processed);
     wizProgress('Done', 100, '');
-    setTimeout(() => { renderWizPreview(); wizGoTo(4); }, 350);
+    setTimeout(() => { renderWizPreview(); wizGoTo(5); }, 350);
   } catch (err) {
     wizProgress('Couldn’t build the dashboard', 0, '');
     const box = document.getElementById('wiz-proc-err');
@@ -6270,7 +6378,6 @@ async function wizProcess() {
 }
 
 // ─── Wizard step 4: preview & edit ────────────────────────────────────────────
-let wizDrag = null;       // { type: 'section' | 'bm' } during a drag
 let wizEditRef = null;    // the bookmark object currently open in the edit modal
 
 function wizBmIcon(b) {
@@ -6287,28 +6394,27 @@ function renderWizPreview() {
   (wizard.data.structure || []).forEach((section, si) => {
     const sec = document.createElement('div');
     sec.className = 'wiz-sec';
-    sec.draggable = true;
     sec.dataset.si = si;
 
-    // header: grip + editable name + count + delete (enabled only when empty)
+    // header: editable name + size/shape/ping + delete (enabled only when empty)
     const head = document.createElement('div');
     head.className = 'wiz-sec-head';
-    const sgrip = document.createElement('span'); sgrip.className = 'dash-grip'; sgrip.title = 'Drag to reorder section'; sgrip.textContent = '⠿';
+
     const nameInput = document.createElement('input');
-    nameInput.className = 'wiz-sec-name'; nameInput.value = section.name;
-    nameInput.addEventListener('input', () => { section.name = nameInput.value; });
-    const count = document.createElement('span'); count.className = 'wiz-sec-count'; count.textContent = section.bookmarks.length;
+    nameInput.className = 'wiz-sec-name'; nameInput.value = section.name; nameInput.maxLength = 20;
+    nameInput.addEventListener('input', () => { section.name = nameInput.value.slice(0, 20); });
 
     // Per-section icon size (S/M/L) — stored on the section, persisted to layout.
     if (!section.iconSize) section.iconSize = 'medium';
     const sizeSel = document.createElement('div');
     sizeSel.className = 'wiz-sec-size';
-    [['small', 'S'], ['medium', 'M'], ['large', 'L']].forEach(([sz, label]) => {
+    [['small', 'S', 'Small icons'], ['medium', 'M', 'Medium icons'], ['large', 'L', 'Large icons']].forEach(([sz, label, tip]) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'wiz-size-btn' + (section.iconSize === sz ? ' active' : '');
+      b.className = 'wiz-size-btn wiz-tip' + (section.iconSize === sz ? ' active' : '');
       b.dataset.size = sz; b.textContent = label;
-      b.title = sz.charAt(0).toUpperCase() + sz.slice(1) + ' icons';
+      b.dataset.tip = tip;                 // immediate hover tooltip on each S / M / L
+      b.setAttribute('aria-label', tip);
       b.addEventListener('click', (e) => {
         e.stopPropagation();
         section.iconSize = sz;
@@ -6317,87 +6423,190 @@ function renderWizPreview() {
       sizeSel.appendChild(b);
     });
 
+    // Per-section icon shape.
+    if (!section.shape) section.shape = wizard.data.defaultShape || 'rounded';
+    const shapeSel = document.createElement('select');
+    shapeSel.className = 'wiz-sec-shape wiz-tip';
+    shapeSel.dataset.tip = 'Icon shape for this section';
+    [['rounded', 'Rounded'], ['square', 'Square'], ['circle', 'Circle'], ['squircle', 'Squircle']].forEach(([v, label]) => {
+      const o = document.createElement('option'); o.value = v; o.textContent = label; if (section.shape === v) o.selected = true;
+      shapeSel.appendChild(o);
+    });
+    shapeSel.addEventListener('click', (e) => e.stopPropagation());
+    shapeSel.addEventListener('change', () => { section.shape = shapeSel.value; });
+
+    // Per-section "ping" toggle — show each bookmark's online/offline status.
+    if (typeof section.monitor !== 'boolean') section.monitor = false;
+    const ping = document.createElement('button');
+    ping.type = 'button';
+    ping.className = 'wiz-sec-ping wiz-tip' + (section.monitor ? ' on' : '');
+    ping.textContent = '◉';
+    ping.dataset.tip = 'Online/offline status (ping) — off by default';
+    ping.setAttribute('aria-label', ping.dataset.tip);
+    ping.addEventListener('click', (e) => {
+      e.stopPropagation();
+      section.monitor = !section.monitor;
+      ping.classList.toggle('on', section.monitor);
+    });
+
     const del = document.createElement('button'); del.className = 'wiz-sec-del'; del.type = 'button'; del.textContent = '✕';
     del.disabled = section.bookmarks.length > 0;
     del.title = del.disabled ? 'Move all bookmarks out to delete this section' : 'Delete section';
     del.addEventListener('click', () => { wizard.data.structure.splice(si, 1); renderWizPreview(); });
-    head.append(sgrip, nameInput, sizeSel, count, del);
+    head.append(nameInput, sizeSel, shapeSel, ping, del);
 
-    // bookmark list (drop target)
+    // bookmark list
     const list = document.createElement('div');
     list.className = 'wiz-sec-bms' + (section.bookmarks.length ? '' : ' empty');
     list.dataset.si = si;
-    if (!section.bookmarks.length) list.textContent = 'Drop bookmarks here';
+    if (!section.bookmarks.length) list.textContent = 'No bookmarks — use “Move to” on another section’s items to add some.';
 
     section.bookmarks.forEach((b, bi) => {
       const row = document.createElement('div');
-      row.className = 'wiz-bm'; row.draggable = true; row._bm = b;
-      const grip = document.createElement('span'); grip.className = 'dash-grip'; grip.textContent = '⠿';
-      const ico = document.createElement('img'); ico.className = 'wiz-bm-ico'; ico.alt = ''; ico.src = wizBmIcon(b);
-      ico.onerror = () => { ico.style.visibility = 'hidden'; };
-      const title = document.createElement('span'); title.className = 'wiz-bm-title'; title.textContent = b.title || b.url;
-      const editBtn = document.createElement('button'); editBtn.className = 'wiz-bm-edit-btn'; editBtn.type = 'button'; editBtn.title = 'Edit'; editBtn.textContent = '✎';
+      row.className = 'wiz-bm'; row._bm = b;
+      // Click the icon to choose from AI-found options, paste a URL, or re-search.
+      const ico = document.createElement('img'); ico.className = 'wiz-bm-ico wiz-bm-ico-btn'; ico.alt = ''; ico.src = wizBmIcon(b);
+      ico.title = 'Change icon';
+      ico.onerror = () => { ico.src = GENERIC_ICON_URL; };
+      ico.addEventListener('click', (e) => { e.stopPropagation(); openIconPick(b, () => { ico.src = wizBmIcon(b); }); });
+      // Click the name to edit it inline (no pencil needed for the name).
+      const title = document.createElement('input');
+      title.className = 'wiz-bm-title'; title.value = b.title || b.url;
+      title.title = 'Click to rename';
+      title.addEventListener('input', () => { b.title = title.value; });
+      // Move this bookmark to another section via a popup list.
+      const moveBtn = document.createElement('button'); moveBtn.className = 'wiz-bm-move'; moveBtn.type = 'button'; moveBtn.title = 'Move to another section';
+      moveBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"/><path d="M13 6l6 6-6 6"/></svg><span>Move</span>';
+      moveBtn.addEventListener('click', (e) => { e.stopPropagation(); openMoveMenu(moveBtn, si, bi); });
+      // The pencil now opens advanced options (icon, description, URL).
+      const editBtn = document.createElement('button'); editBtn.className = 'wiz-bm-edit-btn'; editBtn.type = 'button'; editBtn.title = 'More options (icon, description, URL)'; editBtn.textContent = '✎';
       const delBtn = document.createElement('button'); delBtn.className = 'wiz-bm-del'; delBtn.type = 'button'; delBtn.title = 'Delete'; delBtn.textContent = '✕';
       editBtn.addEventListener('click', (e) => { e.stopPropagation(); openBmEdit(b); });
       delBtn.addEventListener('click', (e) => { e.stopPropagation(); section.bookmarks.splice(bi, 1); renderWizPreview(); });
-      row.addEventListener('dragstart', (e) => { e.stopPropagation(); wizDrag = { type: 'bm' }; row.classList.add('dragging'); });
-      row.addEventListener('dragend', wizDragEnd);
-      row.append(grip, ico, title, editBtn, delBtn);
+      row.append(ico, title, moveBtn, editBtn, delBtn);
       list.appendChild(row);
     });
 
-    list.addEventListener('dragover', (e) => {
-      if (!wizDrag || wizDrag.type !== 'bm') return;
-      e.preventDefault(); e.stopPropagation();
-      const dragging = document.querySelector('.wiz-bm.dragging');
-      if (!dragging) return;
-      const after = wizAfter(list, '.wiz-bm', e.clientY);
-      if (after == null) list.appendChild(dragging); else list.insertBefore(dragging, after);
-    });
-
     sec.append(head, list);
-    sec.addEventListener('dragstart', () => { wizDrag = { type: 'section' }; sec.classList.add('dragging'); });
-    sec.addEventListener('dragend', wizDragEnd);
     host.appendChild(sec);
   });
-}
 
-function wizAfter(container, selector, y) {
-  const els = [...container.querySelectorAll(`${selector}:not(.dragging)`)];
-  return els.reduce((closest, child) => {
-    const box = child.getBoundingClientRect();
-    const offset = y - box.top - box.height / 2;
-    if (offset < 0 && offset > closest.offset) return { offset, element: child };
-    return closest;
-  }, { offset: -Infinity }).element || null;
-}
-
-function wizDragEnd() {
-  document.querySelectorAll('.wiz-sec.dragging, .wiz-bm.dragging').forEach((el) => el.classList.remove('dragging'));
-  // Rebuild the structure from the DOM (captures section order, bookmark order,
-  // and cross-section moves), then re-render to refresh counts/delete states.
-  const host = document.getElementById('wiz-preview');
-  const out = [];
-  host.querySelectorAll('.wiz-sec').forEach((secEl) => {
-    const name = secEl.querySelector('.wiz-sec-name').value;
-    const bms = [];
-    secEl.querySelectorAll('.wiz-bm').forEach((bmEl) => { if (bmEl._bm) bms.push(bmEl._bm); });
-    out.push({ name, bookmarks: bms });
+  // "Add section" — append an empty, editable section.
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'wiz-add-sec';
+  addBtn.textContent = '+ Add section';
+  addBtn.addEventListener('click', () => {
+    (wizard.data.structure = wizard.data.structure || []).push({
+      name: 'New Section', bookmarks: [], iconSize: 'medium',
+      shape: wizard.data.defaultShape || 'rounded', monitor: false,
+    });
+    renderWizPreview();
+    const inputs = host.querySelectorAll('.wiz-sec-name');
+    const last = inputs[inputs.length - 1];
+    if (last) { last.focus(); last.select(); }
   });
-  wizard.data.structure = out;
-  wizDrag = null;
-  renderWizPreview();
+  host.appendChild(addBtn);
+}
+
+// Popup list of OTHER sections to move a bookmark into (replaces drag-to-move).
+function openMoveMenu(anchorBtn, fromSi, bmIdx) {
+  document.querySelectorAll('.wiz-move-menu').forEach((m) => m.remove());
+  const secs = wizard.data.structure || [];
+  const targets = secs.map((s, i) => ({ s, i })).filter((t) => t.i !== fromSi);
+  const menu = document.createElement('div');
+  menu.className = 'wiz-move-menu';
+  if (!targets.length) {
+    const e = document.createElement('div'); e.className = 'wiz-move-empty'; e.textContent = 'No other sections';
+    menu.appendChild(e);
+  } else {
+    const lbl = document.createElement('div'); lbl.className = 'wiz-move-lbl'; lbl.textContent = 'Move to…';
+    menu.appendChild(lbl);
+    targets.forEach((t) => {
+      const item = document.createElement('button'); item.type = 'button'; item.className = 'wiz-move-item';
+      item.textContent = t.s.name || '(unnamed)';
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const [bm] = secs[fromSi].bookmarks.splice(bmIdx, 1);
+        if (bm) t.s.bookmarks.push(bm);
+        menu.remove();
+        renderWizPreview();
+      });
+      menu.appendChild(item);
+    });
+  }
+  document.body.appendChild(menu);
+  const r = anchorBtn.getBoundingClientRect();
+  menu.style.top = Math.round(r.bottom + 4) + 'px';
+  menu.style.left = Math.round(Math.min(r.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+  const close = (ev) => { if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('mousedown', close); } };
+  setTimeout(() => document.addEventListener('mousedown', close), 0);
 }
 
 // ── Bookmark edit modal ──
 function openBmEdit(b) {
   wizEditRef = b;
   document.getElementById('wiz-bm-title').value = b.title || '';
+  const urlEl = document.getElementById('wiz-bm-url'); if (urlEl) urlEl.value = b.url || '';
   document.getElementById('wiz-bm-desc').value = b.description || '';
   document.getElementById('wiz-bm-icon').value = (b.resolved_icon && !b.resolved_icon.startsWith('data:')) ? b.resolved_icon : '';
   const prev = document.getElementById('wiz-bm-icon-prev'); prev.src = wizBmIcon(b); prev.style.visibility = '';
   document.getElementById('wiz-bm-icon-hint').textContent = 'Paste an image URL — it’s downloaded and stored with the dashboard.';
+  // AI icon re-search — only when an AI provider is set up.
+  const ai = activeAI(state.savedSettings);
+  const aiBox = document.getElementById('wiz-bm-ai');
+  if (aiBox) aiBox.style.display = (ai && ai.apiKey) ? '' : 'none';
+  const aiDesc = document.getElementById('wiz-bm-ai-desc'); if (aiDesc) aiDesc.value = '';
+  const aiCh = document.getElementById('wiz-bm-ai-choices'); if (aiCh) aiCh.innerHTML = '';
+  const aiHint = document.getElementById('wiz-bm-ai-hint'); if (aiHint) { aiHint.textContent = ''; aiHint.style.color = ''; aiHint.classList.remove('wiz-busy'); }
   document.getElementById('wiz-bm-edit').classList.add('open');
+}
+
+// AI icon re-search inside the Edit Bookmark modal — finds matching icons from a
+// description and lets the user click one to fill the Icon URL field.
+async function bmEditAiSearch() {
+  const desc = (document.getElementById('wiz-bm-ai-desc').value || '').trim();
+  const hint = document.getElementById('wiz-bm-ai-hint');
+  const choices = document.getElementById('wiz-bm-ai-choices');
+  const btn = document.getElementById('wiz-bm-ai-search');
+  if (!desc) { hint.style.color = 'var(--danger)'; hint.textContent = 'Type what icon you want, then click Search.'; return; }
+  const ai = activeAI(state.savedSettings);
+  if (!ai || !ai.apiKey) { hint.style.color = 'var(--danger)'; hint.textContent = 'Set up an AI provider in Settings → AI Provider to re-search icons.'; return; }
+  hint.style.color = ''; hint.classList.add('wiz-busy'); hint.textContent = `Asking AI for icons matching “${desc}”…`;
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+  try {
+    const slugs = await aiIconSlugs(desc);
+    const found = []; const seen = new Set();
+    for (const slug of slugs) {
+      hint.textContent = `Checking icons for “${slug}”… (${found.length} found)`;
+      for (const url of brandIconCandidates(slug)) {
+        if (found.length >= 8) break;
+        if (seen.has(url)) continue; seen.add(url);
+        if (await testImage(url, 3500)) found.push(url);
+      }
+      if (found.length >= 8) break;
+    }
+    hint.classList.remove('wiz-busy');
+    choices.innerHTML = '';
+    if (!found.length) { hint.style.color = 'var(--danger)'; hint.textContent = 'No matching icons found — try a different description or paste a URL above.'; return; }
+    found.forEach((url) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'wiz-icon-choice';
+      const im = document.createElement('img'); im.alt = ''; im.src = url; im.onerror = () => b.remove(); b.appendChild(im);
+      b.addEventListener('click', () => {
+        document.getElementById('wiz-bm-icon').value = url;
+        const prev = document.getElementById('wiz-bm-icon-prev'); if (prev) { prev.src = url; prev.style.visibility = ''; }
+        choices.querySelectorAll('.wiz-icon-choice').forEach((x) => x.classList.remove('selected'));
+        b.classList.add('selected');
+      });
+      choices.appendChild(b);
+    });
+    hint.style.color = ''; hint.textContent = `Found ${found.length} — click one to use it, then Save.`;
+  } catch (_) {
+    hint.classList.remove('wiz-busy'); hint.style.color = 'var(--danger)';
+    hint.textContent = 'Couldn’t reach the AI. Check your provider and try again.';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Search'; }
+  }
 }
 function closeBmEdit() { document.getElementById('wiz-bm-edit').classList.remove('open'); wizEditRef = null; }
 
@@ -6405,6 +6614,8 @@ async function saveBmEdit() {
   const b = wizEditRef;
   if (!b) return;
   b.title = document.getElementById('wiz-bm-title').value.trim() || b.title;
+  const newUrl = (document.getElementById('wiz-bm-url')?.value || '').trim();
+  if (newUrl) b.url = newUrl;
   b.description = document.getElementById('wiz-bm-desc').value.trim();
   const iconUrl = document.getElementById('wiz-bm-icon').value.trim();
   if (iconUrl && iconUrl !== b.resolved_icon) {
@@ -6417,6 +6628,169 @@ async function saveBmEdit() {
   }
   closeBmEdit();
   renderWizPreview();
+}
+
+// ── Bookmark icon picker (AI candidates + custom URL + AI re-search) ──
+let wizIconRef = null;       // bookmark being edited
+let wizIconRepaint = null;   // row icon repaint callback
+let wizIconChosen = null;    // currently selected icon URL
+
+// Render the candidate grid from the bookmark's iconCandidates.
+function renderIconChoices() {
+  const b = wizIconRef;
+  const choices = document.getElementById('wiz-icon-pick-choices');
+  const empty = document.getElementById('wiz-icon-pick-empty');
+  if (!choices) return;
+  const cands = (b && Array.isArray(b.iconCandidates)) ? b.iconCandidates : [];
+  choices.innerHTML = '';
+  if (empty) empty.style.display = cands.length ? 'none' : '';
+  cands.forEach((c) => {
+    const url = (c && c.url) || c;
+    if (!url) return;
+    const btn = document.createElement('button'); btn.type = 'button';
+    btn.className = 'wiz-icon-choice' + (url === wizIconChosen ? ' selected' : '');
+    const im = document.createElement('img'); im.alt = ''; im.src = url; im.onerror = () => { btn.remove(); };
+    btn.appendChild(im);
+    btn.addEventListener('click', () => {
+      wizIconChosen = url;
+      choices.querySelectorAll('.wiz-icon-choice').forEach((x) => x.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+    choices.appendChild(btn);
+  });
+}
+
+function openIconPick(b, repaint) {
+  wizIconRef = b;
+  wizIconRepaint = repaint;
+  wizIconChosen = (b && b.resolved_icon) || null;
+  const bmUrl = document.getElementById('wiz-icon-pick-bmurl'); if (bmUrl) bmUrl.value = (b && b.url) || '';
+  // The "Re-search with AI" section only appears when an AI provider is set up.
+  const ai = activeAI(state.savedSettings);
+  const aiBox = document.getElementById('wiz-icon-pick-ai');
+  if (aiBox) aiBox.style.display = (ai && ai.apiKey) ? '' : 'none';
+  const urlEl = document.getElementById('wiz-icon-pick-url');
+  const prev = document.getElementById('wiz-icon-pick-prev');
+  const hint = document.getElementById('wiz-icon-pick-hint');
+  const desc = document.getElementById('wiz-icon-pick-desc');
+  if (urlEl) urlEl.value = '';
+  if (desc) desc.value = '';
+  if (prev) { prev.style.display = 'none'; prev.src = ''; }
+  if (hint) { hint.textContent = ''; hint.style.color = ''; }
+  renderIconChoices();
+  document.getElementById('wiz-icon-pick').classList.add('open');
+}
+function closeIconPick() {
+  document.getElementById('wiz-icon-pick').classList.remove('open');
+  wizIconRef = null; wizIconRepaint = null; wizIconChosen = null;
+}
+// Validate + preview a pasted custom icon URL.
+function previewIconPick() {
+  const url = (document.getElementById('wiz-icon-pick-url').value || '').trim();
+  const prev = document.getElementById('wiz-icon-pick-prev');
+  const hint = document.getElementById('wiz-icon-pick-hint');
+  if (!url) { hint.style.color = ''; hint.textContent = 'Enter an image URL (PNG or SVG).'; return; }
+  hint.style.color = ''; hint.textContent = 'Loading…';
+  const img = new Image();
+  img.onload = () => {
+    prev.src = url; prev.style.display = '';
+    hint.textContent = 'Looks good — click "Use icon".';
+    wizIconChosen = url;
+    document.querySelectorAll('#wiz-icon-pick-choices .wiz-icon-choice').forEach((x) => x.classList.remove('selected'));
+  };
+  img.onerror = () => { prev.style.display = 'none'; hint.style.color = 'var(--danger)'; hint.textContent = 'Could not load that image — check the URL.'; };
+  img.src = url;
+}
+// Ask the AI to re-find icons from the user's description, then refresh choices.
+async function regenIconPick() {
+  const b = wizIconRef;
+  if (!b) return;
+  const desc = (document.getElementById('wiz-icon-pick-desc').value || '').trim();
+  const hint = document.getElementById('wiz-icon-pick-hint');
+  const btn = document.getElementById('wiz-icon-pick-regen');
+  if (!desc) { hint.style.color = 'var(--danger)'; hint.textContent = 'Type what icon you want, then click Search.'; return; }
+  const ai = activeAI(state.savedSettings);
+  if (!ai || !ai.apiKey) { hint.style.color = 'var(--danger)'; hint.textContent = 'Set up an AI provider in Settings → AI Provider to re-search icons.'; return; }
+  hint.style.color = ''; hint.classList.add('wiz-busy');
+  hint.textContent = `Asking AI for icons matching “${desc}”…`;
+  if (btn) { btn.disabled = true; btn.textContent = 'Searching…'; }
+  try {
+    const slugs = await aiIconSlugs(desc);
+    if (!slugs.length) {
+      hint.classList.remove('wiz-busy'); hint.style.color = 'var(--danger)';
+      hint.textContent = 'The AI didn’t suggest any icons — try rephrasing, or paste a URL below.';
+      return;
+    }
+    const found = [];
+    const seen = new Set();
+    let checked = 0;
+    for (const slug of slugs) {
+      hint.textContent = `Checking icons for “${slug}”… (${found.length} found)`;
+      for (const url of brandIconCandidates(slug)) {
+        if (found.length >= 8) break;
+        if (seen.has(url)) continue; seen.add(url);
+        checked++;
+        if (await testImage(url, 3500)) found.push({ url, source: 'brand' });
+      }
+      if (found.length >= 8) break;
+    }
+    hint.classList.remove('wiz-busy');
+    if (found.length) {
+      // Merge new candidates ahead of the existing ones (deduped).
+      const existing = Array.isArray(b.iconCandidates) ? b.iconCandidates : [];
+      const urls = new Set(found.map((f) => f.url));
+      b.iconCandidates = found.concat(existing.filter((c) => !urls.has((c && c.url) || c)));
+      wizIconChosen = found[0].url;
+      renderIconChoices();
+      hint.style.color = ''; hint.textContent = `Found ${found.length} icon${found.length === 1 ? '' : 's'} for “${desc}” — pick one and click “Use icon”.`;
+    } else {
+      hint.style.color = 'var(--danger)';
+      hint.textContent = `The AI suggested ${slugs.length} match${slugs.length === 1 ? '' : 'es'} (${slugs.join(', ')}) but none had an icon in the library. Try a more specific brand/product name, or paste a URL.`;
+    }
+  } catch (_) {
+    hint.classList.remove('wiz-busy'); hint.style.color = 'var(--danger)';
+    hint.textContent = 'Couldn’t reach the AI. Check your provider in Settings → AI Provider and try again.';
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Search'; }
+  }
+}
+// Ask the AI for brand/icon slugs that match the user's description ONLY — the
+// bookmark's own title/URL are intentionally not sent, so the search is driven
+// purely by what the user typed in the "Re-search with AI" box.
+async function aiIconSlugs(desc) {
+  const prompt =
+`We are searching an ICON LIBRARY for logo/brand icons. Find icons that match ONLY this search term: "${desc}".
+
+The library is the dashboard-icons and Simple Icons sets — it contains app, product, brand and service logos. Return their "slugs": lowercase, hyphenated identifiers (e.g. "github", "sonarr", "home-assistant", "pi-hole", "youtube", "plex").
+
+Guidance:
+- Base your answer solely on the search term above — do not infer from anything else.
+- Include the closest exact match first, then sensible alternatives: brand/spelling variants (e.g. "home-assistant" and "homeassistant"), related products, and synonyms for the term.
+- Aim for 8–10 candidate slugs so the user has several real options to choose from.
+
+Return ONLY a compact JSON array of slug strings, best first. No commentary, no markdown.`;
+  let content = '';
+  try { content = await callProviderAI([{ role: 'user', content: prompt }], { maxTokens: 400, temperature: 0.3, settings: state.savedSettings }); } catch (_) { content = ''; }
+  const cleaned = (content || '').replace(/```(?:json)?\n?/g, '').trim();
+  let arr = [];
+  try { const p = JSON.parse(cleaned); if (Array.isArray(p)) arr = p; } catch (_) {
+    arr = (cleaned.match(/"([a-z0-9-]+)"/g) || []).map((s) => s.replace(/"/g, ''));
+  }
+  return arr.map((s) => String(s || '').toLowerCase().trim()).filter(Boolean).slice(0, 5);
+}
+async function saveIconPick() {
+  const b = wizIconRef;
+  if (!b) return closeIconPick();
+  const custom = (document.getElementById('wiz-icon-pick-url').value || '').trim();
+  const url = custom || wizIconChosen;
+  if (url) {
+    let stored = url;
+    if (!url.startsWith('data:')) { try { stored = await downloadIconAsDataUri(url); } catch (_) { stored = url; } }
+    b.resolved_icon = stored; b.icon_is_generic = false; b.icon_is_fallback = false;
+  }
+  const repaint = wizIconRepaint;
+  closeIconPick();
+  if (repaint) repaint(); else renderWizPreview();
 }
 
 // Fetch an image URL and store it as a self-contained data URI so it travels
@@ -6626,7 +7000,7 @@ function openWizardEdit(id) {
   renderEditHeader();
   renderWizPreview();
   document.getElementById('dash-wizard').classList.add('open');
-  wizGoTo(4);   // jump straight to preview/edit
+  wizGoTo(5);   // jump straight to preview/edit
 }
 
 // ── Final generation ──
@@ -6635,7 +7009,10 @@ function openWizardEdit(id) {
 function applyIconSizesToLayout(dash, secs) {
   const layout = (dash.layout && typeof dash.layout === 'object') ? dash.layout : {};
   secs.forEach((s) => {
-    layout[s.name] = Object.assign({}, layout[s.name], { iconSize: s.iconSize || 'medium' });
+    layout[s.name] = Object.assign({}, layout[s.name], {
+      iconSize: s.iconSize || 'medium',
+      hostStatus: !!s.monitor,   // per-section online/offline ping toggle
+    });
   });
   const names = new Set(secs.map((s) => s.name));
   Object.keys(layout).forEach((k) => { if (!names.has(k)) delete layout[k]; });
@@ -6645,7 +7022,14 @@ function applyIconSizesToLayout(dash, secs) {
 async function wizGenerate() {
   const secs = wizard.data.structure || [];
   const bookmarks = [];
-  secs.forEach((s) => s.bookmarks.forEach((b) => bookmarks.push(Object.assign({}, b, { folder: s.name }))));
+  secs.forEach((s) => s.bookmarks.forEach((b) => {
+    const out = Object.assign({}, b, {
+      folder: s.name,
+      shape: s.shape || b.shape || wizard.data.defaultShape || 'rounded',   // per-section icon shape
+    });
+    delete out.iconCandidates;   // transient wizard data — don't persist/export it
+    bookmarks.push(out);
+  }));
   // A dashboard may be created with no bookmarks (widgets only, or fully blank).
 
   // Edit mode: update the existing dashboard in place (keep id + createdAt).
@@ -6675,6 +7059,7 @@ async function wizGenerate() {
     sectionOrder: secs.map((s) => s.name),
     defaultShape: getSelectedShape('wiz-shape-picker', 'rounded'),
     showText: document.getElementById('wiz-text-toggle')?.checked !== false,
+    boardDesignWidth: wizard.data.boardDesignWidth || 1280,   // canvas/palette size
     widgets: Array.isArray(wizard.data.widgets) ? wizard.data.widgets : [],
     // One-time flag: the dashboard view compacts the freshly-placed sections to
     // the top on first render (removing the gaps left by pre-render height
@@ -6682,18 +7067,44 @@ async function wizGenerate() {
     autoArrange: true,
   };
   applyIconSizesToLayout(dashboard, secs);
+  // Show the creation overlay for at least ~5s so the build feels deliberate,
+  // then save, close the wizard, and open the finished dashboard.
+  showCreatingOverlay();
+  const minWait = new Promise((r) => setTimeout(r, 5000));
   state.dashboards.push(dashboard);
   if (state.dashboards.length === 1) state.defaultDashboardId = dashboard.id;
   await saveDashboards();
+  await minWait;
+  hideCreatingOverlay();
   closeWizard();
   renderDashboardList();
   showToast('Dashboard created ✓');
   openCreatedDashboard(dashboard.id);
 }
 
-// Open a freshly-created dashboard in a new tab so the user lands on it.
+// Full-cover "Creating Dashboard…" overlay shown during final generation.
+function showCreatingOverlay() {
+  let ov = document.getElementById('wiz-creating');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'wiz-creating';
+    ov.className = 'wiz-creating';
+    ov.innerHTML =
+      '<div class="wiz-creating-box">' +
+      '<span class="spinner" style="width:40px;height:40px;border-width:4px;"></span>' +
+      '<div class="wiz-creating-title">Creating Dashboard…</div>' +
+      '<div class="wiz-creating-bar"><span></span></div>' +
+      '<div class="wiz-creating-sub">Building your layout</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+  }
+  ov.classList.add('open');
+}
+function hideCreatingOverlay() { document.getElementById('wiz-creating')?.classList.remove('open'); }
+
+// Open a freshly-created dashboard in a new, active tab so the user lands on it.
 function openCreatedDashboard(id) {
-  try { chrome.tabs.create({ url: chrome.runtime.getURL(`newtab/newtab.html?dash=${id}`) }); } catch (_) {}
+  try { chrome.tabs.create({ url: chrome.runtime.getURL(`newtab/newtab.html?dash=${id}`), active: true }); } catch (_) {}
 }
 
 // Build a blank dashboard object with a unique default name.
@@ -6728,7 +7139,7 @@ async function wizCreateBlank() {
   if (err) err.style.display = 'none';
   const dashboard = {
     id: `dash_${Date.now()}`,
-    name: title,
+    name: title.slice(0, 25),
     description: document.getElementById('wiz-desc').value.trim(),
     theme: document.getElementById('wiz-theme').value.trim(),
     createdAt: Date.now(),
@@ -6736,6 +7147,7 @@ async function wizCreateBlank() {
     sectionOrder: [],
     defaultShape: 'rounded',
     showText: true,
+    boardDesignWidth: parseInt(document.getElementById('wiz-canvas')?.value, 10) || 1280,
     widgets: [],
     autoArrange: true,
   };
@@ -6752,7 +7164,12 @@ function setupWizard() {
   document.getElementById('wiz-close')?.addEventListener('click', closeWizard);
   document.getElementById('wiz-back')?.addEventListener('click', wizBack);
   document.getElementById('wiz-next')?.addEventListener('click', wizNext);
-  document.getElementById('wiz-blank-btn')?.addEventListener('click', wizCreateBlank);
+  document.getElementById('wiz-skip')?.addEventListener('click', wizSkipBookmarks);
+  // AI max-categories: show the custom number field only when "Custom…" is picked.
+  document.getElementById('wiz-maxcat')?.addEventListener('change', (e) => {
+    const custom = document.getElementById('wiz-maxsec');
+    if (custom) custom.style.display = e.target.value === 'custom' ? '' : 'none';
+  });
   // Bookmark search (step 2) + clear.
   const bmSearch = document.getElementById('wiz-bm-search');
   if (bmSearch) bmSearch.addEventListener('input', () => wizFilterTree(bmSearch.value));
@@ -6760,24 +7177,21 @@ function setupWizard() {
     if (bmSearch) { bmSearch.value = ''; bmSearch.focus(); }
     wizFilterTree('');
   });
-  document.getElementById('wiz-proc-back')?.addEventListener('click', () => wizGoTo(2));
+  document.getElementById('wiz-proc-back')?.addEventListener('click', () => wizGoTo(3));
   setupShapePicker('wiz-shape-picker');
-
-  // Step 4: section-level drag (bookmark-level drag is handled per list).
-  document.getElementById('wiz-preview')?.addEventListener('dragover', (e) => {
-    if (!wizDrag || wizDrag.type !== 'section') return;
-    e.preventDefault();
-    const host = document.getElementById('wiz-preview');
-    const dragging = host.querySelector('.wiz-sec.dragging');
-    if (!dragging) return;
-    const after = wizAfter(host, '.wiz-sec', e.clientY);
-    if (after == null) host.appendChild(dragging); else host.insertBefore(dragging, after);
-  });
 
   // Bookmark edit modal.
   document.getElementById('wiz-bm-close')?.addEventListener('click', closeBmEdit);
   document.getElementById('wiz-bm-cancel')?.addEventListener('click', closeBmEdit);
   document.getElementById('wiz-bm-save')?.addEventListener('click', saveBmEdit);
+  document.getElementById('wiz-bm-ai-search')?.addEventListener('click', bmEditAiSearch);
+  // Bookmark icon picker
+  document.getElementById('wiz-icon-pick-close')?.addEventListener('click', closeIconPick);
+  document.getElementById('wiz-icon-pick-cancel')?.addEventListener('click', closeIconPick);
+  document.getElementById('wiz-icon-pick-save')?.addEventListener('click', saveIconPick);
+  document.getElementById('wiz-icon-pick-check')?.addEventListener('click', previewIconPick);
+  document.getElementById('wiz-icon-pick-regen')?.addEventListener('click', regenIconPick);
+  document.getElementById('wiz-icon-pick')?.addEventListener('click', (e) => { if (e.target.id === 'wiz-icon-pick') closeIconPick(); });
   document.getElementById('wiz-bm-icon')?.addEventListener('input', () => {
     const prev = document.getElementById('wiz-bm-icon-prev');
     const url = document.getElementById('wiz-bm-icon').value.trim();
@@ -6803,9 +7217,11 @@ async function handleDashboardAction(action, id) {
     const url = chrome.runtime.getURL(`newtab/newtab.html?dash=${id}`);
     chrome.tabs.create({ url });
   } else if (action === 'edit') {
-    openWizardEdit(id);
+    openDashEditModal(id);   // name / description / theme only
   } else if (action === 'delete') {
-    if (!confirm('Delete this dashboard?')) return;
+    const dash = state.dashboards.find((d) => d.id === id);
+    const name = dash ? dash.name : 'this dashboard';
+    if (!confirm(`Delete “${name}”?\n\nThis permanently removes the dashboard and its layout. This can’t be undone.`)) return;
     state.dashboards = state.dashboards.filter((d) => d.id !== id);
     if (state.defaultDashboardId === id) {
       state.defaultDashboardId = state.dashboards[0]?.id || null;
@@ -6871,7 +7287,8 @@ function openDashEditModal(id) {
   editingDashboardId = id;
 
   document.getElementById('dash-edit-name').value = dash.name || '';
-  selectShapeOption('dash-edit-shape-picker', dash.defaultShape || 'rounded');
+  const descEl = document.getElementById('dash-edit-desc'); if (descEl) descEl.value = dash.description || '';
+  const themeEl = document.getElementById('dash-edit-theme'); if (themeEl) themeEl.value = dash.theme || '';
 
   document.getElementById('dash-edit-modal').classList.add('visible');
   document.getElementById('dash-edit-name').focus();
@@ -6881,9 +7298,12 @@ async function saveDashEdit() {
   const dash = state.dashboards.find((d) => d.id === editingDashboardId);
   if (!dash) { closeDashEditModal(); return; }
 
-  const newName = document.getElementById('dash-edit-name').value.trim();
-  dash.name         = newName || dash.name;
-  dash.defaultShape = getSelectedShape('dash-edit-shape-picker', dash.defaultShape || 'rounded');
+  // Only the dashboard's details are editable here — not its structure,
+  // widgets, or categorization.
+  const newName = document.getElementById('dash-edit-name').value.trim().slice(0, 25);
+  dash.name = newName || dash.name;
+  dash.description = (document.getElementById('dash-edit-desc')?.value || '').trim();
+  dash.theme = (document.getElementById('dash-edit-theme')?.value || '').trim();
 
   await saveDashboards();
   closeDashEditModal();
@@ -7120,26 +7540,34 @@ function wizServiceMeta(key, widgets) {
   return { name: o.name || first.name || key, icon: o.icon || first.icon };
 }
 
-function wizWidgetCard(w, sample, updateCount, endpointId, endpointName) {
+// Carousel "list" widgets default to a compact 5-row window with scroll on when
+// first added (mirrors newtab's LIST_DEFAULT_5).
+const WIZ_LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups']);
+
+function wizWidgetCard(w, sample, updateCount, endpointId, endpointName, nameOverride) {
   const epKey = endpointId || null;
   const matches = (x) => x.wid === w.wid && !!x.sample === sample && (x.endpointId || null) === epKey;
   const card = document.createElement('div');
   card.className = 'wiz-wp-card' + (sample ? ' is-sample' : '') + (wizard.data.widgets.some(matches) ? ' selected' : '');
-  const check = document.createElement('span'); check.className = 'wp-check'; check.textContent = '✓';
   const img = document.createElement('img'); img.alt = ''; img.src = intIconSrc(w.icon); img.onerror = () => { img.style.visibility = 'hidden'; };
-  const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = w.name + (sample ? ' (Sample)' : '');
-  card.append(check, img, nm);
+  const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = (nameOverride || w.name);
+  card.append(img, nm);
   card.addEventListener('click', () => {
     const i = wizard.data.widgets.findIndex(matches);
     if (i >= 0) { wizard.data.widgets.splice(i, 1); card.classList.remove('selected'); }
     else {
-      const entry = { uid: 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), wid: w.wid, intId: w.intId, name: w.name };
+      const entry = { uid: 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), wid: w.wid, intId: w.intId, name: nameOverride || w.name };
       if (sample) entry.sample = true;
+      // List widgets start compact: 5 visible rows with auto-scroll on.
+      if (!sample && WIZ_LIST_DEFAULT_5.has(w.intId)) entry.config = { carousel: true, visibleCount: 5 };
       if (endpointId) {
         entry.endpointId = endpointId;
         if (endpointName) {
           entry.endpointName = endpointName;
-          if (window.Endpoints && Endpoints.count(state.currentSettings, wizBaseInt(w.intId)) > 1) entry.name = `${w.name} — ${endpointName}`;
+          // Per-item countdown placements are titled by their own description;
+          // multi-endpoint services get "<widget> — <endpoint>".
+          if (nameOverride) entry.name = nameOverride;
+          else if (window.Endpoints && Endpoints.count(state.currentSettings, wizBaseInt(w.intId)) > 1) entry.name = `${w.name} — ${endpointName}`;
         }
       }
       wizard.data.widgets.push(entry); card.classList.add('selected');
@@ -7149,9 +7577,21 @@ function wizWidgetCard(w, sample, updateCount, endpointId, endpointName) {
   return card;
 }
 
-// Render the optional "Add Widgets" panel (Live / Sample tabs) in the wizard's
-// preview step. Live widgets are grouped by service and labelled with their
-// configuration description; Sample widgets are greyed previews with demo data.
+// Configured countdowns (id + description) for the per-item wizard cards.
+function wizCountdownItems() {
+  const arr = state.currentSettings.countdownItems;
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter((it) => it && it.id && /^\d{4}-\d{2}-\d{2}$/.test(String(it.date || '')))
+    .map((it) => ({ id: it.id, name: String(it.name != null ? it.name : (it.title || it.desc || '')).trim() || 'Countdown' }));
+}
+
+// Which app (integration) nodes are expanded in the widget tree. All collapsed
+// by default each time the step opens.
+let wizWpOpen = new Set();
+
+// Widget selection step: a Configured/Sample toggle at the top, then each app is
+// a collapsible tree node (closed by default) whose widgets appear when expanded.
 function renderWizWidgetPanel() {
   const panel = document.getElementById('wiz-widget-panel');
   if (!panel) return;
@@ -7160,67 +7600,80 @@ function renderWizWidgetPanel() {
   panel.style.display = '';
   panel.innerHTML = '';
 
+  // Header: title + Configured/Sample toggle + selected count.
   const head = document.createElement('div'); head.className = 'wiz-wp-head';
   const title = document.createElement('div'); title.className = 'wiz-wp-title';
   title.innerHTML = 'Add Widgets <span class="muted">(optional)</span>';
   const tabs = document.createElement('div'); tabs.className = 'wiz-wp-tabs';
-  [['live', 'Live'], ['sample', 'Sample']].forEach(([t, lbl]) => {
+  [['live', 'Configured apps'], ['sample', 'Sample apps']].forEach(([t, lbl]) => {
     const b = document.createElement('button'); b.type = 'button';
     b.className = 'wiz-wp-tab' + (wizWidgetTab === t ? ' active' : ''); b.textContent = lbl;
-    b.addEventListener('click', () => { wizWidgetTab = t; renderWizWidgetPanel(); });
+    b.addEventListener('click', () => { if (wizWidgetTab !== t) { wizWidgetTab = t; renderWizWidgetPanel(); } });
     tabs.appendChild(b);
   });
-  const count = document.createElement('span'); count.className = 'wiz-hint'; count.style.margin = '0';
+  const count = document.createElement('span'); count.className = 'wiz-wp-count';
   head.append(title, tabs, count);
   panel.appendChild(head);
+  const updateCount = () => { const n = wizard.data.widgets.length; count.textContent = n ? `${n} selected` : 'None selected'; };
 
-  const updateCount = () => { const n = wizard.data.widgets.length; count.textContent = n ? `${n} added` : 'None added'; };
+  const body = document.createElement('div'); body.className = 'wiz-wp-body';
+  panel.appendChild(body);
+
   const sample = wizWidgetTab === 'sample';
   const source = sample ? WIZ_WIDGETS.slice() : WIZ_WIDGETS.filter((w) => state.currentSettings[w.enabledKey] === true);
 
   if (!source.length) {
     const e = document.createElement('div'); e.className = 'wiz-wp-empty';
     e.innerHTML = sample
-      ? 'No sample widgets available.'
-      : 'No widgets are enabled yet — enable some in <a href="?tab=integrations">Setup → Widget Library</a> to add live widgets, or use the <b>Sample</b> tab to add demo widgets.';
-    panel.appendChild(e); updateCount(); return;
+      ? 'No sample apps available.'
+      : 'No apps configured yet — set some up in <a href="?tab=integrations">Setup → Widget Library</a>, or switch to <b>Sample apps</b>.';
+    body.appendChild(e); updateCount(); return;
   }
 
-  // Group by base integration → (multi-endpoint) one block per endpoint → widgets.
-  const descs = state.currentSettings.integrationDescriptions || {};
   const groups = new Map();
   source.forEach((w) => { const k = wizBaseInt(w.intId); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(w); });
 
-  const addDescRow = (g, text) => { const dl = document.createElement('div'); dl.className = 'wiz-wp-desc'; dl.textContent = text; g.appendChild(dl); };
-  const addGrid = (g, widgets, endpointId, endpointName) => {
-    const grid = document.createElement('div'); grid.className = 'wiz-wp-grid';
-    widgets.forEach((w) => grid.appendChild(wizWidgetCard(w, sample, updateCount, endpointId, endpointName)));
-    g.appendChild(grid);
-  };
-
-  const body = document.createElement('div');
-  body.className = 'wiz-wp-body';
   Array.from(groups.entries())
     .map(([k, ws]) => [k, ws, wizServiceMeta(k, ws)])
     .sort((a, b) => a[2].name.localeCompare(b[2].name))
     .forEach(([key, widgets, meta]) => {
-      const g = document.createElement('div'); g.className = 'wiz-wp-group';
-      const gh = document.createElement('div'); gh.className = 'wiz-wp-ghead';
-      const img = document.createElement('img'); img.alt = ''; img.src = intIconSrc(meta.icon); img.onerror = () => { img.style.visibility = 'hidden'; };
-      const nm = document.createElement('span'); nm.className = 'wiz-wp-gname'; nm.textContent = meta.name;
-      gh.append(img, nm); g.appendChild(gh);
-
+      // Build this app's widget cards into a grid (returns how many).
+      const grid = document.createElement('div'); grid.className = 'wiz-wp-grid';
+      let n = 0;
+      const add = (w, epId, epName, nameOverride) => { grid.appendChild(wizWidgetCard(w, sample, updateCount, epId, epName, nameOverride)); n++; };
       if (!sample && window.Endpoints && Endpoints.isMulti(key)) {
         const eps = Endpoints.list(state.currentSettings, key);
-        if (!eps.length) addDescRow(g, 'No endpoints configured');
-        eps.forEach((ep) => { addDescRow(g, ep.name || 'Endpoint'); addGrid(g, widgets, ep.id, ep.name); });
+        eps.forEach((ep) => widgets.forEach((w) => add(w, ep.id, ep.name, eps.length > 1 ? `${w.name} — ${ep.name || 'Endpoint'}` : null)));
+      } else if (!sample && key === 'countdown') {
+        const items = wizCountdownItems();
+        const singleW = widgets.find((w) => w.intId === 'countdown');
+        const listW = widgets.find((w) => w.intId === 'countdown-list');
+        if (singleW) items.forEach((it) => add(singleW, it.id, it.name, it.name));
+        if (listW) add(listW, null, null, null);
       } else {
-        addDescRow(g, sample ? 'Sample (demo data)' : (descs[key] || meta.name));
-        addGrid(g, widgets, null, null);
+        widgets.forEach((w) => add(w, null, null, null));
       }
-      body.appendChild(g);
+
+      const open = wizWpOpen.has(key);
+      grid.style.display = open ? '' : 'none';
+
+      const node = document.createElement('div'); node.className = 'wiz-wp-node';
+      const nodeHead = document.createElement('button'); nodeHead.type = 'button';
+      nodeHead.className = 'wiz-wp-node-head' + (open ? ' open' : '');
+      const caret = document.createElement('span'); caret.className = 'wiz-wp-caret'; caret.textContent = '▶';
+      const img = document.createElement('img'); img.className = 'wiz-wp-node-ico'; img.alt = ''; img.src = intIconSrc(meta.icon); img.onerror = () => { img.style.visibility = 'hidden'; };
+      const nm = document.createElement('span'); nm.className = 'wiz-wp-node-name'; nm.textContent = meta.name;
+      const cnt = document.createElement('span'); cnt.className = 'wiz-wp-node-count'; cnt.textContent = n;
+      nodeHead.append(caret, img, nm, cnt);
+      nodeHead.addEventListener('click', () => {
+        const nowOpen = !wizWpOpen.has(key);
+        if (nowOpen) wizWpOpen.add(key); else wizWpOpen.delete(key);
+        nodeHead.classList.toggle('open', nowOpen);
+        grid.style.display = nowOpen ? '' : 'none';
+      });
+      node.append(nodeHead, grid);
+      body.appendChild(node);
     });
-  panel.appendChild(body);
   updateCount();
 }
 

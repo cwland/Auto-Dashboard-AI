@@ -485,6 +485,17 @@
       margin-bottom: 12px;
       flex-wrap: wrap;
     }
+    /* Make Expand All / Collapse All clearly visible (the ghost style was faint). */
+    .tree-controls .btn {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+    .tree-controls .btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: var(--bg-hover);
+    }
 
     .tree-node { user-select: none; }
 
@@ -507,10 +518,11 @@
       border-radius: 5px;
       background: var(--bg-secondary);
       border: 1px solid var(--border);
-      color: var(--text-secondary);
+      color: var(--accent);          /* bright caret — always clearly visible */
       display: flex; align-items: center; justify-content: center;
-      font-size: 10px;
-      font-weight: 700;
+      font-size: 12px;
+      font-weight: 900;
+      opacity: 1;
       transition: background 0.12s, border-color 0.12s, color 0.12s, transform 0.15s;
       pointer-events: none; /* clicks handled by folder row */
     }
@@ -891,22 +903,43 @@
     .wiz-overlay { position:fixed; inset:0; background:rgba(8,8,12,.66); backdrop-filter:blur(3px); display:none; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; z-index:70; }
     .wiz-overlay.open { display:flex; }
     .wiz-modal { width:100%; max-width:560px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:0 24px 60px rgba(0,0,0,.5); display:flex; flex-direction:column; max-height:calc(100vh - 80px); overflow:hidden; }
-    .wiz-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid var(--border); }
+    .wiz-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 20px; border-bottom:1px solid var(--border); background:var(--bg-card); }
     .wiz-title { font-size:17px; font-weight:800; }
     .wiz-steps { font-size:11.5px; color:var(--text-muted); margin-top:3px; text-transform:uppercase; letter-spacing:.04em; }
     .wiz-x { background:none; border:none; color:var(--text-muted); font-size:24px; line-height:1; cursor:pointer; padding:2px 8px; border-radius:8px; }
     .wiz-x:hover { background:var(--bg-hover); color:var(--text-primary); }
     .wiz-body { padding:20px; overflow-y:auto; }
     .wiz-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-top:1px solid var(--border); background:var(--bg-card); }
+    .wiz-choice { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; text-align:center; padding:40px 16px; }
+    .wiz-choice-title { font-size:17px; font-weight:700; color:var(--text-primary); }
+    .wiz-choice-btns { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
     .wiz-opt { color:var(--text-muted); font-weight:400; text-transform:none; letter-spacing:0; }
     .wiz-hint { font-size:12px; color:var(--text-muted); margin-top:6px; }
     .wiz-err { color:var(--danger); font-size:12px; margin-top:6px; }
     .wiz-body textarea.input { resize:vertical; font-family:var(--font); line-height:1.5; }
+    /* The wizard modals use --bg-secondary, the same color as a default input,
+       so fields blended in and their border was hard to see until focus. Give
+       wizard fields a contrasting surface + clearer border so they read as
+       clickable boxes. */
+    .wiz-modal .input, .wiz-modal textarea.input, .wiz-modal .select,
+    .wiz-bm-modal .input, .wiz-bm-modal textarea.input, .wiz-bm-modal .select {
+      background: var(--bg-primary);
+      border-color: var(--border);
+    }
+    .wiz-modal .input:hover, .wiz-bm-modal .input:hover { border-color: var(--accent); }
 
+    /* Step 1 — compact so it fits laptop screens without scrolling. */
+    #wiz-step-1 .form-group { margin-bottom: 12px; }
+    .wiz-row2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    @media (max-width:560px) { .wiz-row2 { grid-template-columns:1fr; gap:0; } }
+    .wiz-org-compact { gap:8px; }
+    .wiz-org-compact .wiz-org-card { padding:9px 12px; align-items:center; }
     /* wizard step 2 — organization */
     .wiz-org { display:flex; flex-direction:column; gap:10px; margin-top:8px; }
-    .wiz-org-card { display:flex; gap:11px; align-items:flex-start; padding:12px 14px; border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; transition:border-color .15s, background .15s; }
-    .wiz-org-card:hover { border-color:#3a3a52; }
+    /* Give each option a visible raised surface so it reads as clickable even
+       when not selected (a faint border alone disappeared into the modal). */
+    .wiz-org-card { display:flex; gap:11px; align-items:flex-start; padding:12px 14px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); cursor:pointer; transition:border-color .15s, background .15s; }
+    .wiz-org-card:hover { border-color:var(--accent); background:var(--bg-hover); }
     .wiz-org-card:has(input:checked) { border-color:var(--accent); background:var(--accent-light); }
     .wiz-org-card input { margin-top:3px; accent-color:var(--accent); flex:0 0 auto; }
     .wiz-org-title { font-weight:700; font-size:14px; }
@@ -918,14 +951,13 @@
     .wiz-sel-head { display:flex; align-items:center; justify-content:space-between; margin:18px 0 8px; }
     #wiz-tree-mount .bookmark-tree { max-height:300px; overflow-y:auto; }
 
-    /* wizard step 2 — two-column (options left, tall tree right) */
+    /* Wide steps (bookmark tree, preview) fill the modal so the footer stays
+       pinned to the bottom and the inner content scrolls. */
     .wiz-modal.wiz-wide { max-width: 920px; height: calc(100vh - 64px); }
-    .wiz-modal.wiz-wide .wiz-body { display: flex; flex-direction: column; overflow: hidden; }
-    #wiz-step-2 { flex: 1; min-height: 0; }
-    #wiz-step-2 > .wiz-org-cols { display: grid; grid-template-columns: 300px 1fr; gap: 22px; flex: 1; min-height: 0; width: 100%; }
-    .wiz-org-left { min-width: 0; overflow-y: auto; }
-    .wiz-org-right { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-    .wiz-org-right .wiz-sel-head { margin: 0 0 8px; }
+    .wiz-modal.wiz-wide .wiz-body { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+    #wiz-step-3, #wiz-step-5, #wiz-step-6 { flex: 1; min-height: 0; }
+    #wiz-step-3 .wiz-sel-head { margin: 0 0 8px; flex: 0 0 auto; }
+    /* The tree fills the step; its controls stay fixed and the list scrolls. */
     #wiz-tree-mount { flex: 1; min-height: 0; display: flex; flex-direction: column; }
     #wiz-tree-mount .tree-controls { flex: 0 0 auto; }
     #wiz-tree-mount .bookmark-tree { flex: 1; min-height: 0; max-height: none; overflow-y: auto; }
@@ -942,14 +974,21 @@
     .wiz-proc-barwrap { width:100%; max-width:360px; height:7px; background:var(--bg-hover); border-radius:999px; overflow:hidden; }
     .wiz-proc-bar { height:100%; width:0; background:var(--accent); border-radius:999px; transition:width .3s ease; }
     .wiz-proc-msg { font-size:12.5px; color:var(--text-muted); min-height:16px; }
+    .wiz-proc-note { max-width:380px; font-size:12px; line-height:1.5; color:var(--text-secondary); background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; }
     .wiz-proc-err { width:100%; max-width:440px; }
 
     /* wizard step 4 — preview & edit */
     #wiz-step-4 { flex:1; min-height:0; flex-direction:column; }
     #wiz-preview { flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:14px; padding:2px; }
-    .wiz-widget-panel { flex:0 1 auto; display:flex; flex-direction:column; min-height:0; max-height:46vh; border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:12px; background:var(--bg-card); }
-    .wiz-wp-head { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px; }
-    .wiz-wp-body { flex:1 1 auto; min-height:0; overflow-y:auto; margin-top:4px; padding-right:4px; }
+    /* Widget step fills the whole modal body. */
+    .wiz-widget-panel { flex:1 1 auto; display:flex; flex-direction:column; min-height:0; }
+    .wiz-wp-head { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:10px; padding-bottom:10px; border-bottom:1px solid var(--border); }
+    .wiz-wp-count { font-size:12px; font-weight:600; color:var(--text-secondary); }
+    .wiz-wp-body { flex:1 1 auto; min-height:0; overflow-y:auto; margin-top:8px; padding-right:6px; }
+    .wiz-wp-region { margin-bottom:8px; }
+    .wiz-wp-region + .wiz-wp-region { margin-top:18px; padding-top:16px; border-top:1px solid var(--border); }
+    .wiz-wp-region-head { font-size:13px; font-weight:700; color:var(--text-primary); margin-bottom:4px; }
+    .wiz-wp-region-head .muted { font-weight:400; color:var(--text-muted); }
     .wiz-wp-title { font-weight:700; font-size:14px; }
     .wiz-wp-title .muted { font-weight:500; font-size:12px; color:var(--text-muted); }
     .wiz-wp-tabs { display:inline-flex; background:var(--bg-secondary); border:1px solid var(--border); border-radius:8px; padding:2px; gap:2px; margin-left:auto; }
@@ -963,32 +1002,42 @@
     .wiz-wp-gname { font-size:13px; font-weight:700; }
     .wiz-wp-desc { display:inline-flex; align-items:center; gap:5px; align-self:flex-start; font-size:11px; font-weight:600; color:var(--text-secondary); padding:2px 9px; border-radius:999px; background:var(--bg-secondary); border:1px solid var(--border); margin:8px 0 0; }
     .wiz-wp-desc::before { content:"▸"; color:var(--text-muted); font-size:10px; }
-    .wiz-wp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; margin-top:8px; }
-    .wiz-wp-card { display:flex; flex-direction:column; gap:8px; align-items:center; text-align:center; padding:14px 10px; border:1.5px solid var(--border); border-radius:12px; background:var(--bg-secondary); cursor:pointer; position:relative; transition:border-color .12s, background .12s; }
+    /* Collapsible per-app (integration) tree node. */
+    .wiz-wp-node { border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); margin-bottom:8px; overflow:hidden; }
+    .wiz-wp-node-head { display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; background:none; border:none; color:var(--text-primary); cursor:pointer; font-family:var(--font); }
+    .wiz-wp-node-head:hover { background:var(--bg-hover); }
+    .wiz-wp-caret { color:var(--text-muted); font-size:10px; flex:0 0 auto; transition:transform .15s; }
+    .wiz-wp-node-head.open .wiz-wp-caret { transform:rotate(90deg); color:var(--accent); }
+    .wiz-wp-node-ico { width:20px; height:20px; object-fit:contain; flex:0 0 auto; }
+    .wiz-wp-node-name { flex:1; text-align:left; font-size:13.5px; font-weight:700; }
+    .wiz-wp-node-count { flex:0 0 auto; font-size:11px; font-weight:700; color:var(--text-secondary); background:var(--bg-secondary); border:1px solid var(--border); border-radius:999px; padding:2px 8px; }
+    /* Compact widget cards — same look for Configured and Sample. */
+    .wiz-wp-node .wiz-wp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(112px,1fr)); gap:8px; margin:0; padding:4px 10px 12px; }
+    .wiz-wp-card { display:flex; flex-direction:column; gap:6px; align-items:center; text-align:center; padding:9px 7px; border:1.5px solid var(--border); border-radius:9px; background:var(--bg-secondary); cursor:pointer; position:relative; transition:border-color .12s, background .12s; }
     .wiz-wp-card:hover { border-color:var(--accent); }
     .wiz-wp-card.selected { border-color:var(--accent); background:var(--accent-light); }
-    .wiz-wp-card img { width:40px; height:40px; object-fit:contain; }
-    .wiz-wp-card .nm { font-size:12.5px; font-weight:600; color:var(--text-primary); line-height:1.3; }
-    .wiz-wp-card .wp-check { position:absolute; top:8px; right:8px; width:18px; height:18px; border-radius:50%; border:1.5px solid var(--border); background:var(--bg-card); display:flex; align-items:center; justify-content:center; font-size:11px; color:#fff; }
+    .wiz-wp-card img { width:28px; height:28px; object-fit:contain; }
+    .wiz-wp-card .nm { font-size:11.5px; font-weight:600; color:var(--text-primary); line-height:1.25; }
+    .wiz-wp-card .wp-check { position:absolute; top:5px; right:5px; width:16px; height:16px; border-radius:50%; border:1.5px solid var(--border); background:var(--bg-card); display:flex; align-items:center; justify-content:center; font-size:10px; color:#fff; }
     .wiz-wp-card.selected .wp-check { background:var(--accent); border-color:var(--accent); }
-    .wiz-wp-card.is-sample { opacity:.62; border-style:dashed; }
-    .wiz-wp-card.is-sample:hover { opacity:.85; }
-    .wiz-wp-card.is-sample.selected { opacity:1; border-style:solid; }
-    .wiz-wp-card.is-sample img { filter:grayscale(1); }
     .wiz-wp-empty { font-size:12.5px; color:var(--text-muted); margin-top:10px; }
     .wiz-sec { border:1px solid var(--border); border-radius:var(--radius); background:var(--bg-card); }
     .wiz-sec.dragging, .wiz-bm.dragging { opacity:.45; }
     .wiz-sec.drag-over { box-shadow:0 -2px 0 var(--accent); }
     .wiz-sec-head { display:flex; align-items:center; gap:8px; padding:9px 10px; border-bottom:1px solid var(--border); }
     .wiz-sec-head .dash-grip { cursor:grab; }
-    .wiz-sec-name { flex:1; min-width:0; background:transparent; border:1px solid transparent; border-radius:6px; color:var(--text-primary); font-weight:700; font-size:14px; padding:4px 6px; }
+    .wiz-sec-name { flex:1 1 auto; min-width:0; max-width:240px; background:transparent; border:1px solid transparent; border-radius:6px; color:var(--text-primary); font-weight:700; font-size:14px; padding:4px 6px; }
     .wiz-sec-name:hover { border-color:var(--border); }
     .wiz-sec-name:focus { outline:none; border-color:var(--border-focus); background:var(--bg-secondary); }
     .wiz-sec-count { font-size:11px; color:var(--text-muted); padding:2px 8px; background:var(--bg-hover); border-radius:999px; }
     /* Per-section icon-size selector (S/M/L) in the wizard preview. */
-    .wiz-sec-size { display:flex; gap:0; border:1px solid var(--border); border-radius:7px; overflow:hidden; }
+    /* No overflow:hidden here — it was clipping the hover tooltips. */
+    /* margin-left:auto pushes the section controls (size/shape/ping/delete) to
+       the right edge of the header. */
+    .wiz-sec-size { display:flex; gap:0; border:1px solid var(--border); border-radius:7px; margin-left:auto; }
     .wiz-size-btn { background:var(--bg-secondary); border:none; border-left:1px solid var(--border); color:var(--text-secondary); cursor:pointer; font:700 11px/1 var(--font); width:24px; height:24px; }
-    .wiz-size-btn:first-child { border-left:none; }
+    .wiz-size-btn:first-child { border-left:none; border-radius:6px 0 0 6px; }
+    .wiz-size-btn:last-child { border-radius:0 6px 6px 0; }
     .wiz-size-btn:hover { color:var(--text-primary); }
     .wiz-size-btn.active { background:var(--accent); color:#fff; }
     .wiz-sec-del, .wiz-bm-edit-btn, .wiz-bm-del { background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:14px; padding:4px 6px; border-radius:6px; line-height:1; }
@@ -1001,7 +1050,54 @@
     .wiz-bm:hover { background:var(--bg-hover); }
     .wiz-bm .dash-grip { cursor:grab; }
     .wiz-bm-ico { width:20px; height:20px; border-radius:5px; object-fit:contain; flex:0 0 auto; background:var(--bg-hover); }
-    .wiz-bm-title { flex:1; min-width:0; font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    /* Inline-editable bookmark name (click to rename). */
+    .wiz-bm-title { flex:1; min-width:0; font-size:13px; background:transparent; border:1px solid transparent; border-radius:6px; color:var(--text-primary); padding:3px 6px; font-family:var(--font); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:text; }
+    .wiz-bm-title:hover { border-color:var(--border); }
+    .wiz-bm-title:focus { outline:none; border-color:var(--border-focus); background:var(--bg-secondary); }
+    /* Per-section online/offline ping toggle. */
+    .wiz-sec-ping { background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-muted); cursor:pointer; font-size:12px; line-height:1; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:0 0 auto; }
+    .wiz-sec-ping:hover { color:var(--text-primary); border-color:var(--accent); }
+    .wiz-sec-ping.on { background:var(--success,#22c55e); border-color:var(--success,#22c55e); color:#fff; }
+    /* Per-section icon shape selector — compact. */
+    .wiz-sec-shape { background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-secondary); border-radius:7px; font:600 11px/1 var(--font); padding:5px 4px; cursor:pointer; height:26px; width:84px; flex:0 0 auto; }
+    .wiz-sec-shape:hover { color:var(--text-primary); border-color:var(--accent); }
+    /* Bookmark "move to section" button + popup. */
+    .wiz-bm-move { display:inline-flex; align-items:center; gap:4px; background:var(--bg-secondary); border:1px solid var(--border); color:var(--text-secondary); cursor:pointer; font:600 11px/1 var(--font); padding:5px 8px; border-radius:6px; }
+    .wiz-bm-move svg { flex:0 0 auto; }
+    .wiz-bm-move:hover { color:var(--accent); border-color:var(--accent); background:var(--bg-hover); }
+    /* Creation overlay (~5s) shown while the dashboard is generated. */
+    .wiz-creating { position:fixed; inset:0; z-index:120; display:none; align-items:center; justify-content:center; background:rgba(8,8,12,.72); backdrop-filter:blur(2px); }
+    .wiz-creating.open { display:flex; }
+    .wiz-creating-box { display:flex; flex-direction:column; align-items:center; gap:16px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-lg); padding:34px 44px; box-shadow:0 24px 60px rgba(0,0,0,.5); }
+    .wiz-creating-title { font-size:17px; font-weight:800; color:var(--text-primary); }
+    .wiz-creating-sub { font-size:12.5px; color:var(--text-muted); }
+    .wiz-creating-bar { width:220px; height:6px; border-radius:999px; background:var(--bg-hover); overflow:hidden; position:relative; }
+    .wiz-creating-bar span { position:absolute; left:-40%; width:40%; height:100%; border-radius:999px; background:var(--accent); animation:wizCreatingSlide 1.1s ease-in-out infinite; }
+    @keyframes wizCreatingSlide { 0% { left:-40%; } 100% { left:100%; } }
+    /* "Add section" button at the bottom of the review list. */
+    .wiz-add-sec { display:block; width:100%; margin-top:4px; padding:10px; background:var(--bg-secondary); border:1px dashed var(--border); border-radius:var(--radius); color:var(--text-secondary); cursor:pointer; font:600 13px/1 var(--font); }
+    .wiz-add-sec:hover { border-color:var(--accent); color:var(--accent); background:var(--bg-hover); }
+    .wiz-move-menu { position:fixed; z-index:90; min-width:160px; max-height:260px; overflow-y:auto; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; box-shadow:0 14px 40px rgba(0,0,0,.4); padding:6px; }
+    .wiz-move-lbl { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; padding:4px 8px; }
+    .wiz-move-empty { font-size:12px; color:var(--text-muted); padding:8px; }
+    .wiz-move-item { display:block; width:100%; text-align:left; background:none; border:none; color:var(--text-primary); cursor:pointer; font:500 13px/1.2 var(--font); padding:7px 8px; border-radius:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .wiz-move-item:hover { background:var(--bg-hover); color:var(--accent); }
+    /* Clickable bookmark icon in the review list. */
+    .wiz-bm-ico-btn { cursor:pointer; border:1px solid transparent; }
+    .wiz-bm-ico-btn:hover { border-color:var(--accent); }
+    /* Pulsing "AI is working" hint while the icon re-search runs. */
+    .wiz-busy { color:var(--text-secondary); animation:wizPulse 1.1s ease-in-out infinite; }
+    @keyframes wizPulse { 0%,100% { opacity:.55; } 50% { opacity:1; } }
+    /* Icon-picker choices. */
+    .wiz-icon-choices { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+    .wiz-icon-choice { width:44px; height:44px; border-radius:9px; border:1px solid var(--border); background:var(--bg-card); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
+    .wiz-icon-choice:hover { border-color:var(--accent); }
+    .wiz-icon-choice.selected { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-light); }
+    .wiz-icon-choice img { width:28px; height:28px; object-fit:contain; }
+    /* Immediate hover tooltip for the small section controls. */
+    .wiz-tip { position:relative; }
+    .wiz-tip::after { content:attr(data-tip); position:absolute; top:calc(100% + 6px); left:50%; transform:translateX(-50%); background:var(--bg-card); border:1px solid var(--border); color:var(--text-primary); font:500 11px/1.3 var(--font); padding:4px 8px; border-radius:6px; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity .12s; z-index:60; box-shadow:0 6px 18px rgba(0,0,0,.34); }
+    .wiz-tip:hover::after { opacity:1; }
     .wiz-bm-overlay { position:fixed; inset:0; background:rgba(8,8,12,.55); display:none; align-items:flex-start; justify-content:center; padding:60px 16px; overflow-y:auto; z-index:80; }
     .wiz-bm-overlay.open { display:flex; }
     .wiz-bm-modal { width:100%; max-width:440px; background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-lg); box-shadow:0 24px 60px rgba(0,0,0,.5); }
@@ -3655,7 +3751,6 @@
       <div class="dash-setup-head">
         <div class="dash-setup-title">Your Dashboards</div>
         <div style="display:flex;gap:10px;align-items:center;">
-          <button class="btn btn-secondary btn-lg" id="create-blank-dashboard-btn">+ Blank Dashboard</button>
           <button class="btn btn-primary btn-lg" id="create-dashboard-btn">+ Create Dashboard</button>
         </div>
       </div>
@@ -3761,37 +3856,18 @@
       <button class="modal-close-btn" id="dash-edit-modal-close">✕</button>
     </div>
     <div class="modal-body">
-      <div class="form-group" style="margin-bottom:0;">
+      <div class="form-group">
         <label class="label" for="dash-edit-name">Dashboard Name</label>
-        <input class="input" type="text" id="dash-edit-name" maxlength="60">
+        <input class="input" type="text" id="dash-edit-name" maxlength="25">
       </div>
-
-
+      <div class="form-group">
+        <label class="label" for="dash-edit-desc">Description <span class="wiz-opt">(optional)</span></label>
+        <textarea class="input" id="dash-edit-desc" rows="2"></textarea>
+      </div>
       <div class="form-group" style="margin-bottom:0;">
-        <label class="label">Default Icon Shape</label>
-        <div class="shape-picker" id="dash-edit-shape-picker">
-          <label class="shape-option" data-shape="square">
-            <input type="radio" name="dash-edit-shape" value="square">
-            <span class="shape-swatch shape-square"></span>
-            <span class="shape-option-label">Square</span>
-          </label>
-          <label class="shape-option" data-shape="rounded">
-            <input type="radio" name="dash-edit-shape" value="rounded">
-            <span class="shape-swatch shape-rounded"></span>
-            <span class="shape-option-label">Rounded</span>
-          </label>
-          <label class="shape-option" data-shape="circle">
-            <input type="radio" name="dash-edit-shape" value="circle">
-            <span class="shape-swatch shape-circle"></span>
-            <span class="shape-option-label">Circle</span>
-          </label>
-          <label class="shape-option" data-shape="squircle">
-            <input type="radio" name="dash-edit-shape" value="squircle">
-            <span class="shape-swatch shape-squircle"></span>
-            <span class="shape-option-label">Squircle</span>
-          </label>
-        </div>
-        <div class="radio-hint" style="margin-top:4px;">Applies to items that haven't been customized individually.</div>
+        <label class="label" for="dash-edit-theme">Theme <span class="wiz-opt">(optional)</span></label>
+        <input class="input" type="text" id="dash-edit-theme" placeholder="e.g. Homelab, food, travel">
+        <div class="radio-hint" style="margin-top:6px;">Structure, widgets and categorization can't be changed here — only these details.</div>
       </div>
     </div>
     <div class="modal-footer">
@@ -3827,83 +3903,112 @@
       <div class="wiz-body">
         <section class="wiz-step" id="wiz-step-1">
           <div class="form-group">
-            <label class="label" for="wiz-title">Dashboard Title <span style="color:var(--danger);">*</span></label>
-            <input class="input" type="text" id="wiz-title" placeholder="e.g. Homelab" autocomplete="off">
-            <div class="wiz-err" id="wiz-title-err" style="display:none;">Please enter a title.</div>
+            <label class="label" for="wiz-title">Dashboard Name <span style="color:var(--danger);">*</span></label>
+            <input class="input" type="text" id="wiz-title" placeholder="e.g. Homelab" autocomplete="off" maxlength="25">
+            <div class="wiz-err" id="wiz-title-err" style="display:none;">Please enter a name (max 25 characters).</div>
           </div>
           <div class="form-group">
             <label class="label" for="wiz-desc">Description <span class="wiz-opt">(optional)</span></label>
             <textarea class="input" id="wiz-desc" rows="2" placeholder="What this dashboard is for…"></textarea>
           </div>
+          <div class="wiz-row2">
+            <div class="form-group">
+              <label class="label" for="wiz-theme">Theme <span class="wiz-opt">(optional)</span></label>
+              <input class="input" type="text" id="wiz-theme" placeholder="e.g. Homelab, food" autocomplete="off">
+            </div>
+            <div class="form-group">
+              <label class="label" for="wiz-canvas">Canvas size <span class="wiz-opt">(palette)</span></label>
+              <select class="input" id="wiz-canvas">
+                <option value="1280">1280 px — Compact (default)</option>
+                <option value="1366">1366 px — Laptop</option>
+                <option value="1440">1440 px</option>
+                <option value="1600">1600 px</option>
+                <option value="1920">1920 px — Full HD</option>
+                <option value="2560">2560 px — 1440p</option>
+                <option value="3440">3440 px — Ultrawide</option>
+                <option value="3840">3840 px — 4K</option>
+              </select>
+            </div>
+          </div>
           <div class="form-group" style="margin-bottom:0;">
-            <label class="label" for="wiz-theme">Theme <span class="wiz-opt">(optional)</span></label>
-            <input class="input" type="text" id="wiz-theme" placeholder="e.g. dev tools, media, finance — or a short sentence" autocomplete="off">
-            <p class="wiz-hint">Comma-separated keywords or a short sentence. Used as context when the AI organizes your bookmarks.</p>
-          </div>
-          <div class="wiz-blank-row">
-            <button class="btn btn-ghost" id="wiz-blank-btn" type="button">Create a blank dashboard</button>
-            <span class="wiz-hint" style="margin:0;">Start empty — add widgets &amp; bookmarks later.</span>
+            <label class="label">Dashboard Type</label>
+            <div class="wiz-org wiz-org-compact" id="wiz-type">
+              <label class="wiz-org-card"><input type="radio" name="wiz-type" value="full" checked><div><div class="wiz-org-title">🧩 Bookmarks &amp; Widgets</div></div></label>
+              <label class="wiz-org-card"><input type="radio" name="wiz-type" value="blank"><div><div class="wiz-org-title">📄 Blank Dashboard</div></div></label>
+            </div>
           </div>
         </section>
-                        <section class="wiz-step" id="wiz-step-2" style="display:none;">
-          <div class="wiz-org-cols">
-            <div class="wiz-org-left">
-              <label class="label">How should bookmarks be organized into sections?</label>
-              <div class="wiz-org">
-                <label class="wiz-org-card"><input type="radio" name="wiz-org" value="folder" checked><div><div class="wiz-org-title">📁 Use folder names</div><div class="wiz-org-desc">Your bookmark folders become dashboard sections. Bookmarks not in a folder go to “Other.”</div></div></label>
-                <label class="wiz-org-card"><input type="radio" name="wiz-org" value="dynamic"><div><div class="wiz-org-title">✨ Dynamic AI categorization</div><div class="wiz-org-desc">AI groups bookmarks by title, URL, description &amp; your theme into meaningful sections.</div></div></label>
-                <div class="wiz-org-note" id="wiz-dynamic-note" style="display:none;">⚠ No AI provider is set up — add one in Settings → AI Provider to enable AI categorization.</div>
-              </div>
-              <div class="form-group" id="wiz-maxsec-row" style="display:none;margin-top:14px;">
-                <label class="label" for="wiz-maxsec">Maximum number of sections</label>
-                <input class="input" type="number" id="wiz-maxsec" min="1" max="30" value="8" style="width:120px;">
-                <p class="wiz-hint">The most category sections the AI may create (it may use fewer).</p>
-              </div>
-              <div class="form-group" style="margin-top:18px;margin-bottom:0;">
-                <label class="label">Icon shape</label>
-                <div class="shape-picker" id="wiz-shape-picker">
-                  <label class="shape-option selected" data-shape="rounded"><input type="radio" name="wiz-shape" value="rounded" checked><span class="shape-swatch shape-rounded"></span><span class="shape-option-label">Rounded</span></label>
-                  <label class="shape-option" data-shape="square"><input type="radio" name="wiz-shape" value="square"><span class="shape-swatch shape-square"></span><span class="shape-option-label">Square</span></label>
-                  <label class="shape-option" data-shape="circle"><input type="radio" name="wiz-shape" value="circle"><span class="shape-swatch shape-circle"></span><span class="shape-option-label">Circle</span></label>
-                  <label class="shape-option" data-shape="squircle"><input type="radio" name="wiz-shape" value="squircle"><span class="shape-swatch shape-squircle"></span><span class="shape-option-label">Squircle</span></label>
-                </div>
-              </div>
-
-            </div>
-            <div class="wiz-org-right">
-              <div class="wiz-sel-head">
-                <span class="label" style="margin:0;">Select bookmarks &amp; folders</span>
-                <span class="wiz-hint" style="margin:0;"><b id="wiz-sel-count">0</b> selected</span>
-              </div>
-              <div class="int-search" style="max-width:none;margin:0 0 8px;">
-                <input type="text" id="wiz-bm-search" placeholder="Search bookmarks…" autocomplete="off">
-                <button type="button" class="int-search-clear" id="wiz-bm-search-clear" title="Clear search" aria-label="Clear search">✕</button>
-              </div>
-              <div id="wiz-tree-mount"></div>
-              <div class="wiz-err" id="wiz-sel-err" style="display:none;margin-top:8px;flex:0 0 auto;">Select at least one bookmark.</div>
+        <section class="wiz-step" id="wiz-step-2" style="display:none;">
+          <label class="label">How should bookmarks be organized into sections?</label>
+          <div class="wiz-org">
+            <label class="wiz-org-card" data-org="plain"><input type="radio" name="wiz-org" value="plain" checked><div><div class="wiz-org-title">📁 Folder structure</div><div class="wiz-org-desc">Your bookmark folders become sections (alphabetical). No AI — fastest; uses basic site icons.</div></div></label>
+            <label class="wiz-org-card" data-org="folder"><input type="radio" name="wiz-org" value="folder"><div><div class="wiz-org-title">✨ Dynamic folder structure</div><div class="wiz-org-desc">Folders become sections, but AI finds the best icons and descriptions for each bookmark.</div></div></label>
+            <label class="wiz-org-card" data-org="dynamic"><input type="radio" name="wiz-org" value="dynamic"><div><div class="wiz-org-title">✨ Dynamic AI categorization</div><div class="wiz-org-desc">AI groups bookmarks by name, URL, the dashboard name &amp; description into balanced categories.</div></div></label>
+            <div class="wiz-org-note" id="wiz-dynamic-note" style="display:none;">⚠ No AI provider is set up — only “Folder structure” is available. Add one in Settings → AI Provider to enable the AI options.</div>
+          </div>
+          <div class="form-group" id="wiz-maxsec-row" style="display:none;margin-top:14px;">
+            <label class="label" for="wiz-maxcat">Maximum categories</label>
+            <select class="input" id="wiz-maxcat" style="width:170px;">
+              <option value="3">3 categories</option>
+              <option value="5" selected>5 categories</option>
+              <option value="8">8 categories</option>
+              <option value="10">10 categories</option>
+              <option value="custom">Custom…</option>
+            </select>
+            <input class="input" type="number" id="wiz-maxsec" min="1" max="30" value="8" style="width:120px;margin-top:8px;display:none;">
+            <p class="wiz-hint">The most categories the AI may create — it aims for balanced sizes.</p>
+          </div>
+          <div class="form-group" style="margin-top:18px;margin-bottom:0;">
+            <label class="label">Icon shape</label>
+            <div class="shape-picker" id="wiz-shape-picker">
+              <label class="shape-option selected" data-shape="rounded"><input type="radio" name="wiz-shape" value="rounded" checked><span class="shape-swatch shape-rounded"></span><span class="shape-option-label">Rounded</span></label>
+              <label class="shape-option" data-shape="square"><input type="radio" name="wiz-shape" value="square"><span class="shape-swatch shape-square"></span><span class="shape-option-label">Square</span></label>
+              <label class="shape-option" data-shape="circle"><input type="radio" name="wiz-shape" value="circle"><span class="shape-swatch shape-circle"></span><span class="shape-option-label">Circle</span></label>
+              <label class="shape-option" data-shape="squircle"><input type="radio" name="wiz-shape" value="squircle"><span class="shape-swatch shape-squircle"></span><span class="shape-option-label">Squircle</span></label>
             </div>
           </div>
         </section>
 
+        <section class="wiz-step" id="wiz-step-3" style="display:none;flex-direction:column;">
+          <div class="wiz-sel-head">
+            <span class="label" style="margin:0;">Select bookmarks &amp; folders <span class="wiz-opt">(optional)</span></span>
+            <span class="wiz-hint" style="margin:0;"><b id="wiz-sel-count">0</b> selected</span>
+          </div>
+          <div class="int-search" style="max-width:none;margin:0 0 8px;flex:0 0 auto;">
+            <input type="text" id="wiz-bm-search" placeholder="Search bookmarks…" autocomplete="off">
+            <button type="button" class="int-search-clear" id="wiz-bm-search-clear" title="Clear search" aria-label="Clear search">✕</button>
+          </div>
+          <div id="wiz-tree-mount"></div>
+          <div class="wiz-err" id="wiz-sel-err" style="display:none;margin-top:8px;flex:0 0 auto;">Select at least one bookmark.</div>
+        </section>
 
-                <section class="wiz-step" id="wiz-step-3" style="display:none;">
+                <section class="wiz-step" id="wiz-step-4" style="display:none;">
           <div class="wiz-proc">
             <span class="spinner" id="wiz-proc-spin" style="width:34px;height:34px;border-width:3px;"></span>
             <div class="wiz-proc-status" id="wiz-proc-status">Preparing…</div>
             <div class="wiz-proc-barwrap"><div class="wiz-proc-bar" id="wiz-proc-bar"></div></div>
             <div class="wiz-proc-msg" id="wiz-proc-msg"></div>
+            <div class="wiz-proc-note">
+              Finding and downloading the best icon for each bookmark. This is the slow part —
+              expect roughly a second per bookmark, so a large collection (50+) can take a minute
+              or two. You can leave this open while it works.
+            </div>
             <div class="wiz-proc-err" id="wiz-proc-err" style="display:none;">
               <div class="banner banner-danger" id="wiz-proc-err-text" style="display:block;"></div>
-              <button class="btn btn-secondary" id="wiz-proc-back" type="button" style="margin-top:14px;">← Back to organization</button>
+              <button class="btn btn-secondary" id="wiz-proc-back" type="button" style="margin-top:14px;">← Back to bookmarks</button>
             </div>
           </div>
         </section>
 
-        <section class="wiz-step" id="wiz-step-4" style="display:none;"><div id="wiz-edit-hdr" class="wiz-edit-hdr" style="display:none;"></div><div id="wiz-widget-panel" class="wiz-widget-panel" style="display:none;"></div><div id="wiz-preview" class="wiz-preview"></div></section>
+        <section class="wiz-step" id="wiz-step-5" style="display:none;"><div id="wiz-edit-hdr" class="wiz-edit-hdr" style="display:none;"></div><div id="wiz-preview" class="wiz-preview"></div></section>
+        <section class="wiz-step" id="wiz-step-6" style="display:none;"><div id="wiz-widget-panel" class="wiz-widget-panel"></div></section>
       </div>
       <div class="wiz-foot">
         <button class="btn btn-ghost" id="wiz-back" type="button" disabled>Back</button>
-        <button class="btn btn-primary" id="wiz-next" type="button">Next</button>
+        <div style="display:flex;gap:10px;align-items:center;margin-left:auto;">
+          <button class="btn btn-ghost" id="wiz-skip" type="button" style="display:none;">Skip Adding Bookmarks</button>
+          <button class="btn btn-primary" id="wiz-next" type="button">Next</button>
+        </div>
       </div>
     </div>
   </div>
@@ -3915,14 +4020,59 @@
       <div class="wiz-bm-head"><span>Edit bookmark</span><button class="wiz-x" id="wiz-bm-close" type="button" title="Close">&times;</button></div>
       <div class="wiz-bm-body">
         <div class="form-group"><label class="label" for="wiz-bm-title">Title</label><input class="input" type="text" id="wiz-bm-title" autocomplete="off"></div>
+        <div class="form-group"><label class="label" for="wiz-bm-url">URL</label><input class="input input-mono" type="text" id="wiz-bm-url" placeholder="https://…" autocomplete="off"></div>
         <div class="form-group"><label class="label" for="wiz-bm-desc">Description</label><textarea class="input" id="wiz-bm-desc" rows="2"></textarea></div>
-        <div class="form-group" style="margin-bottom:0;">
+        <div class="form-group">
           <label class="label" for="wiz-bm-icon">Icon URL</label>
           <div class="api-key-row"><input class="input input-mono" type="text" id="wiz-bm-icon" placeholder="https://…/icon.png" autocomplete="off"><img id="wiz-bm-icon-prev" class="wiz-bm-ico" alt=""></div>
           <p class="wiz-hint" id="wiz-bm-icon-hint">Paste an image URL — it’s downloaded and stored with the dashboard.</p>
         </div>
+        <div class="form-group" id="wiz-bm-ai" style="margin-bottom:0;">
+          <label class="label" for="wiz-bm-ai-desc">Re-search icon with AI</label>
+          <div class="api-key-row">
+            <input class="input" type="text" id="wiz-bm-ai-desc" placeholder="Describe the icon you want (e.g. the Sonarr logo)" autocomplete="off">
+            <button class="btn btn-secondary" id="wiz-bm-ai-search" type="button">Search</button>
+          </div>
+          <div class="wiz-icon-choices" id="wiz-bm-ai-choices"></div>
+          <p class="wiz-hint" id="wiz-bm-ai-hint"></p>
+        </div>
       </div>
       <div class="wiz-bm-foot"><button class="btn btn-ghost" id="wiz-bm-cancel" type="button">Cancel</button><button class="btn btn-primary" id="wiz-bm-save" type="button">Save</button></div>
+    </div>
+  </div>
+
+  <!-- Wizard: bookmark icon picker -->
+  <div class="wiz-bm-overlay" id="wiz-icon-pick" role="dialog" aria-modal="true">
+    <div class="wiz-bm-modal">
+      <div class="wiz-bm-head"><span>Choose icon</span><button class="wiz-x" id="wiz-icon-pick-close" type="button" title="Close">&times;</button></div>
+      <div class="wiz-bm-body">
+        <div class="form-group">
+          <label class="label" for="wiz-icon-pick-bmurl">Bookmark URL</label>
+          <input class="input input-mono" type="text" id="wiz-icon-pick-bmurl" readonly>
+        </div>
+        <div class="form-group">
+          <label class="label">Suggested icons</label>
+          <div class="wiz-icon-choices" id="wiz-icon-pick-choices"></div>
+          <p class="wiz-hint" id="wiz-icon-pick-empty" style="display:none;">No icons found — re-search with AI or paste a link below.</p>
+        </div>
+        <div class="form-group" id="wiz-icon-pick-ai">
+          <label class="label" for="wiz-icon-pick-desc">Re-search with AI</label>
+          <div class="api-key-row">
+            <input class="input" type="text" id="wiz-icon-pick-desc" placeholder="Describe the icon you want (e.g. the Sonarr logo)" autocomplete="off">
+            <button class="btn btn-secondary" id="wiz-icon-pick-regen" type="button">Search</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="label" for="wiz-icon-pick-url">Or paste a custom icon URL (PNG or SVG)</label>
+          <div class="api-key-row">
+            <input class="input input-mono" type="text" id="wiz-icon-pick-url" placeholder="https://…/icon.svg" autocomplete="off">
+            <button class="btn btn-secondary" id="wiz-icon-pick-check" type="button">Preview</button>
+            <img id="wiz-icon-pick-prev" class="wiz-bm-ico" alt="" style="display:none;">
+          </div>
+          <p class="wiz-hint" id="wiz-icon-pick-hint"></p>
+        </div>
+      </div>
+      <div class="wiz-bm-foot"><button class="btn btn-ghost" id="wiz-icon-pick-cancel" type="button">Cancel</button><button class="btn btn-primary" id="wiz-icon-pick-save" type="button">Use icon</button></div>
     </div>
   </div>
 

@@ -97,6 +97,7 @@
     countdown: (h, s, opts) => new CountdownWidget(h, {
       items: s.countdownItems, expired: s.countdownExpired || 'started',
       units: (opts && opts.units) || s.countdownUnits,
+      itemId: opts && opts.endpointId,   // which configured countdown this placement shows
       onConfigChange: opts && opts.onConfigChange,
     }),
     'countdown-list': (h, s, opts) => new CountdownListWidget(h, Object.assign({

@@ -157,6 +157,18 @@
     } catch (_) { return ''; }
   }
 
+  // Auto-hide leading zero units: drop the largest units while they're 0 so a
+  // short countdown (e.g. 1d 8h 3m 24s) doesn't show "0y 0mo …". Stops at the
+  // first non-zero unit (internal/trailing zeros are kept) and always leaves at
+  // least one unit. Respects manual toggles, since it only trims the units the
+  // caller already enabled.
+  function trimLeadingZeros(list) {
+    if (!Array.isArray(list) || list.length <= 1) return list;
+    let i = 0;
+    while (i < list.length - 1 && Number(list[i].value) === 0) i++;
+    return list.slice(i);
+  }
+
   // Compact remaining string from a {unit,value}[] list: "1y 2mo 5d 03h 22m 18s".
   // Larger units (y/mo/d) are unpadded; h/m/s pad to two digits.
   function compactUnits(list) {
@@ -231,7 +243,7 @@
   class CountdownWidget {
     constructor(container, config) {
       this.el = container;
-      this.cfg = Object.assign({ items: [], expired: 'started', units: DEFAULT_UNITS.slice(), onConfigChange: null }, config || {});
+      this.cfg = Object.assign({ items: [], itemId: null, expired: 'started', units: DEFAULT_UNITS.slice(), onConfigChange: null }, config || {});
       this.items = parseItems(this.cfg.items);
       this._tick = this._tick.bind(this);
       this._build();
@@ -241,9 +253,16 @@
     setConfig(patch) { Object.assign(this.cfg, patch || {}); this.items = parseItems(this.cfg.items); this._build(); this._tick(); }
     destroy() { this.stop(); if (this.el) this.el.innerHTML = ''; }
 
+    // The configured item this widget shows: the one matching cfg.itemId (set when
+    // a specific countdown was added from the picker), else the first item.
+    _item() {
+      if (this.cfg.itemId) { const m = this.items.find((it) => it.id === this.cfg.itemId); if (m) return m; }
+      return this.items[0];
+    }
+
     _build() {
       this.el.classList.add('countdown-widget', 'cd-single');
-      const item = this.items[0];
+      const item = this._item();
       // The widget's title is the configured event name (the "Description"
       // entered for the countdown), not the generic widget name.
       this.el.innerHTML = `
@@ -266,13 +285,15 @@
     // Render just the unit boxes (called on build and whenever units change, so
     // the control bar — which may have been moved into a Configure window — is
     // left untouched).
-    _renderBoxes() {
-      this.units = normalizeUnits(this.cfg.units);
-      this.boxesEl.style.gridTemplateColumns = `repeat(${this.units.length},1fr)`;
-      this.boxesEl.innerHTML = this.units.map((u) =>
+    _renderBoxes(unitsToShow) {
+      this.units = normalizeUnits(this.cfg.units);   // the enabled set (manual toggles)
+      const list = (Array.isArray(unitsToShow) && unitsToShow.length) ? unitsToShow : this.units;
+      this._shownUnitKeys = list.join('|');
+      this.boxesEl.style.gridTemplateColumns = `repeat(${list.length},1fr)`;
+      this.boxesEl.innerHTML = list.map((u) =>
         `<div class="cd-box"><div class="cd-num" data-u="${u}">--</div><div class="cd-unit">${UNIT_LABELS[u]}</div></div>`).join('');
       this.numEls = {};
-      this.units.forEach((u) => { this.numEls[u] = this.boxesEl.querySelector(`[data-u="${u}"]`); });
+      list.forEach((u) => { this.numEls[u] = this.boxesEl.querySelector(`[data-u="${u}"]`); });
     }
     // Build the per-widget unit toggles — only when a config-change handler is
     // wired (i.e. a live dashboard widget). Samples/previews pass none, so they
@@ -282,7 +303,8 @@
       const tools = document.createElement('div');
       buildUnitTools(tools, () => this.units, (arr) => {
         this.cfg.units = arr;
-        this._renderBoxes();
+        this._shownUnitKeys = '';   // force a box rebuild on the next tick
+        this._renderBoxes(arr);
         this._tick();
         this.cfg.onConfigChange({ units: arr });
       });
@@ -290,7 +312,7 @@
       this.toolsEl = tools;
     }
     _tick() {
-      const item = this.items[0];
+      const item = this._item();
       if (!item) return;
       const view = present(item.target - Date.now(), this.cfg.expired, this.units, item.target);
       if (view.hide) {
@@ -300,7 +322,12 @@
         return;
       }
       this.boxesEl.style.display = '';
-      view.units.forEach(({ unit, value }) => {
+      // Auto-hide leading zero units while counting down (e.g. hide Y/M for a
+      // sub-month countdown). Rebuild the boxes only when the visible set changes.
+      const showList = (view.state === 'live') ? trimLeadingZeros(view.units) : view.units;
+      const keys = showList.map((x) => x.unit).join('|');
+      if (keys !== this._shownUnitKeys) this._renderBoxes(showList.map((x) => x.unit));
+      showList.forEach(({ unit, value }) => {
         const el = this.numEls[unit];
         if (!el) return;
         el.textContent = (unit === 'hours' || unit === 'minutes' || unit === 'seconds') ? pad2(value) : String(value);
@@ -412,14 +439,16 @@
           row.time.textContent = view.label;
           row.time.classList.add('cd-li-done');
         } else {
-          row.time.textContent = (view.state === 'expired' && view.label ? '+' : '') + compactUnits(view.units);
+          // Auto-hide leading zero units (e.g. show "1d 8h 3m 24s", not "0y 0mo …").
+          const list = (view.state === 'live') ? trimLeadingZeros(view.units) : view.units;
+          row.time.textContent = (view.state === 'expired' && view.label ? '+' : '') + compactUnits(list);
           row.time.classList.toggle('cd-li-done', view.state === 'expired');
         }
       });
     }
   }
 
-  global.CountdownApi = { parseItems, parts, present, formatTarget, calDiff, computeUnits, compactUnits, normalizeUnits, UNIT_ORDER, UNIT_LABELS, DEFAULT_UNITS };
+  global.CountdownApi = { parseItems, parts, present, formatTarget, calDiff, computeUnits, compactUnits, trimLeadingZeros, normalizeUnits, UNIT_ORDER, UNIT_LABELS, DEFAULT_UNITS };
   global.CountdownWidget = CountdownWidget;
   global.CountdownListWidget = CountdownListWidget;
 })(typeof window !== 'undefined' ? window : this);

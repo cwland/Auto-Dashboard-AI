@@ -529,12 +529,68 @@ let mountedWidgets = [];   // live integration widget instances on the board
 let widgetObserver = null; // resizes widget groupings to fit their content
 let iconGrids = [];        // nested GridStacks (one per section) holding the bookmark icons
 let gridInteracting = false; // true while the user is dragging/resizing an item
-const GRID_COLS = 24;   // denser grid → finer snapping + sections can go small
+const BASE_COLS = 24;   // snap density at the default canvas (the coordinate baseline)
+// Live column count. A wider canvas ADDS columns of the SAME size (more snap
+// area) rather than stretching existing cells, so GRID_COLS grows with the
+// canvas. Kept in sync by syncGridCols() at the start of each grid render.
+let GRID_COLS = BASE_COLS;
 const GRID_CELL = 8;    // px per grid row — fine vertical snapping for consistent
                         // section heights (old 32px snapping left an inconsistent
                         // bottom gap; legacy layouts auto-migrate via dash.gridCell)
 const GRID_MIN_W = 2;   // minimum section width (cols)
 const GRID_MIN_H = 12;  // minimum section height (rows) ≈ 96px
+
+// ── Resolution-independent board (fixed cell size) ──────────────────────────
+// The cell/snap size is FIXED (BASE_CELL_PX), so a widget is the same physical
+// size on every machine — that's what stops a bigger screen from reflowing icons
+// and "adding spaces". The board never scales: it renders at actual size and, if
+// it's larger than the screen, the dashboard area scrolls.
+//
+// The canvas width is user-selectable in edit mode (the resolution palette in the
+// top-right of the grid) and stored in settings.boardDesignWidth. A WIDER canvas
+// simply ADDS more same-size columns (more placement room to the right) — it does
+// not stretch existing cells or widgets. Set the canvas to your largest screen's
+// width so it fills there; smaller screens then scroll to reach the rest.
+const DEFAULT_DESIGN_WIDTH = 1280;
+// Canvas widths offered by the resolution palette (common screen widths).
+const DESIGN_WIDTH_PRESETS = [1280, 1366, 1440, 1600, 1920, 2560, 3440, 3840];
+// Fixed horizontal cell/snap size, derived from the default canvas. A wider
+// canvas keeps this size and just gets more columns (see syncGridCols).
+const BASE_CELL_PX = DEFAULT_DESIGN_WIDTH / BASE_COLS;
+function boardDesignWidth() {
+  // Per-dashboard canvas (chosen at creation / in edit mode), then the legacy
+  // global setting, then the default.
+  const dash = (typeof getActiveDash === 'function') ? getActiveDash() : null;
+  const dv = dash && Number(dash.boardDesignWidth);
+  if (Number.isFinite(dv) && dv > 0) return dv;
+  const v = settings && Number(settings.boardDesignWidth);
+  return (Number.isFinite(v) && v > 0) ? v : DEFAULT_DESIGN_WIDTH;
+}
+// How many same-size columns fit the chosen canvas (never fewer than the base).
+function boardColsForCanvas() {
+  return Math.max(BASE_COLS, Math.round(boardDesignWidth() / BASE_CELL_PX));
+}
+// Actual laid-out board width = a whole number of fixed-size cells.
+function boardWidthPx() {
+  return boardColsForCanvas() * BASE_CELL_PX;
+}
+// Bring the live column count in step with the current canvas. Call before any
+// grid build so every downstream calc (CSS, cellW, min/max) uses the right count.
+function syncGridCols() {
+  GRID_COLS = boardColsForCanvas();
+  return GRID_COLS;
+}
+// The board always renders at ACTUAL size (1:1) — the cell/snap size never
+// changes between machines or between edit and view. The board is left-aligned;
+// if it's wider/taller than the screen, the dashboard area's scrollbars let the
+// user reach the rest (rather than the whole thing being scaled to fit, which
+// would shrink the cells and look inconsistent with edit mode).
+function applyBoardZoom() {
+  const gridEl = document.querySelector('.dashboard-area.grid-mode > .grid-stack');
+  if (!gridEl) return;
+  gridEl.style.zoom = '';
+  gridEl.style.margin = '0';
+}
 
 // Gridstack ships horizontal (left/width %) CSS only for a 12-column grid.
 // For any other column count we generate the matching rules once.
@@ -626,7 +682,9 @@ const CONTENT_PAD_X = 26;  // grid-stack-item-content left+right padding (+ hair
 // content's horizontal padding is added so a single icon column never overflows.
 function sectionMinW(name, iconSize, cellW) {
   const spec = ICON_SIZES[iconSize] || ICON_SIZES.medium;
-  const innerPx = Math.max(spec.cellPx, nameMinPx(name), 116); // 116 ≈ S/M/L + cycle-button selector row
+  // The title no longer dictates the section's minimum width — sections may shrink
+  // to hug the icons; the header text truncates (CSS ellipsis) when narrow.
+  const innerPx = spec.cellPx;
   // Clamp to the column count — a min-w larger than max-w would wedge Gridstack
   // (sections become un-draggable / un-resizable).
   return Math.min(GRID_COLS, Math.max(GRID_MIN_W, Math.ceil((innerPx + CONTENT_PAD_X) / (cellW || 1))));
@@ -844,7 +902,24 @@ function autoResizeGroupings() {
   document.querySelectorAll('.grid-stack > .grid-stack-item[data-folder]').forEach((el) => {
     delete el.dataset.manualSize;
     const gridEl = el.querySelector('.icon-grid');
-    if (gridEl && gridEl.gridstack) { try { gridEl.gridstack.compact(); } catch (_) {} }
+    const g = gridEl && gridEl.gridstack;
+    if (!g) return;
+    try { g.compact(); } catch (_) {}
+    // Shrink the section WIDTH to wrap tightly around its icons (auto-resize only
+    // adjusted height before, leaving wide sections with empty space).
+    const nodes = (g.engine && g.engine.nodes) ? g.engine.nodes : [];
+    let usedCols = 1;
+    nodes.forEach((n) => { usedCols = Math.max(usedCols, (n.x || 0) + (n.w || 1)); });
+    const size = storedIconSize(el.dataset.folder);
+    const spec = ICON_CELL[size] || ICON_CELL.medium;
+    const gridStackEl = el.closest('.grid-stack');
+    const cellW = (gridStackEl && gridStackEl.clientWidth / GRID_COLS) || 1;
+    const contentW = usedCols * spec.w + (usedCols + 1) * ICON_GRID_MARGIN;
+    const needW = Math.min(GRID_COLS, Math.max(
+      sectionMinW(el.dataset.folder, size, cellW),
+      Math.ceil((contentW + CONTENT_PAD_X) / cellW),
+    ));
+    try { gridInstance.update(el, { w: needW }); } catch (_) {}
   });
   syncGridAttrs();
   requestAnimationFrame(() => {
@@ -911,10 +986,17 @@ function setSectionIconSize(name, size) {
   dash.layout[name].iconSize = size;
   const el = document.querySelector(`.grid-stack > .grid-stack-item[data-folder="${CSS.escape(name)}"]`);
   if (el) {
+    delete el.dataset.manualSize;   // allow the section to re-fit to the new icon size
     applyIconSize(el, size);
     updateTextPosButtons(el, name);   // Small forces "No Text"; M/L restores the choice
-    // New icon size → recompute the nested icon grid's columns/cell + section fit.
-    requestAnimationFrame(() => requestAnimationFrame(() => { relayoutIconGrid(name); syncGridAttrs(); }));
+    // New icon size → re-flow columns, shrink the width to wrap the icons (no
+    // right-hand gap), then re-flow + fit height for the new width.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      relayoutIconGrid(name);
+      fitSectionWidthToIcons(el);
+      relayoutIconGrid(name);
+      syncGridAttrs();
+    }));
   }
   markRearrangeChanged();
 }
@@ -1073,13 +1155,15 @@ function ensureDashLayout(dash, folderNames, groups) {
   const DEF_W = 8;   // ~1/3 width on the 24-col grid
   _dashLayoutChanged = false;
 
-  // Migrate a layout saved at a different grid density (e.g. the old 12-column
-  // grid) so sections keep their proportions instead of rendering half-width.
+  // Migrate a layout saved at a different snap DENSITY (e.g. the old 12-column /
+  // 60px grid) so sections keep their proportions. We migrate against the fixed
+  // BASE density — NOT the live GRID_COLS — so changing the canvas (which only
+  // adds same-size columns) never rescales existing widgets.
   if (dash.layout && typeof dash.layout === 'object') {
     const oldCols = dash.gridCols || 12;
     const oldCell = dash.gridCell || 60;
-    if (oldCols !== GRID_COLS || oldCell !== GRID_CELL) {
-      const fx = GRID_COLS / oldCols;
+    if (oldCols !== BASE_COLS || oldCell !== GRID_CELL) {
+      const fx = BASE_COLS / oldCols;
       const fh = oldCell / GRID_CELL;
       Object.values(dash.layout).forEach((p) => {
         if (!p) return;
@@ -1091,8 +1175,8 @@ function ensureDashLayout(dash, folderNames, groups) {
       _dashLayoutChanged = true;
     }
   }
-  if (dash.gridCols !== GRID_COLS || dash.gridCell !== GRID_CELL) _dashLayoutChanged = true;
-  dash.gridCols = GRID_COLS;
+  if (dash.gridCols !== BASE_COLS || dash.gridCell !== GRID_CELL) _dashLayoutChanged = true;
+  dash.gridCols = BASE_COLS;
   dash.gridCell = GRID_CELL;
 
   const layout = (dash.layout && typeof dash.layout === 'object') ? dash.layout : {};
@@ -1133,6 +1217,7 @@ function ensureDashLayout(dash, folderNames, groups) {
 }
 
 function renderDashboardGrid(dash, folderNames, groups) {
+  syncGridCols();                  // grow the column count to match the chosen canvas
   injectGridColumnCss(GRID_COLS);
   const layout = ensureDashLayout(dash, folderNames, groups);
   // If we had to auto-place/migrate any section, persist so the exact geometry is
@@ -1154,13 +1239,19 @@ function renderDashboardGrid(dash, folderNames, groups) {
 
   const gridEl = document.createElement('div');
   gridEl.className = 'grid-stack';
+  // Lay the board out at a whole number of fixed-size cells (canvas width snapped
+  // to the cell grid) so saved coordinates render identically on every resolution;
+  // applyBoardZoom() then scales it to fill the screen (view) or shows it 1:1,
+  // left-aligned (edit). A wider canvas = more columns, same cell size.
+  gridEl.style.width = boardWidthPx() + 'px';
+  gridEl.style.margin = '0';
   dashboardArea.appendChild(gridEl);
 
-  // Approx cell width now (grid is full-width minus the dashboard padding) so we
-  // can stamp a name-aware gs-min-w before init — Gridstack then clamps any
-  // saved-too-small width on load and resists shrinking past the name on resize.
-  const areaW = dashboardArea.clientWidth || 1200;   // fallback if not laid out yet
-  const cellW0 = Math.max(1, (areaW - 32) / GRID_COLS);
+  // Cell width is the fixed snap size (board width / column count), independent of
+  // the live window, so the name-aware gs-min-w stamp — and every later fit
+  // calculation — uses one consistent coordinate space across machines.
+  const areaW = boardWidthPx();
+  const cellW0 = Math.max(1, areaW / GRID_COLS);
 
   folderNames.forEach((name) => {
     const pos = layout[name] || {};
@@ -1261,16 +1352,27 @@ function renderDashboardGrid(dash, folderNames, groups) {
   // Keep the live min-size in sync so icons can never be squeezed out: as the
   // section narrows, its required height rises and Gridstack won't let it shrink
   // past the point where every icon fits.
-  gridInstance.on('resizestart', (e, el) => { gridInteracting = true; setSectionLiveMin(el); });
+  gridInstance.on('resizestart', (e, el) => {
+    gridInteracting = true; setSectionLiveMin(el);
+    // While resizing a bookmark section, switch its icon grid to a plain
+    // fixed-cell CSS grid (.gs-reflow) so the icons keep their size and just wrap
+    // into place as the area changes — no stretching, and no gridstack calls
+    // mid-drag (which previously broke the pointer release).
+    if (el && el.dataset && el.dataset.folder) {
+      const ig = el.querySelector('.icon-grid');
+      if (ig) { ig.style.width = ''; ig.classList.add('gs-reflow'); }   // fluid while reflowing
+    }
+  });
   gridInstance.on('resize', (e, el) => setSectionLiveMin(el));
   gridInstance.on('resizestop', (e, el) => {
     gridInteracting = false;
     // A manually-resized widget keeps its size (auto-fit no longer touches it).
     if (el.dataset.widget) { el.dataset.manualSize = '1'; syncGridAttrs(); return; }
-    // A resized section keeps the user's chosen size: re-flow its nested icon
-    // grid (more/fewer columns) but don't snap the height back to content-fit.
+    // A resized section keeps the user's chosen size: leave the reflow preview and
+    // re-flow its nested icon grid (real positions for the new width).
     if (el.dataset.folder) {
       el.dataset.manualSize = '1';
+      const ig = el.querySelector('.icon-grid'); if (ig) ig.classList.remove('gs-reflow');
       requestAnimationFrame(() => { relayoutIconGrid(el.dataset.folder); syncGridAttrs(); });
       return;
     }
@@ -1287,6 +1389,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
     if (!gridInstance) return;
     initIconGrids();
     syncGridAttrs();
+    applyBoardZoom();   // scale the finished board to fill the screen
     // Freshly-created dashboard: section heights are now fit to their content,
     // so snap everything up to the top (removing the gaps left by the pre-render
     // height estimates), persist the compacted geometry, and clear the flag so
@@ -1352,6 +1455,14 @@ const ICON_CELL = {
 };
 const ICON_GRID_MARGIN = 6;
 
+// Pixel width for a `cols`-wide icon grid so each gridstack cell equals the icon
+// size (instead of stretching to fill the section). Keeps icons a fixed size and
+// matches the resize-preview (.gs-reflow) so they don't snap bigger on release.
+function iconGridPxWidth(cols, folder) {
+  const spec = ICON_CELL[storedIconSize(folder)] || ICON_CELL.medium;
+  return cols * spec.w + (cols + 1) * ICON_GRID_MARGIN;
+}
+
 // The bundled gridstack.min.css ships width/left rules only for 12 columns; make
 // sure the rules exist for any column count a nested grid needs.
 function ensureGridColCss(cols) {
@@ -1397,8 +1508,34 @@ function initIconGrids() {
     iconGrids.push(g);
     g.on('change', () => { persistIconPositions(g); fitSectionForIconGrid(gridEl); });
     g.on('added', (e, nodes) => onIconsAdded(g, nodes));
+    gridEl.style.width = iconGridPxWidth(cols, folder) + 'px';   // fixed-size cells (no stretch)
     fitSectionForIconGrid(gridEl);
+    requestAnimationFrame(() => centerIconGrid(gridEl));
   });
+}
+
+// Center the icon grid inside its section so the empty space is split EVENLY on
+// the left and right. We measure the icons' real bounding box (rather than trust
+// the pinned grid width, which can be a hair wider than the icons) and set the
+// left margin so left-gap === right-gap. `margin:auto` alone leaves a residual
+// gap on the right because the grid box is slightly wider than its contents.
+function centerIconGrid(gridEl) {
+  if (!gridEl) return;
+  const parent = gridEl.parentElement;
+  if (!parent) { gridEl.style.marginLeft = ''; gridEl.style.marginRight = ''; return; }
+  // Center the pinned grid BOX in the section's content box. The box width is
+  // known synchronously (we just set it) and a single-column grid is internally
+  // symmetric (gridstack insets each cell's content by `margin` on both sides),
+  // so centering the box gives equal left/right gaps at every icon size. We avoid
+  // measuring item offsets — those depend on gridstack's transform/positioning
+  // and were drifting differently per size.
+  const cs = getComputedStyle(parent);
+  const avail = parent.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const gridW = gridEl.offsetWidth;
+  if (!gridW || !avail) { gridEl.style.marginLeft = ''; gridEl.style.marginRight = ''; return; }
+  const left = Math.max(0, (avail - gridW) / 2);
+  gridEl.style.marginLeft = left + 'px';
+  gridEl.style.marginRight = '0';
 }
 
 // Save x/y for every icon back onto its bookmark.
@@ -1457,15 +1594,43 @@ function setIconGridsStatic(staticOn) {
   iconGrids.forEach((g) => { try { g.setStatic(staticOn); } catch (_) {} });
 }
 
+// Shrink a section's WIDTH so it wraps tightly around its icons (no trailing
+// empty columns / right-hand gap), without reordering them.
+function fitSectionWidthToIcons(el) {
+  if (!gridInstance || !el) return;
+  const gridEl = el.querySelector('.icon-grid');
+  const g = gridEl && gridEl.gridstack;
+  if (!g) return;
+  const nodes = (g.engine && g.engine.nodes) ? g.engine.nodes : [];
+  let usedCols = 1;
+  nodes.forEach((n) => { usedCols = Math.max(usedCols, (n.x || 0) + (n.w || 1)); });
+  const size = storedIconSize(el.dataset.folder);
+  const spec = ICON_CELL[size] || ICON_CELL.medium;
+  const gridStackEl = el.closest('.grid-stack');
+  const cellW = (gridStackEl && gridStackEl.clientWidth / GRID_COLS) || 1;
+  const contentW = usedCols * spec.w + (usedCols + 1) * ICON_GRID_MARGIN;
+  const needW = Math.min(GRID_COLS, Math.max(
+    sectionMinW(el.dataset.folder, size, cellW),
+    Math.ceil((contentW + CONTENT_PAD_X) / cellW),
+  ));
+  if (!el.gridstackNode || el.gridstackNode.w !== needW) {
+    try { gridInstance.update(el, { w: needW }); } catch (_) {}
+  }
+}
+
 // Recompute one section's icon-grid columns/cell after a width or icon-size change.
 function relayoutIconGrid(folder) {
   const gridEl = document.querySelector(`.folder-section .icon-grid[data-folder="${CSS.escape(folder)}"]`);
   const g = gridEl && gridEl.gridstack;
   if (!gridEl || !g) return;
+  gridEl.style.width = '';                       // reset to measure the section's available width
+  gridEl.style.marginLeft = ''; gridEl.style.marginRight = '';
   const { cols, cell } = iconGridMetrics(gridEl, folder);
   ensureGridColCss(cols);
   try { g.cellHeight(cell); if (g.getColumn() !== cols) g.column(cols, 'list'); } catch (_) {}
+  gridEl.style.width = iconGridPxWidth(cols, folder) + 'px';   // fixed-size cells (icons don't stretch)
   fitSectionForIconGrid(gridEl);
+  requestAnimationFrame(() => centerIconGrid(gridEl));
 }
 
 function buildFolderSection(folderName, bookmarks) {
@@ -1711,6 +1876,7 @@ function setupRearrangeControls() {
   setupThemeModal();
   setupThemeCreate();
   setupRearrangeToolsMenu();
+  setupCanvasPalette();
   setupWidgetModal();
 }
 
@@ -1776,6 +1942,10 @@ WIDGET_CATALOG.push(
   { wid: 'proxmox-overview', intId: 'proxmox-overview', name: 'Proxmox Overview', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
 );
 
+// Carousel "list" widgets: when first added to a board they default to a compact
+// 5-row window with auto-scroll on, instead of expanding to show every row.
+const LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups']);
+
 function widgetDef(wid) { return WIDGET_CATALOG.find((w) => w.wid === wid); }
 function widgetEnabled(wid) { const w = widgetDef(wid); return !!(w && settings[w.enabledKey] === true); }
 
@@ -1816,7 +1986,7 @@ function serviceMetaFor(key, widgets) {
 
 // One selectable widget card. `sample` renders it as a greyed preview whose
 // name carries a "(Sample)" tag.
-function buildWidgetPick(w, sample, endpointId) {
+function buildWidgetPick(w, sample, endpointId, nameOverride) {
   const key = selKey(w.wid, sample, endpointId);
   const card = document.createElement('div');
   card.className = 'widget-pick' + (sample ? ' is-sample' : '');
@@ -1826,7 +1996,7 @@ function buildWidgetPick(w, sample, endpointId) {
   let iconEl;
   if (w.emoji) { iconEl = document.createElement('div'); iconEl.style.fontSize = '34px'; iconEl.style.lineHeight = '40px'; iconEl.textContent = w.emoji; }
   else { iconEl = document.createElement('img'); iconEl.alt = ''; iconEl.src = `../icons/integrations/${w.icon}`; iconEl.onerror = () => { iconEl.style.visibility = 'hidden'; }; }
-  const nm = document.createElement('span'); nm.className = 'wp-name'; nm.textContent = w.name;
+  const nm = document.createElement('span'); nm.className = 'wp-name'; nm.textContent = nameOverride || w.name;
   card.append(check, iconEl, nm);
   if (sample) { const tag = document.createElement('span'); tag.className = 'wp-sample-tag'; tag.textContent = '(Sample)'; card.appendChild(tag); }
   card.addEventListener('click', () => {
@@ -1911,15 +2081,26 @@ function renderWidgetModalBody() {
         eps.forEach((ep) => group.appendChild(buildInstance(widgets, ep.name || 'Endpoint', ep.id)));
         if (!eps.length) group.appendChild(buildInstance(widgets, 'No endpoints configured', null));
       } else if (!sample && key === 'countdown') {
-        // Countdown: list the configured countdown names so the user can see
-        // exactly which countdowns the widget will show before adding it.
-        const names = (settings.countdownItems || [])
-          .map((it) => String((it && (it.name != null ? it.name : it.title)) || '').trim())
-          .filter(Boolean);
-        const label = names.length
-          ? 'Countdowns: ' + names.join(', ')
-          : 'No countdowns configured yet — add them in Setup → Countdown';
-        group.appendChild(buildInstance(widgets, label, null));
+        // Countdown: ONE single-countdown card per configured item (each labelled
+        // with its own description), plus the single list-view card.
+        const items = (typeof CountdownApi !== 'undefined' && CountdownApi.parseItems)
+          ? CountdownApi.parseItems(settings.countdownItems) : [];
+        const singleW = widgets.find((w) => w.intId === 'countdown');
+        const listW = widgets.find((w) => w.intId === 'countdown-list');
+        const inst = document.createElement('div');
+        inst.className = 'widget-instance';
+        if (!items.length) {
+          const dl = document.createElement('div');
+          dl.className = 'wg-i-desc';
+          dl.textContent = 'No countdowns configured yet — add them in Setup → Countdown';
+          inst.appendChild(dl);
+        }
+        const grid = document.createElement('div');
+        grid.className = 'widget-grid';
+        if (singleW) items.forEach((it) => grid.appendChild(buildWidgetPick(singleW, false, it.id, it.name)));
+        if (listW) grid.appendChild(buildWidgetPick(listW, false, null, null));
+        inst.appendChild(grid);
+        group.appendChild(inst);
       } else {
         // Single configuration (Sample tab, or Weather/Stocks).
         const descText = sample ? 'Sample (demo data)' : (descs[key] || '');
@@ -2185,11 +2366,17 @@ async function addSelectedWidgets() {
     const uid = 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const entry = { uid, wid: w.wid, intId: w.intId, name: w.name };
     if (sample) entry.sample = true;
+    // List widgets start compact: 5 visible rows with auto-scroll on.
+    if (!sample && LIST_DEFAULT_5.has(w.intId)) entry.config = { carousel: true, visibleCount: 5 };
     if (endpointId) {
       entry.endpointId = endpointId;
-      // Title the placement with the endpoint name when the service has >1 endpoint.
       const base = baseIntOf(w.intId);
-      if (window.Endpoints) {
+      if (base === 'countdown' && typeof CountdownApi !== 'undefined') {
+        // Per-item countdown: title the placement with the countdown's description.
+        const it = CountdownApi.parseItems(settings.countdownItems).find((x) => x.id === endpointId);
+        if (it) { entry.endpointName = it.name; entry.name = it.name; }
+      } else if (window.Endpoints) {
+        // Title the placement with the endpoint name when the service has >1 endpoint.
         const ep = Endpoints.get(settings, base, endpointId);
         if (ep && Endpoints.count(settings, base) > 1) { entry.endpointName = ep.name; entry.name = `${w.name} — ${ep.name}`; }
         else if (ep) { entry.endpointName = ep.name; }
@@ -2404,14 +2591,21 @@ function openWidgetConfig(content, store, titleText, btn) {
 
   dashboardArea.appendChild(win);
 
-  // Open centered on the widget. The window is resizable but NOT movable.
+  // Open horizontally centered on the widget and near its TOP border (not the
+  // middle of a tall widget, which for a long list lands far off-screen), then
+  // CLAMP into the currently visible scroll viewport so it's always reachable.
   const areaRect = dashboardArea.getBoundingClientRect();
   const itRect = itemEl.getBoundingClientRect();
   const ww = win.offsetWidth || 280, wh = win.offsetHeight || 180;
-  let left = (itRect.left - areaRect.left) + dashboardArea.scrollLeft + (itRect.width - ww) / 2;
-  let top = (itRect.top - areaRect.top) + dashboardArea.scrollTop + (itRect.height - wh) / 2;
-  win.style.left = Math.max(8, left) + 'px';
-  win.style.top = Math.max(8, top) + 'px';
+  const sL = dashboardArea.scrollLeft, sT = dashboardArea.scrollTop;
+  let left = (itRect.left - areaRect.left) + sL + (itRect.width - ww) / 2;
+  let top = (itRect.top - areaRect.top) + sT + 12;   // just inside the widget's top border
+  const visL = sL + 8, visR = sL + dashboardArea.clientWidth - ww - 8;
+  const visT = sT + 8, visB = sT + dashboardArea.clientHeight - wh - 8;
+  left = Math.min(Math.max(left, visL), Math.max(visL, visR));
+  top = Math.min(Math.max(top, visT), Math.max(visT, visB));
+  win.style.left = left + 'px';
+  win.style.top = top + 'px';
 
   document.body.classList.add('config-open');
   document.querySelectorAll('.widget-configure').forEach((b) => { if (b !== btn) b.disabled = true; });
@@ -2723,6 +2917,62 @@ function setupRearrangeToolsMenu() {
     });
     b.addEventListener('mouseleave', () => { if (tip) tip.classList.remove('show'); });
   });
+}
+
+// ── Resolution palette (edit mode, top-right of the grid) ───────────────────
+// Lets the user pick the canvas width the board is laid out at. Default keeps the
+// previous look; a wider canvas designs for a bigger screen (smaller screens then
+// scroll in edit mode / scale down in view mode).
+function setupCanvasPalette() {
+  const sel = document.getElementById('board-canvas-select');
+  if (!sel) return;
+  sel.addEventListener('change', () => {
+    const v = Number(sel.value);
+    if (!Number.isFinite(v) || v <= 0) return;
+    // Canvas is per-dashboard: store it on the active dashboard.
+    const dash = getActiveDash();
+    if (dash) { dash.boardDesignWidth = v; chromeSet({ dashboards: state.dashboards }); }
+    else { settings.boardDesignWidth = v; saveSettings(); }
+    // Re-render so the grid relays out at the new canvas width, then rescale.
+    renderDashboard(state.activeDashboardId);
+    requestAnimationFrame(() => { try { positionCanvasPalette(); } catch (_) {} });
+  });
+  // Make the control draggable by its grip; once moved, keep the user's spot.
+  const ctl = document.getElementById('board-canvas-ctl');
+  const grip = document.getElementById('board-canvas-grip');
+  if (ctl && grip) {
+    makeDraggable(grip, ctl);
+    grip.addEventListener('pointerdown', () => { ctl.dataset.moved = '1'; });
+  }
+  refreshCanvasPalette();
+}
+
+// Rebuild the option list (so the active value is always present) and select the
+// current canvas width.
+function refreshCanvasPalette() {
+  const sel = document.getElementById('board-canvas-select');
+  if (!sel) return;
+  const cur = boardDesignWidth();
+  const widths = Array.from(new Set([...DESIGN_WIDTH_PRESETS, cur])).sort((a, b) => a - b);
+  sel.innerHTML = widths.map((w) => {
+    const isDefault = w === DEFAULT_DESIGN_WIDTH ? ' (default)' : '';
+    return `<option value="${w}"${w === cur ? ' selected' : ''}>${w}px${isDefault}</option>`;
+  }).join('');
+}
+
+// Place the (draggable) palette control just to the RIGHT of the floating edit
+// toolbar. Once the user drags it (dataset.moved), we leave it where they put it.
+function positionCanvasPalette() {
+  const ctl = document.getElementById('board-canvas-ctl');
+  if (!ctl) return;
+  if (ctl.dataset.moved === '1') return;
+  const bar = document.getElementById('rearrange-tools');
+  if (bar) {
+    const r = bar.getBoundingClientRect();
+    ctl.style.left = Math.round(r.right + 10) + 'px';
+    ctl.style.top = Math.round(r.top) + 'px';
+    ctl.style.right = 'auto';
+  }
 }
 
 
@@ -3089,10 +3339,15 @@ function closeDashOptionsModal() {
 }
 let _cogRecenterRaf = 0;
 function setupDashOptions() {
-  // Keep the corner cog vertically centered in the header as the window resizes.
+  // Keep the corner cog centered AND rescale the board to fill the new width as
+  // the window resizes.
   window.addEventListener('resize', () => {
     if (_cogRecenterRaf) cancelAnimationFrame(_cogRecenterRaf);
-    _cogRecenterRaf = requestAnimationFrame(() => { try { refreshHeaderDisplay(); } catch (_) {} });
+    _cogRecenterRaf = requestAnimationFrame(() => {
+      try { refreshHeaderDisplay(); } catch (_) {}
+      try { applyBoardZoom(); } catch (_) {}
+      try { positionCanvasPalette(); } catch (_) {}
+    });
   });
   document.getElementById('dash-options-close')?.addEventListener('click', closeDashOptionsModal);
   // The corner cog stands in for the hidden Edit Dashboard button: it toggles
@@ -3494,6 +3749,8 @@ function enterRearrangeMode() {
   state.rearrangeMode     = true;
   state.rearrangeModified = false;
   document.body.classList.add('rearrange-mode');
+  applyBoardZoom();   // drop to 1:1 so Gridstack drag/resize is pixel-accurate
+  try { refreshCanvasPalette(); positionCanvasPalette(); } catch (_) {}
   // Save/Cancel live in the floating tools menu while editing. The Edit button
   // is disabled (not hidden) so it still reflects the "Show Edit Dashboard
   // Button" toggle live in the Dashboard Options panel, as a non-interactive
@@ -3541,6 +3798,7 @@ function exitRearrangeMode(discard = false) {
   rearrangeBtn.disabled = false;
   rearrangeSaveBtn.classList.remove('has-changes');
   refreshHeaderDisplay();   // restore corner-cog / hidden-button state after editing
+  applyBoardZoom();         // scale the board back up to fill the screen
 
   // Re-lock the grid (and the nested icon grids).
   setIconGridsStatic(true);

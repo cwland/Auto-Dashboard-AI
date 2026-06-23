@@ -170,7 +170,11 @@ body {
   outline: none;
 }
 .input:focus, .select:focus { border-color: var(--border-focus); }
-.input::placeholder { color: var(--text-muted); }
+/* Placeholder ("example") text — readable, but still clearly lighter than the
+   text the user types (--text-primary). Covers .input fields and plain
+   input/textarea boxes (e.g. search fields). */
+.input::placeholder, textarea.input::placeholder,
+input::placeholder, textarea::placeholder { color: var(--text-secondary); opacity: 0.85; }
 
 .input-mono { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.05em; }
 

@@ -154,7 +154,7 @@
     /* ── Dashboard area ───────────────────────────────────────────────────── */
     /* Layout row holding the optional left sidebar + the dashboard area. */
     .main-row { flex: 1; min-height: 0; display: flex; }
-    .dashboard-area { flex: 1; overflow-y: auto; padding: 24px; min-width: 0; position: relative; }
+    .dashboard-area { flex: 1; overflow-y: auto; overflow-x: auto; padding: 24px; min-width: 0; position: relative; }
 
     /* ── Widget configuration: Configure button + draggable window ───────────── */
     .widget-configure { display: none; }
@@ -170,7 +170,8 @@
     .widget-config-store { display: none; }
 
     .config-window {
-      position: absolute; z-index: 41; width: 280px; min-width: 240px; min-height: 150px; max-width: calc(100% - 16px);
+      position: absolute; z-index: 41; width: 280px; min-width: 240px; min-height: 150px;
+      max-width: calc(100% - 16px); max-height: calc(100% - 16px);
       display: flex; flex-direction: column; resize: both; overflow: hidden;
       background: var(--bg-secondary); border: 1px solid var(--border);
       border-radius: var(--radius-lg, 12px); box-shadow: 0 18px 50px rgba(0,0,0,0.45);
@@ -461,6 +462,25 @@
     .rt-btn.rt-save:hover { background: var(--success-light); }
     .rt-btn.rt-save.has-changes { background: var(--success); color: #fff; border-color: var(--success); animation: rt-pulse 1.6s ease-in-out infinite; }
     @keyframes rt-pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,.45); } 50% { box-shadow: 0 0 0 5px rgba(34,197,94,0); } }
+    /* Resolution palette — pinned to the top-right of the grid in edit mode.
+       Sets the canvas width the board is laid out at. */
+    .board-canvas-ctl {
+      position: fixed; top: 12px; right: 16px; z-index: 1500;
+      display: none; align-items: center; gap: 8px;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 999px; padding: 6px 10px 6px 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.34);
+    }
+    body.rearrange-mode .board-canvas-ctl { display: flex; }
+    .board-canvas-ctl.tools-dimmed { opacity: 0.4; pointer-events: none; filter: grayscale(0.7); }
+    .bcc-grip { cursor: move; color: var(--text-muted); font-size: 14px; line-height: 1; user-select: none; touch-action: none; padding: 0 1px; }
+    .bcc-grip:hover { color: var(--text-primary); }
+    .bcc-label { font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+    .bcc-select {
+      background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary);
+      border-radius: var(--radius-sm); font-size: 12px; font-family: var(--font);
+      padding: 5px 8px; outline: none; cursor: pointer;
+    }
+    .bcc-select:focus { border-color: var(--border-focus); }
     /* "Editing Dashboard" label — visible but non-clickable. */
     .btn-topbar.editing { opacity: 1; background: var(--accent-light); border-color: var(--accent); color: var(--accent); cursor: default; }
     .btn-topbar.editing:hover { background: var(--accent-light); }
@@ -523,6 +543,24 @@
       border: none !important; box-shadow: none !important; background: transparent !important;
     }
     .icon-node .bookmark-card { width: 100%; height: 100%; box-sizing: border-box; margin: 0; }
+    /* While resizing, the icon grid becomes a fixed-cell CSS grid so icons keep
+       their size and wrap into place (no stretch); restored to gridstack on release. */
+    .icon-grid.gs-reflow { display: grid !important; gap: 6px; height: auto !important; align-content: start; justify-content: center; grid-template-columns: repeat(auto-fill, 96px); grid-auto-rows: 112px; }
+    .icon-grid.gs-reflow > .grid-stack-item,
+    .icon-grid.gs-reflow > .grid-stack-item > .grid-stack-item-content {
+      position: static !important; transform: none !important; inset: auto !important;
+      left: auto !important; top: auto !important; width: auto !important; height: auto !important; min-height: 0 !important;
+    }
+    .icon-grid.gs-reflow > .grid-stack-placeholder { display: none !important; }
+    .icon-grid.gs-reflow .bookmark-card { width: 100% !important; height: 100% !important; }
+    .folder-section[data-iconsize="small"]  .icon-grid.gs-reflow { grid-template-columns: repeat(auto-fill, 64px);  grid-auto-rows: 66px; }
+    .folder-section[data-iconsize="large"]  .icon-grid.gs-reflow { grid-template-columns: repeat(auto-fill, 128px); grid-auto-rows: 146px; }
+    /* The pinned (fixed-width) icon grid is centered so leftover section width is
+       balanced instead of all on the right. */
+    .folder-section .icon-grid { margin: 0 auto; }
+    /* Icons move instantly (no transition), so releasing a resize doesn't make
+       them animate back from their old positions; and they never look faded. */
+    .icon-grid .grid-stack-item, .icon-grid .grid-stack-item > .grid-stack-item-content { transition: none !important; animation: none !important; opacity: 1 !important; }
     /* Icons are a fixed size (set by S/M/L) — never show a resize handle on them. */
     .icon-grid .ui-resizable-handle { display: none !important; }
     body.rearrange-mode .icon-grid .grid-stack-item { cursor: grab; }
@@ -543,7 +581,7 @@
     .folder-section[data-iconsize="small"] .bm-favicon { width: 24px; height: 24px; }
     .folder-section[data-iconsize="small"] .bm-emoji-fallback { font-size: 20px; }
     .folder-section[data-iconsize="small"] .bm-title { display: none; }
-    .folder-section[data-iconsize="small"] .bookmark-card { padding: 8px 4px; }
+    .folder-section[data-iconsize="small"] .bookmark-card { padding: 8px 4px; justify-content: center; }
 
     /* Medium — default icon size, single-line label. */
     .folder-section[data-iconsize="medium"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px; }
@@ -619,8 +657,8 @@
       transition: background .2s;
     }
     .host-status-corner.loading { opacity: .5; }
-    .host-status-corner.up   { --wedge: #22c55e; }
-    .host-status-corner.down { --wedge: #ef4444; }
+    .host-status-corner.up   { --wedge: #22c55e; }   /* online = green */
+    .host-status-corner.down { --wedge: #3b82f6; }   /* offline = blue */
     /* Text-above or Small → move the wedge to the bottom-left corner. */
     .folder-section[data-textpos="above"] .host-status-corner,
     .folder-section[data-iconsize="small"] .host-status-corner {
@@ -631,7 +669,8 @@
     /* Per-section label placement. Small icons are always icon-only (rule above). */
     .bm-title { transition: opacity 0.15s; }
     .folder-section[data-textpos="none"] .bm-title { display: none; }
-    .folder-section[data-textpos="none"] .bookmark-card { padding-bottom: 16px; }
+    /* No label → center the icon vertically in the card (no empty space below). */
+    .folder-section[data-textpos="none"] .bookmark-card { justify-content: center; padding: 12px 10px; }
     .folder-section[data-textpos="above"] .bookmark-card { flex-direction: column-reverse; }
 
     /* Edit Mode: subtle grid overlay behind the sections to show snap targets.
@@ -1255,6 +1294,13 @@
   <button class="rt-btn rt-cancel" id="rt-cancel" data-tip="Cancel — discard your changes and exit editing.">✕</button>
   <button class="rt-btn rt-save" id="rt-save" data-tip="Save — keep your layout changes and exit editing.">✓</button>
   <div class="rt-tip" id="rt-tip"></div>
+</div>
+
+<!-- Resolution palette — top-right of the grid in edit mode; sets the canvas width. -->
+<div class="board-canvas-ctl" id="board-canvas-ctl" title="Canvas width — the resolution the dashboard is laid out for. Wider canvases design for bigger screens; smaller screens scroll here in edit mode and scale to fit when viewing.">
+  <span class="bcc-grip" id="board-canvas-grip" title="Drag to move" aria-label="Drag to move">⠿</span>
+  <span class="bcc-label">Canvas</span>
+  <select class="bcc-select" id="board-canvas-select" aria-label="Canvas width"></select>
 </div>
 
 <!-- ── Add-widgets modal ─────────────────────────────────────────────────────── -->
