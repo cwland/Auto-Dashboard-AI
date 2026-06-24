@@ -457,43 +457,28 @@
       this._buildTools();
     }
 
-    // Rearrange-mode config controls: # streams (maxVisible) and transition
-    // speed (dwell seconds between rotations). Hidden in normal view via CSS.
+    // Config-window controls: scroll toggle, # streams (maxVisible) and rotation
+    // speed (dwell seconds). Rendered with the shared slider/toggle rows so they
+    // match every other widget's config UI. Hidden in normal view via CSS.
     _buildTools() {
       const tools = this.el.querySelector('.tw-tools');
       if (!tools) return;
-      // Compact value + stacked ▲/▼ spinner.
-      const stepper = (label, get, set, min, max, fmtVal) => {
-        const grp = document.createElement('div'); grp.className = 'tw-toolgrp';
-        const lab = document.createElement('span'); lab.className = 'tw-tlabel'; lab.textContent = label;
-        const cnt = document.createElement('span'); cnt.className = 'tw-tcount';
-        const spin = document.createElement('span'); spin.className = 'tw-spin';
-        const inc = document.createElement('button'); inc.className = 'tw-step'; inc.type = 'button'; inc.textContent = '▲'; inc.title = 'Increase ' + label;
-        const dec = document.createElement('button'); dec.className = 'tw-step'; dec.type = 'button'; dec.textContent = '▼'; dec.title = 'Decrease ' + label;
-        const draw = () => { cnt.textContent = fmtVal(get()); };
-        dec.addEventListener('click', () => { set(Math.max(min, get() - 1)); draw(); });
-        inc.addEventListener('click', () => { set(Math.min(max, get() + 1)); draw(); });
-        spin.append(inc, dec); grp.append(lab, cnt, spin); tools.appendChild(grp); draw();
-      };
-      // Carousel enable/disable toggle.
-      const tgrp = document.createElement('div'); tgrp.className = 'tw-toolgrp';
-      const tbtn = document.createElement('button'); tbtn.type = 'button'; tbtn.className = 'tw-toggle';
-      const drawTog = () => { tbtn.textContent = 'Scroll ' + (this.cfg.carousel === false ? 'Off' : 'On'); };
-      tbtn.addEventListener('click', () => {
-        this.cfg.carousel = (this.cfg.carousel === false);
-        this.setConfig({ carousel: this.cfg.carousel });
-        if (this.onConfigChange) this.onConfigChange({ carousel: this.cfg.carousel });
-        drawTog();
-      });
-      tgrp.appendChild(tbtn); tools.appendChild(tgrp); drawTog();
-      stepper('Streams',
-        () => this.cfg.maxVisible,
-        (v) => { this.setConfig({ maxVisible: v }); if (this.onConfigChange) this.onConfigChange({ maxVisible: v }); },
-        1, 6, (v) => String(v));
-      stepper('Speed',
-        () => Math.round(this.cfg.dwellMs / 1000),
-        (v) => { const ms = v * 1000; this.setConfig({ dwellMs: ms }); if (this.onConfigChange) this.onConfigChange({ dwellMs: ms }); },
-        2, 12, (v) => v + 's');
+      if (typeof ListCarousel === 'undefined' || !ListCarousel.sliderRow) return;
+      tools.innerHTML = '';
+      const change = (patch) => { this.setConfig(patch); if (this.onConfigChange) this.onConfigChange(patch); };
+      // Auto-scroll on/off.
+      tools.appendChild(ListCarousel.toggleRow('Auto-scroll',
+        () => this.cfg.carousel !== false,
+        (on) => { this.cfg.carousel = on; change({ carousel: on }); }));
+      // Number of streams shown at once.
+      tools.appendChild(ListCarousel.sliderRow('Streams',
+        () => this.cfg.maxVisible, 1, 6, 1,
+        (v) => change({ maxVisible: v })));
+      // Seconds between slide rotations.
+      tools.appendChild(ListCarousel.sliderRow('Speed',
+        () => Math.round(this.cfg.dwellMs / 1000), 2, 12, 1,
+        (v) => change({ dwellMs: v * 1000 }),
+        (v) => v + 's'));
     }
 
     _createCard(s) {

@@ -864,6 +864,41 @@ document.addEventListener('lc-relayout', (e) => {
   if (item) requestAnimationFrame(() => fitWidgetToContent(item));
 });
 
+// ─── Smooth edge auto-scroll while dragging in Edit Mode ──────────────────────
+// GridStack's native drag-scroll (disabled via draggable.scroll:false) only
+// scrolled downward and lurched. This scrolls the dashboard area BOTH ways at a
+// gentle, pointer-proximity-based speed for fine control near either edge.
+let _edgeScrollRAF = null;
+let _edgeScrollY = 0;
+const EDGE_SCROLL_ZONE = 80;   // px proximity band at the top/bottom edges
+const EDGE_SCROLL_MAX = 6;     // px per frame at the very edge (slow & smooth)
+function _edgeScrollTrack(e) { if (e && e.clientY != null) _edgeScrollY = e.clientY; }
+function startEdgeScroll() {
+  stopEdgeScroll();
+  if (!dashboardArea) return;
+  const r0 = dashboardArea.getBoundingClientRect();
+  _edgeScrollY = (r0.top + r0.bottom) / 2;   // start centered → no scroll until the cursor moves
+  document.addEventListener('pointermove', _edgeScrollTrack, true);
+  document.addEventListener('mousemove', _edgeScrollTrack, true);
+  const tick = () => {
+    if (!dashboardArea) { _edgeScrollRAF = null; return; }
+    const r = dashboardArea.getBoundingClientRect();
+    const topDist = _edgeScrollY - r.top;      // distance past the top edge
+    const botDist = r.bottom - _edgeScrollY;   // distance past the bottom edge
+    let dy = 0;
+    if (topDist < EDGE_SCROLL_ZONE) dy = -EDGE_SCROLL_MAX * Math.min(1, (EDGE_SCROLL_ZONE - Math.max(0, topDist)) / EDGE_SCROLL_ZONE);
+    else if (botDist < EDGE_SCROLL_ZONE) dy = EDGE_SCROLL_MAX * Math.min(1, (EDGE_SCROLL_ZONE - Math.max(0, botDist)) / EDGE_SCROLL_ZONE);
+    if (dy) dashboardArea.scrollTop += dy;
+    _edgeScrollRAF = requestAnimationFrame(tick);
+  };
+  _edgeScrollRAF = requestAnimationFrame(tick);
+}
+function stopEdgeScroll() {
+  if (_edgeScrollRAF) { cancelAnimationFrame(_edgeScrollRAF); _edgeScrollRAF = null; }
+  document.removeEventListener('pointermove', _edgeScrollTrack, true);
+  document.removeEventListener('mousemove', _edgeScrollTrack, true);
+}
+
 // After the grid is built, auto-size every widget grouping to its content and
 // keep watching for late/async content changes.
 function setupWidgetAutoFit() {
@@ -1401,7 +1436,10 @@ function renderDashboardGrid(dash, folderNames, groups) {
     // propagation, and a scrollable list (ListCarousel) swallows its own drag, so
     // those interactive areas don't fight the widget move.
     handle: '.folder-header, .widget-section',
-    draggable: { handle: '.folder-header, .widget-section' },
+    // scroll:false — GridStack's built-in drag-scroll only worked one direction
+    // and lurched with our scroll container. We run our own smooth edge-scroll
+    // (startEdgeScroll) on dragstart instead.
+    draggable: { handle: '.folder-header, .widget-section', scroll: false },
     resizable: { handles: 'e, se, s' }, // right, corner, and bottom (height-only) handles
     alwaysShowResizeHandle: true,     // visible whenever resize is enabled (Edit Mode)
     // Keep the fixed multi-column grid at all window sizes. Without this,
@@ -1442,8 +1480,8 @@ function renderDashboardGrid(dash, folderNames, groups) {
     enforceSectionMin(el);
     requestAnimationFrame(() => { fitSectionToContent(el); syncGridAttrs(); });
   });
-  gridInstance.on('dragstart', () => { gridInteracting = true; });
-  gridInstance.on('dragstop', () => { gridInteracting = false; });
+  gridInstance.on('dragstart', () => { gridInteracting = true; startEdgeScroll(); });
+  gridInstance.on('dragstop', () => { gridInteracting = false; stopEdgeScroll(); });
 
   applyAllIconSizes();       // reflect each section's stored icon size (icon visuals)
   // Build the nested icon GridStacks once the outer grid has laid out (so each
@@ -2552,7 +2590,7 @@ function attachWidgetToolsBubble(content, sec, wdef) {
   // Collect the widget's live, already-wired control bars and stash them in a
   // hidden store. A single "Configure" button (straddling the top border, edit
   // mode only) moves them into a draggable config window on demand.
-  const tools = [...sec.querySelectorAll('.lc-tools, .pc-tools, .ww-tools, .cd-tools')].filter((t) => t.children.length);
+  const tools = [...sec.querySelectorAll('.lc-tools, .pc-tools, .ww-tools, .cd-tools, .tw-tools')].filter((t) => t.children.length);
   if (!tools.length) return;
   const store = document.createElement('div');
   store.className = 'widget-config-store';
@@ -2855,6 +2893,15 @@ function buildWidgetSection(wdef) {
         applyCarouselOpts(wdef, opts);
         // Per-widget display-unit visibility (Countdown List).
         if (wdef.config && wdef.config.units) opts.units = wdef.config.units;
+        opts.onConfigChange = (patch) => {
+          wdef.config = Object.assign({}, wdef.config, patch);
+          chromeSet({ dashboards: state.dashboards });
+        };
+      } else if (wdef.intId === 'seerr' || wdef.intId === 'sonarr' || wdef.intId === 'radarr') {
+        // Carousel scroll settings + a view switch (Requests/Stats or
+        // Upcoming/Calendar), persisted per widget.
+        applyCarouselOpts(wdef, opts);
+        if (wdef.config && wdef.config.view) opts.view = wdef.config.view;
         opts.onConfigChange = (patch) => {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });

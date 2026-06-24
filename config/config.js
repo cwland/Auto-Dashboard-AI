@@ -8270,23 +8270,33 @@ function closeSampleModal() {
 // gains this automatically.
 const INT_DEFAULT_WID = { weather: 'weather-combined' };
 function intDefaultWid(e) { return INT_DEFAULT_WID[e.id] || e.id; }
-function intDefaultWidgetName(e) { return e.id === 'weather' ? 'Weather (Combined)' : e.name; }
 function intSupportsWidgets(e) { return !!intDefaultWid(e); }
 
-const a2dState = { intId: null, wid: null, endpointId: null, endpointName: null, sel: new Set() };
+const a2dState = { intId: null, endpointId: null, endpointName: null, widList: [], widSel: new Set(), sel: new Set() };
+
+// Every addable widget for an integration: its base widget plus any variants
+// (e.g. Tautulli → Activity + Streams + Recently Added + …).
+function intWidgets(intId) {
+  return WIZ_WIDGETS.filter((w) => wizBaseInt(w.intId) === intId);
+}
 
 async function openAddToDashModal(intId) {
   const e = intEntry(intId);
   if (!e) return;
   a2dState.intId = intId;
-  a2dState.wid = intDefaultWid(e);
   a2dState.endpointId = null;
   a2dState.endpointName = null;
-  // Multi-endpoint services quick-add the FIRST endpoint's widget.
+  // Multi-endpoint services quick-add the FIRST endpoint's widget(s).
   if (window.Endpoints && Endpoints.isMulti(intId)) {
     const eps = Endpoints.list(state.currentSettings, intId);
     if (eps[0]) { a2dState.endpointId = eps[0].id; a2dState.endpointName = eps[0].name; }
   }
+
+  // Widget choices; pre-select the integration's default widget.
+  a2dState.widList = intWidgets(intId);
+  a2dState.widSel = new Set();
+  const defEntry = a2dState.widList.find((w) => w.wid === intDefaultWid(e)) || a2dState.widList[0];
+  if (defEntry) a2dState.widSel.add(defEntry.wid);
   a2dState.sel = new Set();
 
   // Always work from the freshest dashboards in storage.
@@ -8294,9 +8304,13 @@ async function openAddToDashModal(intId) {
   state.dashboards = stored.dashboards || [];
 
   document.getElementById('a2d-title').textContent = `Add ${e.name} to dashboard`;
-  const widName = intDefaultWidgetName(e) + (a2dState.endpointName ? ` — ${a2dState.endpointName}` : '');
   const sub = document.getElementById('a2d-sub');
-  if (sub) sub.textContent = `Choose which dashboards get the “${widName}” widget.`;
+  if (sub) {
+    sub.textContent = a2dState.widList.length > 1
+      ? `Pick which ${e.name} widgets to add, then choose the dashboards.`
+      : `Choose which dashboards get the “${defEntry ? defEntry.name : e.name}” widget.`;
+  }
+  renderA2dWidgets();
   renderA2dList();
   document.getElementById('add-to-dash-modal').classList.add('visible');
 }
@@ -8305,10 +8319,44 @@ function closeAddToDashModal() {
   document.getElementById('add-to-dash-modal')?.classList.remove('visible');
 }
 
-// Does this dashboard already hold the widget we're about to add?
-function a2dHasWidget(dash) {
-  return Array.isArray(dash.widgets) && dash.widgets.some((w) =>
-    w.wid === a2dState.wid && (w.endpointId || null) === (a2dState.endpointId || null) && !w.sample);
+// Widget chooser — shown only when the integration exposes more than one widget.
+function renderA2dWidgets() {
+  const box = document.getElementById('a2d-widgets');
+  const label = document.getElementById('a2d-dashlabel');
+  const list = document.getElementById('a2d-wlist');
+  const modalBox = document.querySelector('#add-to-dash-modal .modal-box');
+  if (!box || !list) return;
+  if (a2dState.widList.length <= 1) {
+    // Single widget → one column, narrow modal (original look).
+    box.style.display = 'none';
+    if (label) label.style.display = 'none';
+    if (modalBox) modalBox.classList.remove('is-twocol');
+    return;
+  }
+  // Multiple widgets → widgets and dashboards side by side in a wider modal.
+  box.style.display = '';
+  if (label) label.style.display = '';
+  if (modalBox) modalBox.classList.add('is-twocol');
+  list.innerHTML = '';
+  a2dState.widList.forEach((w) => {
+    const row = document.createElement('label');
+    row.className = 'a2d-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = a2dState.widSel.has(w.wid);
+    cb.addEventListener('change', () => {
+      if (cb.checked) a2dState.widSel.add(w.wid); else a2dState.widSel.delete(w.wid);
+      a2dUpdateAdd();
+    });
+    const main = document.createElement('div');
+    main.className = 'a2d-main';
+    const nm = document.createElement('div');
+    nm.className = 'a2d-name';
+    nm.textContent = w.name;
+    main.appendChild(nm);
+    row.append(cb, main);
+    list.appendChild(row);
+  });
 }
 
 function renderA2dList() {
@@ -8321,12 +8369,10 @@ function renderA2dList() {
     return;
   }
   state.dashboards.forEach((dash) => {
-    const exists = a2dHasWidget(dash);
     const row = document.createElement('label');
-    row.className = 'a2d-row' + (exists ? ' is-added' : '');
+    row.className = 'a2d-row';
     const cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.disabled = exists;
     cb.checked = a2dState.sel.has(dash.id);
     cb.addEventListener('change', () => {
       if (cb.checked) a2dState.sel.add(dash.id); else a2dState.sel.delete(dash.id);
@@ -8345,52 +8391,60 @@ function renderA2dList() {
       main.appendChild(d);
     }
     row.append(cb, main);
-    if (exists) {
-      const tag = document.createElement('span');
-      tag.className = 'a2d-added-tag';
-      tag.textContent = 'Already added';
-      tag.title = 'Already added to this dashboard';
-      row.appendChild(tag);
-    }
     list.appendChild(row);
   });
   a2dUpdateAdd();
 }
 
 function a2dUpdateAdd() {
-  const n = a2dState.sel.size;
+  const nd = a2dState.sel.size;
+  const nw = a2dState.widSel.size;
   const btn = document.getElementById('a2d-add');
   const note = document.getElementById('a2d-note');
-  if (btn) { btn.disabled = n === 0; btn.textContent = n > 1 ? `Add to ${n} dashboards` : 'Add to dashboard'; }
-  if (note) note.textContent = n ? `${n} selected` : 'Select one or more dashboards';
+  if (btn) {
+    btn.disabled = nd === 0 || nw === 0;
+    const wlabel = nw > 1 ? `${nw} widgets` : 'widget';
+    btn.textContent = nd > 1 ? `Add ${wlabel} to ${nd} dashboards` : `Add ${wlabel} to dashboard`;
+  }
+  if (note) {
+    if (!nw) note.textContent = 'Select at least one widget';
+    else if (!nd) note.textContent = 'Select one or more dashboards';
+    else note.textContent = `${nd} dashboard${nd === 1 ? '' : 's'} selected`;
+  }
 }
 
 async function confirmAddToDash() {
   const e = intEntry(a2dState.intId);
-  if (!e || !a2dState.sel.size) return;
-  const widName = intDefaultWidgetName(e);
-  let count = 0;
+  if (!e || !a2dState.sel.size || !a2dState.widSel.size) return;
+  const chosen = a2dState.widList.filter((w) => a2dState.widSel.has(w.wid));
+  let placed = 0, dashCount = 0;
   a2dState.sel.forEach((dashId) => {
     const dash = state.dashboards.find((d) => d.id === dashId);
-    if (!dash || a2dHasWidget(dash)) return;     // skip duplicates defensively
+    if (!dash) return;
     if (!Array.isArray(dash.widgets)) dash.widgets = [];
-    const entry = {
-      uid: 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-      wid: a2dState.wid,
-      intId: a2dState.wid,
-      name: widName,
-    };
-    if (a2dState.endpointId) {
-      entry.endpointId = a2dState.endpointId;
-      entry.endpointName = a2dState.endpointName;
-      entry.name = `${widName} — ${a2dState.endpointName}`;
-    }
-    dash.widgets.push(entry);
-    count++;
+    let any = false;
+    chosen.forEach((w) => {
+      const entry = {
+        uid: 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        wid: w.wid,
+        intId: w.intId,
+        name: w.name,
+      };
+      // List-style widgets start compact with auto-scroll on (mirrors the wizard).
+      if (WIZ_LIST_DEFAULT_5.has(w.intId)) entry.config = { carousel: true, visibleCount: 5 };
+      if (a2dState.endpointId) {
+        entry.endpointId = a2dState.endpointId;
+        entry.endpointName = a2dState.endpointName;
+        entry.name = `${w.name} — ${a2dState.endpointName}`;
+      }
+      dash.widgets.push(entry);
+      placed++; any = true;
+    });
+    if (any) dashCount++;
   });
   await saveDashboards();
   closeAddToDashModal();
-  showToast(`Widget added to ${count} dashboard${count === 1 ? '' : 's'} ✓`);
+  showToast(`Added ${placed} widget${placed === 1 ? '' : 's'} to ${dashCount} dashboard${dashCount === 1 ? '' : 's'} ✓`);
 }
 
 function setupIntegrationsCatalog() {

@@ -195,8 +195,13 @@ async function syncDashboardsToBookmarks() {
     if (!bar) return;
     const map = await loadSyncMap();
 
-    // Managed root, always first in the bar.
-    map.rootId = await bmEnsureFolder(bar.id, SYNC_ROOT_TITLE, map.rootId, 0);
+    // Managed root, kept at the END of the bookmark bar.
+    map.rootId = await bmEnsureFolder(bar.id, SYNC_ROOT_TITLE, map.rootId, undefined);
+    try {
+      const barKids = await chrome.bookmarks.getChildren(bar.id);
+      // index === children count → Chrome clamps to the last position.
+      await chrome.bookmarks.move(map.rootId, { parentId: bar.id, index: barKids.length });
+    } catch (_) {}
     map.dashes = map.dashes || {};
 
     const dashes = Array.isArray(dashboards) ? dashboards : [];

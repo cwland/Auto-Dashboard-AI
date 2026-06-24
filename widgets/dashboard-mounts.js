@@ -35,10 +35,10 @@
     return o;
   }
 
-  function arr(host, s, svc) {
+  function arr(host, s, svc, opts) {
     const cfg = {
       service: svc, baseUrl: s[svc + 'Url'], apiKey: s[svc + 'ApiKey'],
-      view: s[svc + 'View'] || 'upcoming', upcomingCount: N(s[svc + 'Count'], 8),
+      view: (opts && opts.view) || s[svc + 'View'] || 'upcoming', upcomingCount: N(s[svc + 'Count'], 8),
       showUnmonitored: s[svc + 'Unmonitored'] !== false,
     };
     if (svc === 'radarr') {
@@ -48,7 +48,7 @@
       if (s.radarrRtPhysical) t.push('physicalRelease');
       cfg.releaseTypes = t.length ? t : ['inCinemas', 'digitalRelease', 'physicalRelease'];
     }
-    return new ArrCalendarWidget(host, withPoll(s, svc, cfg));
+    return new ArrCalendarWidget(host, withPoll(s, svc, Object.assign(cfg, carouselOpts(opts))));
   }
   function mediaServer(host, s, svc) {
     return new MediaServerWidget(host, withPoll(s, svc, { service: svc, baseUrl: s[svc + 'Url'], apiKey: s[svc + 'ApiKey'] }));
@@ -121,12 +121,13 @@
       showDownCount: !!s.uptimeKumaShowDown, showPausedCount: !!s.uptimeKumaShowPaused,
       showMonitorList: !!s.uptimeKumaShowList,
     }),
-    sonarr: (h, s) => arr(h, s, 'sonarr'),
-    radarr: (h, s) => arr(h, s, 'radarr'),
-    seerr: (h, s) => new SeerrWidget(h, withPoll(s, 'seerr', {
-      baseUrl: s.seerrUrl, apiKey: s.seerrApiKey, view: s.seerrView || 'requests',
+    sonarr: (h, s, opts) => arr(h, s, 'sonarr', opts),
+    radarr: (h, s, opts) => arr(h, s, 'radarr', opts),
+    seerr: (h, s, opts) => new SeerrWidget(h, withPoll(s, 'seerr', Object.assign({
+      baseUrl: s.seerrUrl, apiKey: s.seerrApiKey,
+      view: (opts && opts.view) || s.seerrView || 'requests',
       requestCount: N(s.seerrCount, 8), showUsers: s.seerrShowUsers !== false,
-    })),
+    }, carouselOpts(opts)))),
     pihole: (h, s) => new DnsHoleWidget(h, withPoll(s, 'pihole', { service: 'pihole', baseUrl: s.piholeUrl, apiKey: s.piholeApiKey })),
     adguard: (h, s) => new DnsHoleWidget(h, withPoll(s, 'adguard', { service: 'adguard', baseUrl: s.adguardUrl, username: s.adguardUsername, password: s.adguardPassword })),
     plex: (h, s) => new PlexWidget(h, withPoll(s, 'plex', { baseUrl: s.plexUrl, token: s.plexToken })),

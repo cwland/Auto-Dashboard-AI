@@ -17,10 +17,24 @@
   flex-direction: column;
   gap: 12px;
   width: 100%;
+  height: 100%;
+  min-height: 0;
   font-family: var(--font, system-ui, sans-serif);
   color: var(--text-primary);
 }
 .arr-calendar-widget.arr-radarr { --arr-accent: var(--arr-yellow); }
+
+/* Scrolling upcoming list (ListCarousel) + calendar container.
+   The body fills the widget and scrolls; the viewport is sized by ListCarousel
+   to exactly `visibleCount` rows (so it must NOT flex-grow over that height). */
+.arr-calendar-widget .arr-body { flex: 1; min-height: 0; overflow: auto; }
+.arr-calendar-widget .arr-viewport {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 10px);
+  background: var(--bg-secondary);
+}
+.arr-calendar-widget .arr-track { display: flex; flex-direction: column; will-change: transform; }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .arr-calendar-widget .arr-header {

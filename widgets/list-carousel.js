@@ -131,10 +131,14 @@
 
     const overflowing = n > this.visibleCount;
 
-    // Carousel ON + everything fits — no window, no scroll mechanism needed.
+    // Carousel ON + everything fits — no scroll needed, but still RESERVE space
+    // for the full `visibleCount` rows. This keeps the widget a stable size: it
+    // won't auto-shrink below the configured row count when fewer items are
+    // present (e.g. a Tautulli streams list with only 1 of 2 streams playing).
     if (!overflowing) {
-      this.viewport.style.height = '';
-      this.viewport.style.overflow = '';
+      const vis = this.visibleCount;
+      this.viewport.style.height = (vis * firstH + gap * (vis - 1)) + 'px';
+      this.viewport.style.overflow = 'hidden';
       this.viewport.style.cursor = '';
       this.viewport.style.touchAction = '';
       this.track.style.transform = '';

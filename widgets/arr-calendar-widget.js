@@ -196,11 +196,13 @@
           apiKey: '',
           pollMs: 300000,
           view: 'upcoming',          // 'upcoming' | 'calendar'
-          showViewToggle: true,
           upcomingCount: 8,
           lookaheadDays: 90,
           showUnmonitored: true,
           releaseTypes: RADARR_RELEASE_TYPES.slice(), // radarr only
+          // Shared ListCarousel scroll settings (same as the Seerr/list widgets).
+          carousel: true, visibleCount: 5, speed: 18, mode: 'continuous', pauseMs: 2000,
+          onConfigChange: null,
           dataProvider: null,        // optional offline override: (range, service, opts) => Promise<events>
         },
         config || {}
@@ -213,8 +215,10 @@
       this.pollTimer = null;
       this.abort = null;
       this.destroyed = false;
+      this.carousel = null;
 
       this._buildSkeleton();
+      this._initCarousel();
     }
 
     // ── lifecycle ──────────────────────────────────────────────────────────
@@ -232,6 +236,7 @@
     setConfig(patch) {
       Object.assign(this.cfg, patch || {});
       if (patch && patch.view) this.view = patch.view === 'calendar' ? 'calendar' : 'upcoming';
+      if (this.carousel && patch) this.carousel.update(patch);   // live scroll changes
       // A config change may alter the fetch range or mapping → refresh.
       if (this.pollTimer || this.cfg.dataProvider) this.poll();
       else this._render();
@@ -240,6 +245,7 @@
     destroy() {
       this.destroyed = true;
       this.stop();
+      if (this.carousel) { try { this.carousel.destroy(); } catch (_) {} this.carousel = null; }
       this.el.innerHTML = '';
     }
 
@@ -247,6 +253,8 @@
     setView(view) {
       this.view = view === 'calendar' ? 'calendar' : 'upcoming';
       this.selectedDay = null;
+      this.cfg.view = this.view;
+      if (this.cfg.onConfigChange) this.cfg.onConfigChange({ view: this.view });
       this.poll();
     }
 
@@ -296,33 +304,52 @@
           <div class="arr-title"></div>
           <div class="arr-tools">
             <div class="arr-error" style="display:none"></div>
-            <div class="arr-view-toggle" role="tablist">
-              <button class="arr-tab" data-view="upcoming" type="button">Upcoming</button>
-              <button class="arr-tab" data-view="calendar" type="button">Calendar</button>
-            </div>
+            <div class="lc-tools"></div>
           </div>
         </div>
-        <div class="arr-body"></div>`;
+        <div class="arr-body">
+          <div class="arr-empty" style="display:none"></div>
+          <div class="arr-viewport"><div class="arr-track"></div></div>
+          <div class="arr-cal-wrap" style="display:none"></div>
+        </div>`;
       this.titleEl = this.el.querySelector('.arr-title');
       this.errorEl = this.el.querySelector('.arr-error');
-      this.toggleEl = this.el.querySelector('.arr-view-toggle');
+      this.lcToolsEl = this.el.querySelector('.lc-tools');
       this.body = this.el.querySelector('.arr-body');
+      this.emptyEl = this.el.querySelector('.arr-empty');
+      this.viewport = this.el.querySelector('.arr-viewport');
+      this.track = this.el.querySelector('.arr-track');
+      this.calWrap = this.el.querySelector('.arr-cal-wrap');
 
       this.titleEl.textContent = this.cfg.service === 'radarr' ? 'Radarr — Movies' : 'Sonarr — Episodes';
-      this.toggleEl.style.display = this.cfg.showViewToggle ? '' : 'none';
-      this.toggleEl.querySelectorAll('.arr-tab').forEach((btn) => {
-        btn.addEventListener('click', () => this.setView(btn.dataset.view));
-      });
     }
 
-    _syncTabs() {
-      this.toggleEl.querySelectorAll('.arr-tab').forEach((btn) => {
-        btn.classList.toggle('arr-tab-active', btn.dataset.view === this.view);
+    // Wire the ListCarousel scroll behaviour and build the config-window controls
+    // (an Upcoming/Calendar switch above the shared scroll sliders).
+    _initCarousel() {
+      if (typeof ListCarousel === 'undefined' || !this.viewport || !this.track) return;
+      this.carousel = new ListCarousel({
+        root: this.el, viewport: this.viewport, track: this.track,
+        enabled: this.cfg.carousel !== false && this.view === 'upcoming',
+        visibleCount: this.cfg.visibleCount, speed: this.cfg.speed,
+        mode: this.cfg.mode, pauseMs: this.cfg.pauseMs,
       });
+      if (this.lcToolsEl && ListCarousel.buildControls) {
+        ListCarousel.buildControls(this.lcToolsEl, this.cfg, (patch) => {
+          if (this.carousel) this.carousel.update(patch);
+          if (this.cfg.onConfigChange) this.cfg.onConfigChange(patch);
+        });
+        if (ListCarousel.segmentRow) {
+          const viewRow = ListCarousel.segmentRow('View',
+            () => this.view,
+            [['upcoming', 'Upcoming'], ['calendar', 'Calendar']],
+            (v) => this.setView(v));
+          this.lcToolsEl.insertBefore(viewRow, this.lcToolsEl.firstChild);
+        }
+      }
     }
 
     _render() {
-      this._syncTabs();
       if (this.view === 'calendar') this._renderCalendar();
       else this._renderUpcoming();
     }
@@ -350,19 +377,34 @@
     }
 
     _renderUpcoming() {
+      this.calWrap.style.display = 'none';
+      this.calWrap.innerHTML = '';
+      if (this.carousel) this.carousel.update({ enabled: this.cfg.carousel !== false });
       const today = D.startOfDay(new Date());
+      // Render the full upcoming list (capped) into the carousel; the "Show"
+      // slider controls how many are visible at once.
       const upcoming = this.events
         .filter((e) => e.startDate >= today)
-        .slice(0, Math.max(1, parseInt(this.cfg.upcomingCount, 10) || 8));
+        .slice(0, 40);
 
       if (!upcoming.length) {
-        this.body.innerHTML = `<div class="arr-empty">No upcoming releases in the next ${this.cfg.lookaheadDays} days.</div>`;
+        this.emptyEl.style.display = '';
+        this.emptyEl.textContent = `No upcoming releases in the next ${this.cfg.lookaheadDays} days.`;
+        this.viewport.style.display = 'none';
+        this.track.innerHTML = '';
         return;
       }
-      this.body.innerHTML = `<div class="arr-list">${upcoming.map((e) => this._eventRowHtml(e)).join('')}</div>`;
+      this.emptyEl.style.display = 'none';
+      this.viewport.style.display = '';
+      this.track.innerHTML = upcoming.map((e) => this._eventRowHtml(e)).join('');
+      if (this.carousel) this.carousel.layout();
     }
 
     _renderCalendar() {
+      this.viewport.style.display = 'none';
+      if (this.carousel) this.carousel.update({ enabled: false });   // no scroll in calendar view
+      this.emptyEl.style.display = 'none';
+      this.calWrap.style.display = '';
       const month = this.month;
       const first = D.startOfMonth(month);
       const startWeekday = first.getDay(); // 0 = Sunday
@@ -409,7 +451,7 @@
             ? `<div class="arr-cal-hint">Click a highlighted day to see its releases.</div>`
             : `<div class="arr-cal-hint">No releases in ${escapeHtml(D.monthLabel(month))}.</div>`);
 
-      this.body.innerHTML = `
+      this.calWrap.innerHTML = `
         <div class="arr-cal">
           <div class="arr-cal-nav">
             <button type="button" class="arr-nav-btn" data-nav="prev" aria-label="Previous month">‹</button>
@@ -423,9 +465,9 @@
           ${detail}
         </div>`;
 
-      this.body.querySelector('[data-nav="prev"]').addEventListener('click', () => this.prevMonth());
-      this.body.querySelector('[data-nav="next"]').addEventListener('click', () => this.nextMonth());
-      this.body.querySelectorAll('.arr-cell.arr-has').forEach((cell) => {
+      this.calWrap.querySelector('[data-nav="prev"]').addEventListener('click', () => this.prevMonth());
+      this.calWrap.querySelector('[data-nav="next"]').addEventListener('click', () => this.nextMonth());
+      this.calWrap.querySelectorAll('.arr-cell.arr-has').forEach((cell) => {
         cell.addEventListener('click', () => {
           const day = parseInt(cell.dataset.day, 10);
           this.selectedDay = (this.selectedDay === day) ? null : day;

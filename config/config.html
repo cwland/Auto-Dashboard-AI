@@ -873,6 +873,10 @@
     .a2d-row.is-added:hover { border-color:var(--border); }
     .a2d-added-tag { flex-shrink:0; align-self:center; font-size:11px; font-weight:600; color:var(--success); background:var(--success-light); padding:2px 8px; border-radius:20px; }
     .a2d-empty { font-size:12.5px; color:var(--text-muted); padding:10px 2px; }
+    .a2d-cols { display:flex; gap:16px; align-items:flex-start; margin-top:12px; }
+    .a2d-col { flex:1; min-width:0; }
+    .a2d-collabel { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-muted); margin:0 0 6px; }
+    #add-to-dash-modal .modal-box.is-twocol { max-width:680px; }
 
     /* ── Integration modal: refresh-interval row ─────────────────────────── */
     .int-m-poll { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 20px; border-top:1px solid var(--border); background:var(--bg-card); }
@@ -3509,7 +3513,16 @@
       <div class="modal-header"><h3 id="a2d-title">Add to dashboard</h3><button class="modal-close-btn" id="a2d-close">✕</button></div>
       <div class="modal-body">
         <p class="a2d-sub" id="a2d-sub" style="font-size:12.5px;color:var(--text-muted);margin:0;"></p>
-        <div class="a2d-list" id="a2d-list"></div>
+        <div class="a2d-cols">
+          <div class="a2d-col" id="a2d-widgets" style="display:none;">
+            <div class="a2d-collabel">Widgets to add</div>
+            <div class="a2d-list" id="a2d-wlist"></div>
+          </div>
+          <div class="a2d-col">
+            <div class="a2d-collabel" id="a2d-dashlabel" style="display:none;">Dashboards</div>
+            <div class="a2d-list" id="a2d-list"></div>
+          </div>
+        </div>
       </div>
       <div class="modal-footer">
         <span class="a2d-note" id="a2d-note" style="margin-right:auto;font-size:12px;color:var(--text-muted);"></span>
@@ -3694,6 +3707,7 @@
 
   <!-- Seerr preview modal -->
   <div class="modal-overlay" id="seerr-preview-modal">
+    <style>#seerr-preview-modal .lc-tools{display:none !important;}</style>
     <div class="modal-box modal-wide">
       <div class="modal-header">
         <h3>🎞 Seerr Widget Preview</h3>
@@ -3713,6 +3727,7 @@
 
   <!-- Sonarr preview modal -->
   <div class="modal-overlay" id="sonarr-preview-modal">
+    <style>#sonarr-preview-modal .lc-tools{display:none !important;}</style>
     <div class="modal-box modal-wide">
       <div class="modal-header">
         <h3>📺 Sonarr Widget Preview</h3>
@@ -3732,6 +3747,7 @@
 
   <!-- Radarr preview modal -->
   <div class="modal-overlay" id="radarr-preview-modal">
+    <style>#radarr-preview-modal .lc-tools{display:none !important;}</style>
     <div class="modal-box modal-wide">
       <div class="modal-header">
         <h3>🎬 Radarr Widget Preview</h3>
@@ -3771,6 +3787,7 @@
 
   <!-- Tautulli preview modal -->
   <div class="modal-overlay" id="tautulli-preview-modal">
+    <style>#tautulli-preview-modal .tw-tools,#tautulli-preview-modal .lc-tools{display:none !important;}</style>
     <div class="modal-box modal-wide">
       <div class="modal-header">
         <h3>📺 Tautulli Widget Preview</h3>

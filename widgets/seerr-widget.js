@@ -210,8 +210,11 @@
       this.cfg = Object.assign(
         {
           baseUrl: '', apiKey: '', pollMs: 60000,
-          view: 'requests', showViewToggle: true,
+          view: 'requests',
           requestCount: 8, showUsers: true,
+          // Shared ListCarousel scroll settings (same as other list widgets).
+          carousel: true, visibleCount: 5, speed: 18, mode: 'continuous', pauseMs: 2000,
+          onConfigChange: null,
           dataProvider: null,
         },
         config || {}
@@ -221,7 +224,10 @@
       this.pollTimer = null;
       this.abort = null;
       this.destroyed = false;
+      this.carousel = null;
       this._buildSkeleton();
+      this._initCarousel();
+      this._render();
     }
 
     start() {
@@ -236,6 +242,7 @@
     setConfig(patch) {
       Object.assign(this.cfg, patch || {});
       if (patch && patch.view) this.view = patch.view === 'stats' ? 'stats' : 'requests';
+      if (this.carousel && patch) this.carousel.update(patch);   // live scroll changes
       if (patch && (patch.requestCount != null || patch.showUsers != null)) {
         if (this.pollTimer || this.cfg.dataProvider) this.poll();
         else this._render();
@@ -243,9 +250,19 @@
         this._render();
       }
     }
-    destroy() { this.destroyed = true; this.stop(); this.el.innerHTML = ''; }
+    destroy() {
+      this.destroyed = true;
+      this.stop();
+      if (this.carousel) { try { this.carousel.destroy(); } catch (_) {} this.carousel = null; }
+      this.el.innerHTML = '';
+    }
 
-    setView(view) { this.view = view === 'stats' ? 'stats' : 'requests'; this._render(); }
+    setView(view) {
+      this.view = view === 'stats' ? 'stats' : 'requests';
+      this.cfg.view = this.view;
+      this._render();
+      if (this.cfg.onConfigChange) this.cfg.onConfigChange({ view: this.view });
+    }
 
     _opts() { return { requestCount: this.cfg.requestCount, showUsers: this.cfg.showUsers }; }
 
@@ -279,39 +296,70 @@
           </div>
           <div class="seerr-tools">
             <div class="seerr-error" style="display:none"></div>
-            <div class="seerr-view-toggle" role="tablist">
-              <button class="seerr-tab" data-view="requests" type="button">Requests</button>
-              <button class="seerr-tab" data-view="stats" type="button">Stats</button>
-            </div>
+            <div class="lc-tools"></div>
           </div>
         </div>
-        <div class="seerr-body"></div>`;
+        <div class="seerr-body">
+          <div class="seerr-empty" style="display:none"></div>
+          <div class="seerr-viewport"><div class="seerr-track"></div></div>
+          <div class="seerr-stats-wrap" style="display:none"></div>
+        </div>`;
       this.errorEl = this.el.querySelector('.seerr-error');
-      this.toggleEl = this.el.querySelector('.seerr-view-toggle');
+      this.lcToolsEl = this.el.querySelector('.lc-tools');
       this.body = this.el.querySelector('.seerr-body');
-      this.toggleEl.style.display = this.cfg.showViewToggle ? '' : 'none';
-      this.toggleEl.querySelectorAll('.seerr-tab').forEach((btn) => {
-        btn.addEventListener('click', () => this.setView(btn.dataset.view));
-      });
+      this.emptyEl = this.el.querySelector('.seerr-empty');
+      this.viewport = this.el.querySelector('.seerr-viewport');
+      this.track = this.el.querySelector('.seerr-track');
+      this.statsWrap = this.el.querySelector('.seerr-stats-wrap');
     }
 
-    _syncTabs() {
-      this.toggleEl.querySelectorAll('.seerr-tab').forEach((btn) => {
-        btn.classList.toggle('seerr-tab-active', btn.dataset.view === this.view);
+    // Wire the ListCarousel scroll behaviour and build the config-window controls
+    // (a Requests/Stats switch above the shared scroll sliders).
+    _initCarousel() {
+      if (typeof ListCarousel === 'undefined' || !this.viewport || !this.track) return;
+      this.carousel = new ListCarousel({
+        root: this.el, viewport: this.viewport, track: this.track,
+        enabled: this.cfg.carousel !== false && this.view === 'requests',
+        visibleCount: this.cfg.visibleCount, speed: this.cfg.speed,
+        mode: this.cfg.mode, pauseMs: this.cfg.pauseMs,
       });
+      if (this.lcToolsEl && ListCarousel.buildControls) {
+        ListCarousel.buildControls(this.lcToolsEl, this.cfg, (patch) => {
+          if (this.carousel) this.carousel.update(patch);
+          if (this.cfg.onConfigChange) this.cfg.onConfigChange(patch);
+        });
+        if (ListCarousel.segmentRow) {
+          const viewRow = ListCarousel.segmentRow('View',
+            () => this.view,
+            [['requests', 'Requests'], ['stats', 'Stats']],
+            (v) => this.setView(v));
+          this.lcToolsEl.insertBefore(viewRow, this.lcToolsEl.firstChild);
+        }
+      }
     }
 
     _render() {
-      this._syncTabs();
-      if (!this.data) { this.body.innerHTML = `<div class="seerr-empty">Loading…</div>`; return; }
+      if (!this.data) {
+        this.emptyEl.style.display = '';
+        this.emptyEl.textContent = 'Loading…';
+        this.viewport.style.display = 'none';
+        this.statsWrap.style.display = 'none';
+        return;
+      }
       if (this.view === 'stats') this._renderStats();
       else this._renderRequests();
     }
 
     _renderRequests() {
+      this.statsWrap.style.display = 'none';
+      this.statsWrap.innerHTML = '';
+      if (this.carousel) this.carousel.update({ enabled: this.cfg.carousel !== false });
       const requests = (this.data.requests || []);
       if (!requests.length) {
-        this.body.innerHTML = `<div class="seerr-empty">No recent media requests.</div>`;
+        this.emptyEl.style.display = '';
+        this.emptyEl.textContent = 'No recent media requests.';
+        this.viewport.style.display = 'none';
+        this.track.innerHTML = '';
         return;
       }
       const rows = requests.map((r) => {
@@ -338,10 +386,16 @@
             ${who}
           </div>`;
       }).join('');
-      this.body.innerHTML = `<div class="seerr-list">${rows}</div>`;
+      this.emptyEl.style.display = 'none';
+      this.viewport.style.display = '';
+      this.track.innerHTML = rows;
+      if (this.carousel) this.carousel.layout();
     }
 
     _renderStats() {
+      this.viewport.style.display = 'none';
+      if (this.carousel) this.carousel.update({ enabled: false });   // no scroll in stats view
+      this.emptyEl.style.display = 'none';
       const stats = this.data.stats || {};
       const tiles = STAT_TILES.map((t) => `
         <div class="seerr-stat-tile seerr-stat-${t.key}">
@@ -367,7 +421,8 @@
           </div>`;
       }
 
-      this.body.innerHTML = `<div class="seerr-stats"><div class="seerr-stat-grid">${tiles}</div>${users}</div>`;
+      this.statsWrap.style.display = '';
+      this.statsWrap.innerHTML = `<div class="seerr-stats"><div class="seerr-stat-grid">${tiles}</div>${users}</div>`;
     }
 
     _showError(msg) {
