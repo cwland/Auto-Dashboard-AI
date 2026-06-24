@@ -1,5 +1,5 @@
 {
-  "version": "1.2.0",
-  "notes": "Proxmox dashboards (Health, System Logs, Backup Logs, Storage, VMs & LXCs, Overview), redesigned themes with full-palette swatches and editable custom themes, the renamed Widget Library, a new Privacy page, and dashboard-creation improvements (blank dashboards, optional bookmarks, auto-open).",
+  "version": "1.2.1",
+  "notes": "Per-widget config menus with scrolling for Seerr, Sonarr/Radarr and Tautulli (slider controls + view switches), a redesigned Light/Dark/Custom theme picker with an AI “Surprise me” option, a multi-select “add to dashboard” chooser, a rewritten How to Use guide, smoother drag edge-scrolling, steadier list-widget sizing, smaller icons with larger glyphs, and assorted UI polish.",
   "downloadUrl": "https://github.com/cwland/Auto-Dashboard-AI/releases"
 }
