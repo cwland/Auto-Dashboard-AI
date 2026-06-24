@@ -173,7 +173,7 @@
       position: absolute; z-index: 41; width: 280px; min-width: 240px; min-height: 150px;
       max-width: calc(100% - 16px); max-height: calc(100% - 16px);
       display: flex; flex-direction: column; resize: both; overflow: hidden;
-      background: var(--bg-secondary); border: 1px solid var(--border);
+      background: var(--bg-card); border: 1px solid var(--border);
       border-radius: var(--radius-lg, 12px); box-shadow: 0 18px 50px rgba(0,0,0,0.45);
     }
     .config-window .cw-head { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--border); background: var(--bg-card); flex: 0 0 auto; cursor: grab; touch-action: none; }
@@ -181,7 +181,7 @@
     .config-window .cw-title { flex: 1; font-size: 13px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .config-window .cw-close { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
     .config-window .cw-close:hover { color: #fff; background: var(--danger, #ef4444); border-color: var(--danger, #ef4444); }
-    .config-window .cw-body { padding: 14px; display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto; overflow-y: auto; }
+    .config-window .cw-body { padding: 14px; display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto; overflow-y: auto; background: var(--bg-card); }
     .config-window .cw-body .lc-tools,
     .config-window .cw-body .ww-tools,
     .config-window .cw-body .pc-tools,
@@ -377,7 +377,7 @@
        adjacent card; still straddles the top border vertically. */
     .widget-del { display: none; }
     body.rearrange-mode .grid-stack .widget-del {
-      position: absolute; top: 0; right: 0; transform: translate(0, -50%); z-index: 9;
+      position: absolute; top: 0; right: 0; transform: translate(50%, -50%); z-index: 9;
       display: inline-flex; align-items: center; justify-content: center;
       width: 20px; height: 20px; padding: 0; border-radius: 50%;
       border: 1px solid var(--border); background: var(--bg-secondary);
@@ -543,11 +543,11 @@
       align-content: start;
       justify-content: center;
       background-image: none !important;
-      grid-template-columns: repeat(auto-fill, 96px);
-      grid-auto-rows: 112px;
+      grid-template-columns: repeat(auto-fill, 72px);
+      grid-auto-rows: 84px;
     }
-    .folder-section[data-iconsize="small"] .icon-grid { grid-template-columns: repeat(auto-fill, 64px);  grid-auto-rows: 66px; }
-    .folder-section[data-iconsize="large"] .icon-grid { grid-template-columns: repeat(auto-fill, 128px); grid-auto-rows: 146px; }
+    .folder-section[data-iconsize="small"] .icon-grid { grid-template-columns: repeat(auto-fill, 48px);  grid-auto-rows: 50px; }
+    .folder-section[data-iconsize="large"] .icon-grid { grid-template-columns: repeat(auto-fill, 96px); grid-auto-rows: 110px; }
     .icon-node { box-sizing: border-box; min-width: 0; }
     .icon-node .bookmark-card { width: 100%; height: 100%; box-sizing: border-box; margin: 0; }
     /* Stop the browser's native image-drag from competing with Sortable. */
@@ -564,27 +564,27 @@
        The data-iconsize value is chosen per section in Edit Mode (S/M/L). */
 
     /* Small — icon only, no text. */
-    .folder-section[data-iconsize="small"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(48px, 1fr)); gap: 8px; }
-    .folder-section[data-iconsize="small"] .bm-icon-wrapper { width: 36px; height: 36px; }
-    .folder-section[data-iconsize="small"] .bm-favicon { width: 24px; height: 24px; }
-    .folder-section[data-iconsize="small"] .bm-emoji-fallback { font-size: 20px; }
+    .folder-section[data-iconsize="small"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(36px, 1fr)); gap: 8px; }
+    .folder-section[data-iconsize="small"] .bm-icon-wrapper { width: 27px; height: 27px; }
+    .folder-section[data-iconsize="small"] .bm-favicon { width: 21px; height: 21px; }
+    .folder-section[data-iconsize="small"] .bm-emoji-fallback { font-size: 17px; }
     .folder-section[data-iconsize="small"] .bm-title { display: none; }
-    .folder-section[data-iconsize="small"] .bookmark-card { padding: 8px 4px; justify-content: center; }
+    .folder-section[data-iconsize="small"] .bookmark-card { padding: 6px 3px; justify-content: center; }
 
     /* Medium — default icon size, single-line label. */
-    .folder-section[data-iconsize="medium"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px; }
-    .folder-section[data-iconsize="medium"] .bm-icon-wrapper { width: 48px; height: 48px; }
-    .folder-section[data-iconsize="medium"] .bm-favicon { width: 32px; height: 32px; }
-    .folder-section[data-iconsize="medium"] .bm-emoji-fallback { font-size: 24px; }
-    .folder-section[data-iconsize="medium"] .bm-title { font-size: 11px; }
+    .folder-section[data-iconsize="medium"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(69px, 1fr)); gap: 12px; }
+    .folder-section[data-iconsize="medium"] .bm-icon-wrapper { width: 36px; height: 36px; }
+    .folder-section[data-iconsize="medium"] .bm-favicon { width: 28px; height: 28px; }
+    .folder-section[data-iconsize="medium"] .bm-emoji-fallback { font-size: 21px; }
+    .folder-section[data-iconsize="medium"] .bm-title { font-size: 8px; }
 
     /* Large — bigger icons, label allowed to wrap to ~2 lines (show most text). */
-    .folder-section[data-iconsize="large"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 14px; }
-    .folder-section[data-iconsize="large"] .bm-icon-wrapper { width: 64px; height: 64px; }
-    .folder-section[data-iconsize="large"] .bm-favicon { width: 44px; height: 44px; }
-    .folder-section[data-iconsize="large"] .bm-emoji-fallback { font-size: 32px; }
+    .folder-section[data-iconsize="large"] .bookmark-grid { grid-template-columns: repeat(auto-fill, minmax(93px, 1fr)); gap: 14px; }
+    .folder-section[data-iconsize="large"] .bm-icon-wrapper { width: 48px; height: 48px; }
+    .folder-section[data-iconsize="large"] .bm-favicon { width: 38px; height: 38px; }
+    .folder-section[data-iconsize="large"] .bm-emoji-fallback { font-size: 28px; }
     .folder-section[data-iconsize="large"] .bm-title {
-      font-size: 12px; white-space: normal; line-height: 1.25;
+      font-size: 9px; white-space: normal; line-height: 1.25;
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
 
@@ -815,13 +815,13 @@
 
     /* Icon */
     .bm-icon-wrapper {
-      width: 48px; height: 48px; border-radius: 12px; overflow: hidden;
+      width: 36px; height: 36px; border-radius: 12px; overflow: hidden;
       background: var(--bg-secondary);
       display: flex; align-items: center; justify-content: center; flex-shrink: 0;
       transition: border-radius 0.15s;
     }
-    .bm-favicon        { width: 32px; height: 32px; object-fit: contain; }
-    .bm-emoji-fallback { font-size: 24px; line-height: 1; }
+    .bm-favicon        { width: 28px; height: 28px; object-fit: contain; }
+    .bm-emoji-fallback { font-size: 21px; line-height: 1; }
 
     /* ── Icon shapes ───────────────────────────────────────────────────────
        Applied via a data-shape attribute on the card, so both the icon
@@ -833,7 +833,7 @@
 
     /* Title */
     .bm-title {
-      font-size: 11px; font-weight: 500; text-align: center;
+      font-size: 8px; font-weight: 500; text-align: center;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       width: 100%; color: var(--text-primary);
     }

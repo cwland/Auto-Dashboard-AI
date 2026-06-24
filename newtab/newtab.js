@@ -699,9 +699,9 @@ function injectGridColumnCss(cols) {
 // fits more/fewer columns as the section is resized (icons no longer scale).
 //   cellPx = min column width for one icon, rowPx = height of one icon row.
 const ICON_SIZES = {
-  small:  { cellPx: 56,  rowPx: 56,  colMin: 48,  gap: 8 },
-  medium: { cellPx: 100, rowPx: 96,  colMin: 92,  gap: 12 },
-  large:  { cellPx: 140, rowPx: 124, colMin: 124, gap: 14 },
+  small:  { cellPx: 42,  rowPx: 42,  colMin: 36,  gap: 8 },
+  medium: { cellPx: 75,  rowPx: 72,  colMin: 69,  gap: 12 },
+  large:  { cellPx: 105, rowPx: 93,  colMin: 93,  gap: 14 },
 };
 const HEADER_PX = 46;
 const DEFAULT_ICON_SIZE = 'medium';
@@ -1550,9 +1550,9 @@ function reassertGridLocks() {
 // Cell footprint per icon size: width sets how many columns fit; height is taller
 // than width to leave room for the label below the icon (a square cell clipped it).
 const ICON_CELL = {
-  small:  { w: 64,  h: 66 },
-  medium: { w: 96,  h: 112 },
-  large:  { w: 128, h: 146 },
+  small:  { w: 48, h: 50 },
+  medium: { w: 72, h: 84 },
+  large:  { w: 96, h: 110 },
 };
 const ICON_GRID_GAP = 6;
 
