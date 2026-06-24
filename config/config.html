@@ -147,6 +147,9 @@
     .set-subtab.active { color: var(--accent); border-bottom-color: var(--accent); }
     .set-sub { display: none; }
     .set-sub.active { display: block; }
+    .htu-subnav { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; margin: 0 0 24px; border-bottom: 1px solid var(--border); }
+    .htu-pane { display: none; }
+    .htu-pane.active { display: block; }
 
     /* Getting Started & How to Use share a readable content width */
     .doc-content {
@@ -780,6 +783,9 @@
     }
     /* ── Theme picker ───────────────────────────────────────────────────── */
     .theme-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:10px; }
+    .theme-grid-auto { margin-bottom:14px; }
+    .theme-mode-seg { display:flex; width:fit-content; margin:2px auto 16px; }
+    .theme-pane[hidden] { display:none; }
     .theme-section-label { grid-column:1/-1; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-muted); margin:10px 0 0; }
     .theme-card { border:1px solid var(--border); border-radius:var(--radius); padding:10px; cursor:pointer; background:var(--bg-secondary); transition:border-color .15s, transform .12s, box-shadow .15s; }
     .theme-card:hover { border-color:var(--accent); transform:translateY(-1px); }
@@ -1141,9 +1147,6 @@
       <button class="tab-btn" data-tab="how-to-use">
         <span class="tab-icon">📖</span> How to Use
       </button>
-      <button class="tab-btn" data-tab="privacy">
-        <span class="tab-icon">🔒</span> Privacy
-      </button>
       <button class="tab-btn" data-tab="settings">
         <span class="tab-icon">⚙️</span> Settings
       </button>
@@ -1152,6 +1155,9 @@
       </button>
       <button class="tab-btn" data-tab="integrations">
         <span class="tab-icon">🧩</span> Widget Library
+      </button>
+      <button class="tab-btn" data-tab="privacy">
+        <span class="tab-icon">🔒</span> Privacy
       </button>
     </nav>
   </header>
@@ -1295,119 +1301,194 @@
   <div class="tab-panel" id="tab-how-to-use">
     <div class="doc-content">
 
-      <!-- Dashboard page -->
-      <div class="htu-section">
-        <div class="htu-section-title"><span>📊</span> Your Dashboard</div>
-        <div class="htu-grid">
-          <div class="htu-card">
-            <div class="htu-card-icon">🗂️</div>
-            <h4>Folder sections</h4>
-            <p>Bookmarks are organized by the folder structure from your browser, making it easy to scan at a glance.</p>
+      <div class="gs-hero">
+        <div class="gs-hero-icon" style="font-size:40px;">📖</div>
+        <h1>How to Use</h1>
+        <p>Pick a task below — each is a short, step-by-step walkthrough.</p>
+      </div>
+
+      <div class="htu-subnav">
+        <button class="set-subtab active" type="button" data-htu="dashboard">🗂️ Build a dashboard</button>
+        <button class="set-subtab" type="button" data-htu="widgets">📡 Add a widget</button>
+        <button class="set-subtab" type="button" data-htu="themes">🎨 Set a theme</button>
+        <button class="set-subtab" type="button" data-htu="backup">💾 Back up &amp; sync</button>
+      </div>
+
+      <div class="htu-pane active" id="htu-pane-dashboard">
+        <div class="htu-section">
+          <div class="htu-section-title"><span>🗂️</span> Build a dashboard</div>
+          <div class="gs-steps">
+          <div class="gs-step">
+            <div class="gs-step-num">1</div>
+            <div class="gs-step-body">
+              <h3>Open the Dashboards tab and start a new one</h3>
+              <p>Click the <strong>🗂️ Dashboards</strong> tab at the top, then <strong>+ Create Dashboard</strong>. A short wizard opens.</p>
+              <div class="step-actions"><button class="btn btn-secondary btn-sm" data-switch-tab="dashboards">Open Dashboards →</button></div>
+            </div>
           </div>
-          <div class="htu-card">
-            <div class="htu-card-icon">🖱️</div>
-            <h4>Click to open</h4>
-            <p>Click any bookmark card to open that URL in a new tab. Middle-click also works as expected.</p>
+          <div class="gs-step">
+            <div class="gs-step-num">2</div>
+            <div class="gs-step-body">
+              <h3>Name it and pick a type</h3>
+              <p>Give the dashboard a <strong>Name</strong> (the only required field). Optionally set a description, <strong>Canvas size</strong>, and <strong>Layout mode</strong>. Choose <strong>🧩 Bookmarks &amp; Widgets</strong> to fill it from your bookmarks, or <strong>📄 Blank Dashboard</strong> to start empty. Click <strong>Next</strong>.</p>
+            </div>
           </div>
-          <div class="htu-card">
-            <div class="htu-card-icon">💬</div>
-            <h4>Hover for description</h4>
-            <p>Hover over any bookmark to see the AI-generated description tooltip with context about that site.</p>
+          <div class="gs-step">
+            <div class="gs-step-num">3</div>
+            <div class="gs-step-body">
+              <h3>Choose how bookmarks are organized</h3>
+              <p>Pick <strong>📁 Folder structure</strong> (mirrors your bookmark folders, no AI needed), <strong>✨ Dynamic folder structure</strong> (AI adds icons &amp; descriptions), or <strong>✨ Dynamic AI categorization</strong> (AI regroups by topic). Select the folders or individual bookmarks from the tree — or click <strong>Skip Adding Bookmarks</strong> for a blank board.</p>
+              <div class="step-tip">💡 The AI options only appear once an AI provider is set up under Settings → 🤖 AI Provider.</div>
+            </div>
           </div>
-          <div class="htu-card">
-            <div class="htu-card-icon">🎨</div>
-            <h4>Smart icons</h4>
-            <p>Icons are pulled directly from each site (apple-touch-icon → favicon), then from Simple Icons, then Google — with an emoji as a last resort.</p>
+          <div class="gs-step">
+            <div class="gs-step-num">4</div>
+            <div class="gs-step-body">
+              <h3>Generate it</h3>
+              <p>Click <strong>✨ Generate Dashboard</strong>. When it finishes, open a new tab to see it live.</p>
+            </div>
+          </div>
+          <div class="gs-step">
+            <div class="gs-step-num">5</div>
+            <div class="gs-step-body">
+              <h3>Search and switch</h3>
+              <p>On the dashboard, press <kbd>/</kbd> to jump to <strong>Search bookmarks…</strong> and filter every section as you type; press <kbd>Esc</kbd> to clear. With two or more dashboards you can switch using the tabs, sidebar, or dropdown (choose the style under Settings → ⚙️ General Settings). The <strong>default</strong> dashboard — marked with a ★ — is the one that opens on new tabs and at startup.</p>
+            </div>
+          </div>
           </div>
         </div>
       </div>
 
-      <!-- Search -->
-      <div class="htu-section">
-        <div class="htu-section-title"><span>🔍</span> Search</div>
-        <div class="htu-grid">
-          <div class="htu-card">
-            <div class="htu-card-icon">⌨️</div>
-            <h4>Instant filter</h4>
-            <p>Type in the search bar to instantly filter visible bookmarks across all sections by name, URL, or description.</p>
+      <div class="htu-pane" id="htu-pane-widgets">
+        <div class="htu-section">
+          <div class="htu-section-title"><span>📡</span> Add a live widget</div>
+          <div class="gs-steps">
+          <div class="gs-step">
+            <div class="gs-step-num">1</div>
+            <div class="gs-step-body">
+              <h3>Turn on the integration</h3>
+              <p>Open the <strong>🔧 Integrations</strong> tab, find the service you want (e.g. Proxmox, Tautulli, Weather, Uptime Kuma), and flip its toggle on.</p>
+              <div class="step-actions"><button class="btn btn-secondary btn-sm" data-switch-tab="integrations">Open Integrations →</button></div>
+            </div>
           </div>
-          <div class="htu-card">
-            <div class="htu-card-icon">📂</div>
-            <h4>Auto-hides empty sections</h4>
-            <p>Folder sections with no matches are hidden automatically while you search, keeping results clean.</p>
+          <div class="gs-step">
+            <div class="gs-step-num">2</div>
+            <div class="gs-step-body">
+              <h3>Enter and validate the connection</h3>
+              <p>Fill in the service's <strong>URL</strong> and <strong>API key/token</strong>, then click its <strong>Validate</strong> / <strong>Test Connection</strong> button. Once it succeeds, use <strong>Preview Widget</strong> to confirm live data appears.</p>
+              <div class="step-tip">🔒 Prefer an <strong>https://</strong> URL — with plain http your token and data travel unencrypted over the network.</div>
+            </div>
+          </div>
+          <div class="gs-step">
+            <div class="gs-step-num">3</div>
+            <div class="gs-step-body">
+              <h3>Enter edit mode on a dashboard</h3>
+              <p>Open a dashboard in a new tab and click <strong>✎ Edit Dashboard</strong> in the top bar. A small toolbar appears.</p>
+            </div>
+          </div>
+          <div class="gs-step">
+            <div class="gs-step-num">4</div>
+            <div class="gs-step-body">
+              <h3>Add the widget</h3>
+              <p>Click <strong>➕</strong> in the toolbar, choose <strong>Add Widget</strong> (“Live data from a configured integration”), pick your widget, and click <strong>Add to board</strong>.</p>
+            </div>
+          </div>
+          <div class="gs-step">
+            <div class="gs-step-num">5</div>
+            <div class="gs-step-body">
+              <h3>Place it and save</h3>
+              <p>Drag the widget where you want it and resize it on the grid, then click <strong>✓</strong> to save your layout. (<strong>✕</strong> discards changes.)</p>
+            </div>
+          </div>
           </div>
         </div>
       </div>
 
-      <!-- Multiple dashboards -->
-      <div class="htu-section">
-        <div class="htu-section-title"><span>🗃️</span> Multiple Dashboards</div>
-        <div class="htu-grid">
-          <div class="htu-card">
-            <div class="htu-card-icon">➕</div>
-            <h4>Create as many as you need</h4>
-            <p>Make separate dashboards for Work, Personal, Research, or any theme. Each has its own bookmark set and AI metadata.</p>
+      <div class="htu-pane" id="htu-pane-themes">
+        <div class="htu-section">
+          <div class="htu-section-title"><span>🎨</span> Set a theme</div>
+          <div class="gs-steps">
+          <div class="gs-step">
+            <div class="gs-step-num">1</div>
+            <div class="gs-step-body">
+              <h3>Open the Theme settings</h3>
+              <p>Go to the <strong>Settings</strong> tab and choose the <strong>🎨 Theme</strong> sub-tab.</p>
+              <div class="step-actions"><button class="btn btn-secondary btn-sm" data-switch-tab="settings">Open Settings →</button></div>
+            </div>
           </div>
-          <div class="htu-card">
-            <div class="htu-card-icon">⭐</div>
-            <h4>Set a default</h4>
-            <p>Mark any dashboard as Default — that's the one that appears on new tabs and at browser startup.</p>
+          <div class="gs-step">
+            <div class="gs-step-num">2</div>
+            <div class="gs-step-body">
+              <h3>Pick Light, Dark, or Custom</h3>
+              <p>Use the selector at the top to switch between the <strong>Light</strong>, <strong>Dark</strong>, and <strong>Custom</strong> palette groups.</p>
+            </div>
           </div>
-          <div class="htu-card">
-            <div class="htu-card-icon">🔀</div>
-            <h4>Switch on the fly</h4>
-            <p>A dropdown appears in the top-right of your dashboard whenever you have two or more dashboards saved.</p>
+          <div class="gs-step">
+            <div class="gs-step-num">3</div>
+            <div class="gs-step-body">
+              <h3>Click a palette</h3>
+              <p>Click any swatch to apply it instantly as a live preview — the settings page and your dashboard update right away.</p>
+            </div>
+          </div>
+          <div class="gs-step">
+            <div class="gs-step-num">4</div>
+            <div class="gs-step-body">
+              <h3>Or build your own</h3>
+              <p>On the <strong>Custom</strong> tab, click <strong>+ Add custom theme</strong> to pick each color by hand, <strong>✨ Generate with AI</strong> to describe a vibe, or <strong>🎲 Surprise me</strong> to let the AI invent one. Pick a generated palette and <strong>Add selected</strong>.</p>
+            </div>
+          </div>
+          <div class="gs-step">
+            <div class="gs-step-num">5</div>
+            <div class="gs-step-body">
+              <h3>Save</h3>
+              <p>Click <strong>Save Settings</strong> to keep your choice.</p>
+            </div>
+          </div>
           </div>
         </div>
       </div>
 
-      <!-- Keyboard shortcuts -->
-      <div class="htu-section">
-        <div class="htu-section-title"><span>⌨️</span> Keyboard Shortcuts</div>
-        <div class="card" style="padding:0;overflow:hidden;">
-          <table class="kbd-table">
-            <thead>
-              <tr>
-                <th>Key</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><kbd>/</kbd></td>
-                <td>Focus the search bar</td>
-              </tr>
-              <tr>
-                <td><kbd>Esc</kbd></td>
-                <td>Clear search and return to full dashboard</td>
-              </tr>
-              <tr>
-                <td><kbd>Enter</kbd> on card</td>
-                <td>Open the bookmark (when focused)</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Tips -->
-      <div class="htu-section">
-        <div class="htu-section-title"><span>💡</span> Tips</div>
-        <div class="htu-grid">
-          <div class="htu-card">
-            <div class="htu-card-icon">🔄</div>
-            <h4>Regenerate anytime</h4>
-            <p>Delete a dashboard and regenerate it after adding new bookmarks. The AI will pick up any new entries.</p>
+      <div class="htu-pane" id="htu-pane-backup">
+        <div class="htu-section">
+          <div class="htu-section-title"><span>💾</span> Back up &amp; sync</div>
+          <div class="gs-steps">
+          <div class="gs-step">
+            <div class="gs-step-num">1</div>
+            <div class="gs-step-body">
+              <h3>Open the Backup settings</h3>
+              <p>Go to the <strong>Settings</strong> tab and choose the <strong>💾 Backup</strong> sub-tab.</p>
+              <div class="step-actions"><button class="btn btn-secondary btn-sm" data-switch-tab="settings">Open Settings →</button></div>
+            </div>
           </div>
-          <div class="htu-card">
-            <div class="htu-card-icon">🆓</div>
-            <h4>Free models work great</h4>
-            <p>Llama 3.1 8B and Mistral 7B (both free on OpenRouter) handle bookmark enrichment well for most users.</p>
+          <div class="gs-step">
+            <div class="gs-step-num">2</div>
+            <div class="gs-step-body">
+              <h3>Quick local backup (optional)</h3>
+              <p>Click <strong>Export configuration</strong> to download an encrypted backup file you can keep anywhere; use <strong>Import configuration…</strong> to restore it later. This needs no account.</p>
+            </div>
           </div>
-          <div class="htu-card">
-            <div class="htu-card-icon">🔒</div>
-            <h4>Privacy first</h4>
-            <p>Only the URLs and titles of your <em>selected</em> bookmarks are sent to the AI. Nothing else ever leaves your device.</p>
+          <div class="gs-step">
+            <div class="gs-step-num">3</div>
+            <div class="gs-step-body">
+              <h3>Turn on cloud sync</h3>
+              <p>To sync across computers, switch on <strong>Back up to a private GitHub Gist</strong>. Your data is encrypted on this device before it's uploaded, so GitHub never sees your settings or keys.</p>
+            </div>
+          </div>
+          <div class="gs-step">
+            <div class="gs-step-num">4</div>
+            <div class="gs-step-body">
+              <h3>Add a passphrase and token</h3>
+              <p>Enter an <strong>Encryption passphrase</strong> (required) and paste a <strong>GitHub access token</strong>, then click <strong>Test</strong> to confirm the token works.</p>
+            </div>
+          </div>
+          <div class="gs-step">
+            <div class="gs-step-num">5</div>
+            <div class="gs-step-body">
+              <h3>Back up — and sync automatically</h3>
+              <p>Click <strong>Back up to Gist</strong> to push your first copy. On another computer, click <strong>Restore from Gist</strong>. Turn on <strong>Keep in sync automatically</strong> for hands-off two-way sync.</p>
+              <div class="step-tip">🔑 Your GitHub token and passphrase never leave this device. The passphrase is the only key to your backup — store it somewhere safe, because it can't be recovered.</div>
+            </div>
+          </div>
           </div>
         </div>
       </div>
@@ -1491,49 +1572,60 @@
       <div class="card">
         <div class="section-title">Theme</div>
         <p style="font-size:12px;color:var(--text-muted);margin:0 0 12px;">Applies to this settings page and your new-tab dashboard. Each swatch shows page background, card background, text, and accent.</p>
-      <div class="theme-grid" id="theme-grid">
-        <div class="theme-card" data-theme="auto"><div class="theme-swatches theme-swatches-auto"><span class="swatch" style="background:#0f0f13"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#6366f1"></span><span class="swatch" style="background:linear-gradient(135deg,#0f0f13 50%,#ffffff 50%)"></span></div><div class="theme-name">Auto (System)</div></div>
-        <div class="theme-section-label">Light</div>
-        <div class="theme-card" data-theme="default"><div class="theme-swatches"><span class="swatch" style="background:#f0edf8"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#1a1226"></span><span class="swatch" style="background:#6d28d9"></span></div><div class="theme-name">Violet</div></div>
-        <div class="theme-card" data-theme="lavender"><div class="theme-swatches"><span class="swatch" style="background:#faf5ff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#3b0764"></span><span class="swatch" style="background:#8b5cf6"></span></div><div class="theme-name">Lavender</div></div>
-        <div class="theme-card" data-theme="rose"><div class="theme-swatches"><span class="swatch" style="background:#fdf2f8"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#500724"></span><span class="swatch" style="background:#be185d"></span></div><div class="theme-name">Rose</div></div>
-        <div class="theme-card" data-theme="sakura"><div class="theme-swatches"><span class="swatch" style="background:#fff1f2"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#4c0519"></span><span class="swatch" style="background:#e11d48"></span></div><div class="theme-name">Sakura</div></div>
-        <div class="theme-card" data-theme="crimson"><div class="theme-swatches"><span class="swatch" style="background:#fff8f6"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#2d0e0e"></span><span class="swatch" style="background:#7f1d1d"></span></div><div class="theme-name">Crimson</div></div>
-        <div class="theme-card" data-theme="copper"><div class="theme-swatches"><span class="swatch" style="background:#fffbeb"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#451a03"></span><span class="swatch" style="background:#b45309"></span></div><div class="theme-name">Copper</div></div>
-        <div class="theme-card" data-theme="stone"><div class="theme-swatches"><span class="swatch" style="background:#f5f1ea"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#2b2723"></span><span class="swatch" style="background:#7c6f64"></span></div><div class="theme-name">Stone</div></div>
-        <div class="theme-card" data-theme="slate"><div class="theme-swatches"><span class="swatch" style="background:#eaeef4"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0f1729"></span><span class="swatch" style="background:#334a63"></span></div><div class="theme-name">Slate</div></div>
-        <div class="theme-card" data-theme="forest"><div class="theme-swatches"><span class="swatch" style="background:#f0fdf4"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#052e16"></span><span class="swatch" style="background:#14532d"></span></div><div class="theme-name">Forest</div></div>
-        <div class="theme-card" data-theme="sage"><div class="theme-swatches"><span class="swatch" style="background:#f7fee7"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#1a2e05"></span><span class="swatch" style="background:#4d7c0f"></span></div><div class="theme-name">Sage</div></div>
-        <div class="theme-card" data-theme="ocean"><div class="theme-swatches"><span class="swatch" style="background:#ecfeff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0c2a3a"></span><span class="swatch" style="background:#0e7490"></span></div><div class="theme-name">Ocean</div></div>
-        <div class="theme-card" data-theme="arctic"><div class="theme-swatches"><span class="swatch" style="background:#f0f9ff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0c4a6e"></span><span class="swatch" style="background:#0284c7"></span></div><div class="theme-name">Arctic</div></div>
-        <div class="theme-card" data-theme="cobalt"><div class="theme-swatches"><span class="swatch" style="background:#eff6ff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#1e3a8a"></span><span class="swatch" style="background:#1d4ed8"></span></div><div class="theme-name">Cobalt</div></div>
-        <div class="theme-card" data-theme="navy"><div class="theme-swatches"><span class="swatch" style="background:#eef2f7"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0f2744"></span><span class="swatch" style="background:#1e3a5f"></span></div><div class="theme-name">Executive Navy</div></div>
-        <div class="theme-card" data-theme="mint"><div class="theme-swatches"><span class="swatch" style="background:#ecfdf5"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#022c22"></span><span class="swatch" style="background:#059669"></span></div><div class="theme-name">Mint</div></div>
-        <div class="theme-card" data-theme="marigold"><div class="theme-swatches"><span class="swatch" style="background:#fefce8"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#422006"></span><span class="swatch" style="background:#ca8a04"></span></div><div class="theme-name">Marigold</div></div>
-        <div class="theme-section-label">Dark</div>
-        <div class="theme-card" data-theme="midnight"><div class="theme-swatches"><span class="swatch" style="background:#0f0e1a"></span><span class="swatch" style="background:#1e1c2e"></span><span class="swatch" style="background:#e8e6f0"></span><span class="swatch" style="background:#6366f1"></span></div><div class="theme-name">Midnight</div></div>
-        <div class="theme-card" data-theme="aubergine"><div class="theme-swatches"><span class="swatch" style="background:#1a0533"></span><span class="swatch" style="background:#2d0d54"></span><span class="swatch" style="background:#e9d5ff"></span><span class="swatch" style="background:#a855f7"></span></div><div class="theme-name">Aubergine</div></div>
-        <div class="theme-card" data-theme="matrix"><div class="theme-swatches"><span class="swatch" style="background:#020c06"></span><span class="swatch" style="background:#0a1f0e"></span><span class="swatch" style="background:#4ade80"></span><span class="swatch" style="background:#22c55e"></span></div><div class="theme-name">Matrix</div></div>
-        <div class="theme-card" data-theme="deepsea"><div class="theme-swatches"><span class="swatch" style="background:#042f2e"></span><span class="swatch" style="background:#134e4a"></span><span class="swatch" style="background:#99f6e4"></span><span class="swatch" style="background:#14b8a6"></span></div><div class="theme-name">Deep Sea</div></div>
-        <div class="theme-card" data-theme="indigonight"><div class="theme-swatches"><span class="swatch" style="background:#18181b"></span><span class="swatch" style="background:#27272a"></span><span class="swatch" style="background:#e4e4e7"></span><span class="swatch" style="background:#6366f1"></span></div><div class="theme-name">Indigo Night</div></div>
-        <div class="theme-card" data-theme="eclipse"><div class="theme-swatches"><span class="swatch" style="background:#111827"></span><span class="swatch" style="background:#1f2937"></span><span class="swatch" style="background:#f9fafb"></span><span class="swatch" style="background:#64748b"></span></div><div class="theme-name">Eclipse</div></div>
-        <div class="theme-card" data-theme="obsidian"><div class="theme-swatches"><span class="swatch" style="background:#09090b"></span><span class="swatch" style="background:#18181b"></span><span class="swatch" style="background:#e4e4e7"></span><span class="swatch" style="background:#71717a"></span></div><div class="theme-name">Obsidian</div></div>
-        <div class="theme-card" data-theme="espresso"><div class="theme-swatches"><span class="swatch" style="background:#1f140d"></span><span class="swatch" style="background:#2a1c12"></span><span class="swatch" style="background:#f3e7d6"></span><span class="swatch" style="background:#b07d4f"></span></div><div class="theme-name">Espresso</div></div>
-        <div class="theme-card" data-theme="bronze"><div class="theme-swatches"><span class="swatch" style="background:#0a0700"></span><span class="swatch" style="background:#1a1100"></span><span class="swatch" style="background:#fef9c3"></span><span class="swatch" style="background:#d97706"></span></div><div class="theme-name">Bronze</div></div>
-        <div class="theme-card" data-theme="volcanic"><div class="theme-swatches"><span class="swatch" style="background:#0c0500"></span><span class="swatch" style="background:#1c0c04"></span><span class="swatch" style="background:#fed7aa"></span><span class="swatch" style="background:#ea580c"></span></div><div class="theme-name">Volcanic</div></div>
-        <div class="theme-card" data-theme="ruby"><div class="theme-swatches"><span class="swatch" style="background:#1a0a10"></span><span class="swatch" style="background:#240d16"></span><span class="swatch" style="background:#fbd5e0"></span><span class="swatch" style="background:#e11d48"></span></div><div class="theme-name">Ruby</div></div>
-        <div class="theme-card" data-theme="nightsky"><div class="theme-swatches"><span class="swatch" style="background:#0a1322"></span><span class="swatch" style="background:#0f1b30"></span><span class="swatch" style="background:#dbeafe"></span><span class="swatch" style="background:#38bdf8"></span></div><div class="theme-name">Night Sky</div></div>
+      <!-- Light / Dark / Custom selector -->
+      <div class="seg theme-mode-seg" id="theme-mode-seg">
+        <button type="button" data-mode="light">Light</button>
+        <button type="button" data-mode="dark">Dark</button>
+        <button type="button" data-mode="custom">Custom</button>
       </div>
 
-      <div class="ct-section-head">
-        <div class="theme-section-label" style="margin:0;">Custom</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button type="button" class="btn btn-secondary btn-sm" id="add-custom-theme">+ Add custom theme</button>
-          <button type="button" class="btn btn-secondary btn-sm" id="generate-ai-theme">✨ Generate with AI</button>
+      <div class="theme-pane" id="theme-pane-light">
+        <div class="theme-grid">
+        <div class="theme-card" data-theme="arctic"><div class="theme-swatches"><span class="swatch" style="background:#f0f9ff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0c4a6e"></span><span class="swatch" style="background:#0284c7"></span></div><div class="theme-name">Arctic</div></div>
+        <div class="theme-card" data-theme="cobalt"><div class="theme-swatches"><span class="swatch" style="background:#eff6ff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#1e3a8a"></span><span class="swatch" style="background:#1d4ed8"></span></div><div class="theme-name">Cobalt</div></div>
+        <div class="theme-card" data-theme="copper"><div class="theme-swatches"><span class="swatch" style="background:#fffbeb"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#451a03"></span><span class="swatch" style="background:#b45309"></span></div><div class="theme-name">Copper</div></div>
+        <div class="theme-card" data-theme="crimson"><div class="theme-swatches"><span class="swatch" style="background:#fff8f6"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#2d0e0e"></span><span class="swatch" style="background:#7f1d1d"></span></div><div class="theme-name">Crimson</div></div>
+        <div class="theme-card" data-theme="forest"><div class="theme-swatches"><span class="swatch" style="background:#f0fdf4"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#052e16"></span><span class="swatch" style="background:#14532d"></span></div><div class="theme-name">Forest</div></div>
+        <div class="theme-card" data-theme="marigold"><div class="theme-swatches"><span class="swatch" style="background:#fefce8"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#422006"></span><span class="swatch" style="background:#ca8a04"></span></div><div class="theme-name">Marigold</div></div>
+        <div class="theme-card" data-theme="mint"><div class="theme-swatches"><span class="swatch" style="background:#ecfdf5"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#022c22"></span><span class="swatch" style="background:#059669"></span></div><div class="theme-name">Mint</div></div>
+        <div class="theme-card" data-theme="ocean"><div class="theme-swatches"><span class="swatch" style="background:#ecfeff"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0c2a3a"></span><span class="swatch" style="background:#0e7490"></span></div><div class="theme-name">Ocean</div></div>
+        <div class="theme-card" data-theme="rose"><div class="theme-swatches"><span class="swatch" style="background:#fdf2f8"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#500724"></span><span class="swatch" style="background:#be185d"></span></div><div class="theme-name">Rose</div></div>
+        <div class="theme-card" data-theme="slate"><div class="theme-swatches"><span class="swatch" style="background:#eaeef4"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#0f1729"></span><span class="swatch" style="background:#334a63"></span></div><div class="theme-name">Slate</div></div>
+        <div class="theme-card" data-theme="stone"><div class="theme-swatches"><span class="swatch" style="background:#f5f1ea"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#2b2723"></span><span class="swatch" style="background:#7c6f64"></span></div><div class="theme-name">Stone</div></div>
+        <div class="theme-card" data-theme="default"><div class="theme-swatches"><span class="swatch" style="background:#f0edf8"></span><span class="swatch" style="background:#ffffff"></span><span class="swatch" style="background:#1a1226"></span><span class="swatch" style="background:#6d28d9"></span></div><div class="theme-name">Violet</div></div>
         </div>
       </div>
-      <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">Build your own palette — let AI generate accessible color sets from a few words, or pick each color yourself.</p>
-      <div class="theme-grid" id="custom-theme-grid"></div>
+
+      <div class="theme-pane" id="theme-pane-dark" hidden>
+        <div class="theme-grid">
+        <div class="theme-card" data-theme="aubergine"><div class="theme-swatches"><span class="swatch" style="background:#1a0533"></span><span class="swatch" style="background:#2d0d54"></span><span class="swatch" style="background:#e9d5ff"></span><span class="swatch" style="background:#a855f7"></span></div><div class="theme-name">Aubergine</div></div>
+        <div class="theme-card" data-theme="bronze"><div class="theme-swatches"><span class="swatch" style="background:#0a0700"></span><span class="swatch" style="background:#1a1100"></span><span class="swatch" style="background:#fef9c3"></span><span class="swatch" style="background:#d97706"></span></div><div class="theme-name">Bronze</div></div>
+        <div class="theme-card" data-theme="deepsea"><div class="theme-swatches"><span class="swatch" style="background:#042f2e"></span><span class="swatch" style="background:#134e4a"></span><span class="swatch" style="background:#99f6e4"></span><span class="swatch" style="background:#14b8a6"></span></div><div class="theme-name">Deep Sea</div></div>
+        <div class="theme-card" data-theme="eclipse"><div class="theme-swatches"><span class="swatch" style="background:#111827"></span><span class="swatch" style="background:#1f2937"></span><span class="swatch" style="background:#f9fafb"></span><span class="swatch" style="background:#64748b"></span></div><div class="theme-name">Eclipse</div></div>
+        <div class="theme-card" data-theme="espresso"><div class="theme-swatches"><span class="swatch" style="background:#1f140d"></span><span class="swatch" style="background:#2a1c12"></span><span class="swatch" style="background:#f3e7d6"></span><span class="swatch" style="background:#b07d4f"></span></div><div class="theme-name">Espresso</div></div>
+        <div class="theme-card" data-theme="indigonight"><div class="theme-swatches"><span class="swatch" style="background:#18181b"></span><span class="swatch" style="background:#27272a"></span><span class="swatch" style="background:#e4e4e7"></span><span class="swatch" style="background:#6366f1"></span></div><div class="theme-name">Indigo Night</div></div>
+        <div class="theme-card" data-theme="matrix"><div class="theme-swatches"><span class="swatch" style="background:#020c06"></span><span class="swatch" style="background:#0a1f0e"></span><span class="swatch" style="background:#4ade80"></span><span class="swatch" style="background:#22c55e"></span></div><div class="theme-name">Matrix</div></div>
+        <div class="theme-card" data-theme="midnight"><div class="theme-swatches"><span class="swatch" style="background:#0f0e1a"></span><span class="swatch" style="background:#1e1c2e"></span><span class="swatch" style="background:#e8e6f0"></span><span class="swatch" style="background:#6366f1"></span></div><div class="theme-name">Midnight</div></div>
+        <div class="theme-card" data-theme="nightsky"><div class="theme-swatches"><span class="swatch" style="background:#0a1322"></span><span class="swatch" style="background:#0f1b30"></span><span class="swatch" style="background:#dbeafe"></span><span class="swatch" style="background:#38bdf8"></span></div><div class="theme-name">Night Sky</div></div>
+        <div class="theme-card" data-theme="obsidian"><div class="theme-swatches"><span class="swatch" style="background:#09090b"></span><span class="swatch" style="background:#18181b"></span><span class="swatch" style="background:#e4e4e7"></span><span class="swatch" style="background:#71717a"></span></div><div class="theme-name">Obsidian</div></div>
+        <div class="theme-card" data-theme="ruby"><div class="theme-swatches"><span class="swatch" style="background:#1a0a10"></span><span class="swatch" style="background:#240d16"></span><span class="swatch" style="background:#fbd5e0"></span><span class="swatch" style="background:#e11d48"></span></div><div class="theme-name">Ruby</div></div>
+        <div class="theme-card" data-theme="volcanic"><div class="theme-swatches"><span class="swatch" style="background:#0c0500"></span><span class="swatch" style="background:#1c0c04"></span><span class="swatch" style="background:#fed7aa"></span><span class="swatch" style="background:#ea580c"></span></div><div class="theme-name">Volcanic</div></div>
+        </div>
+      </div>
+
+
+      <div class="theme-pane" id="theme-pane-custom" hidden>
+        <div class="ct-section-head">
+          <div class="theme-section-label" style="margin:0;">Custom themes</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button type="button" class="btn btn-secondary btn-sm" id="add-custom-theme">+ Add custom theme</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="generate-ai-theme">✨ Generate with AI</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="surprise-theme">🎲 Surprise me</button>
+          </div>
+        </div>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px;">Build your own palette — let AI generate accessible color sets from a few words, or pick each color yourself.</p>
+        <div class="theme-grid" id="custom-theme-grid"></div>
+      </div>
       </div>
 
       </div>

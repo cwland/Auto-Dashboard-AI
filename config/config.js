@@ -308,7 +308,7 @@ const DEFAULT_SETTINGS = {
   aiApiKeys: {},     // { providerId: apiKey }
   aiModels: {},      // { providerId: model }
   aiEndpoints: {},   // { providerId: endpointOverride }
-  theme: 'auto',     // 'auto' = follow OS light/dark; otherwise a named theme
+  theme: 'midnight', // default named theme (was OS-adaptive 'auto')
   newTabOverride: false,  // show the dashboard on new tabs (off by default)
   openOnStartup: false,   // open the dashboard when the browser launches (off by default)
   syncBookmarks: false,   // mirror dashboard links into a "Dashboard AI" bookmark-bar folder
@@ -652,11 +652,10 @@ async function loadSettings() {
 
 // ─── Theme ──────────────────────────────────────────────────────────────────
 // Sets the named theme on <html> (overriding the design tokens in common.css).
-// 'auto' / empty removes the attribute so the OS light/dark default applies.
+// Empty / legacy 'auto' fall back to the Midnight default.
 function applyTheme(theme) {
-  const t = theme && theme !== 'auto' ? theme : null;
-  if (t) document.documentElement.setAttribute('data-theme', t);
-  else document.documentElement.removeAttribute('data-theme');
+  const t = (theme && theme !== 'auto') ? theme : 'midnight';
+  document.documentElement.setAttribute('data-theme', t);
 }
 
 // Ordered tokens shown in a full-palette swatch (page → surfaces → border →
@@ -666,12 +665,35 @@ function paletteSwatchHtml(tokens) {
   return SWATCH_ORDER.map((k) => `<span class="swatch" style="background:${escapeHtml(tokens[k] || '#888')}"></span>`).join('');
 }
 
+// Built-in dark themes — used to pick the right Light/Dark tab for a theme.
+const DARK_THEME_IDS = new Set(['midnight', 'aubergine', 'matrix', 'deepsea', 'indigonight', 'eclipse', 'obsidian', 'espresso', 'bronze', 'volcanic', 'ruby', 'nightsky']);
+// Which selector tab a theme id belongs to ('light' | 'dark' | 'custom' | null).
+function themeModeOf(id) {
+  if (!id || id === 'auto') return null;
+  if (String(id).startsWith('custom-')) return 'custom';
+  return DARK_THEME_IDS.has(id) ? 'dark' : 'light';
+}
+// Show one Light/Dark/Custom pane and mark its selector button active.
+function setThemeMode(mode) {
+  ['light', 'dark', 'custom'].forEach((m) => {
+    const pane = document.getElementById('theme-pane-' + m);
+    if (pane) pane.hidden = (m !== mode);
+  });
+  document.querySelectorAll('#theme-mode-seg button').forEach((b) =>
+    b.classList.toggle('active', b.dataset.mode === mode));
+}
+// Open the pane that contains the currently selected theme (Light by default).
+function syncThemeMode() {
+  setThemeMode(themeModeOf(state.currentSettings.theme) || 'light');
+}
+
 function renderThemePicker() {
-  const grid = document.getElementById('theme-grid');
-  if (!grid) return;
-  const current = state.currentSettings.theme || 'auto';
+  const current = state.currentSettings.theme || 'midnight';
   const TEng = window.ThemeEngine;
-  grid.querySelectorAll('.theme-card').forEach((card) => {
+  // All built-in preset cards (Auto + Light + Dark); custom cards are handled
+  // by renderCustomThemes and skipped here.
+  document.querySelectorAll('#set-sub-theme .theme-card').forEach((card) => {
+    if (card.classList.contains('ct-card')) return;
     card.classList.toggle('active', card.dataset.theme === current);
     // Fill standard cards with the full derived palette (skip the "auto" card,
     // which keeps its split light/dark swatch).
@@ -730,7 +752,7 @@ function renderCustomThemes() {
   const grid = document.getElementById('custom-theme-grid');
   if (!grid) return;
   applyCustomThemeStyles();
-  const current = state.currentSettings.theme || 'auto';
+  const current = state.currentSettings.theme || 'midnight';
   const themes = state.currentSettings.customThemes || [];
   grid.innerHTML = '';
   themes.forEach((t) => {
@@ -756,7 +778,7 @@ function renderCustomThemes() {
 function deleteCustomTheme(id) {
   const list = state.currentSettings.customThemes || [];
   state.currentSettings.customThemes = list.filter((t) => t.id !== id);
-  if (state.currentSettings.theme === id) { state.currentSettings.theme = 'auto'; applyTheme('auto'); }
+  if (state.currentSettings.theme === id) { state.currentSettings.theme = 'midnight'; applyTheme('midnight'); }
   applyCustomThemeStyles();
   renderThemePicker();
   updateSaveBar();
@@ -962,6 +984,14 @@ function saveManualTheme() {
 }
 
 // ── AI tab ──
+// Random vibes for the "Surprise me" button — the AI invents a palette from one.
+const SURPRISE_VIBES = [
+  'cozy autumn cabin', 'neon synthwave night', 'calm ocean spa', 'deep forest at dawn',
+  'vintage sepia darkroom', 'arctic aurora', 'tropical sunset', 'muted desert clay',
+  'cyberpunk alley rain', 'soft pastel macarons', 'midnight library', 'volcanic ember glow',
+  'cherry blossom morning', 'retro 70s lounge', 'misty mountain pine', 'royal velvet & gold',
+  'minimalist Scandinavian', 'tangerine citrus pop', 'moody noir city', 'lavender fields dusk',
+];
 async function generateAiPalettes() {
   const desc = (document.getElementById('ct-prompt').value || '').trim();
   const warn = document.getElementById('ct-ai-warn');
@@ -1073,6 +1103,14 @@ function setupCustomThemeModal() {
   addBtn.dataset.wired = '1';
   addBtn.addEventListener('click', () => openCustomThemeModal(null, { mode: 'manual', lock: true }));
   document.getElementById('generate-ai-theme')?.addEventListener('click', () => openCustomThemeModal(null, { mode: 'ai', lock: true }));
+  document.getElementById('surprise-theme')?.addEventListener('click', () => {
+    // Open the AI flow, drop in a random vibe, and generate straight away.
+    openCustomThemeModal(null, { mode: 'ai', lock: true });
+    const pick = SURPRISE_VIBES[Math.floor(Math.random() * SURPRISE_VIBES.length)];
+    const promptEl = document.getElementById('ct-prompt');
+    if (promptEl) promptEl.value = pick;
+    generateAiPalettes();
+  });
   document.getElementById('ct-close')?.addEventListener('click', closeCustomThemeModal);
   document.getElementById('ct-cancel')?.addEventListener('click', closeCustomThemeModal);
   document.getElementById('custom-theme-modal')?.addEventListener('click', (e) => {
@@ -1159,6 +1197,7 @@ function applySettingsToUI() {
   // Theme
   applyTheme(s.theme);
   renderThemePicker();
+  syncThemeMode();
 
   // Clock format
   const clockEl = document.getElementById(`clock-${s.clockFormat || '12'}`);
@@ -1630,10 +1669,17 @@ function setupSettingsListeners() {
   saveBtn.addEventListener('click', saveSettings);
   discardBtn.addEventListener('click', discardChanges);
 
+  // Light / Dark / Custom selector — just toggles which pane is visible.
+  document.querySelectorAll('#theme-mode-seg button').forEach((b) => {
+    b.addEventListener('click', () => setThemeMode(b.dataset.mode));
+  });
+
   // Theme picker — applies a live preview immediately; persisted on Save.
-  document.getElementById('theme-grid')?.addEventListener('click', (e) => {
+  // Delegated across Auto + Light + Dark panes; custom cards have their own
+  // handler (and carry the .ct-card class), so they're skipped here.
+  document.getElementById('set-sub-theme')?.addEventListener('click', (e) => {
     const card = e.target.closest('.theme-card');
-    if (!card) return;
+    if (!card || card.classList.contains('ct-card')) return;
     state.currentSettings.theme = card.dataset.theme;
     applyTheme(state.currentSettings.theme);
     renderThemePicker();
@@ -4951,6 +4997,15 @@ function setupNavigation() {
   // (inline onclick is blocked by MV3 CSP — use data-switch-tab instead)
   document.querySelectorAll('[data-switch-tab]').forEach((btn) => {
     btn.addEventListener('click', () => switchTab(btn.dataset.switchTab));
+  });
+
+  // How to Use — sub-tabs (one walkthrough pane at a time).
+  document.querySelectorAll('.htu-subnav .set-subtab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.htu;
+      document.querySelectorAll('.htu-subnav .set-subtab').forEach((b) => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('#tab-how-to-use .htu-pane').forEach((p) => p.classList.toggle('active', p.id === `htu-pane-${key}`));
+    });
   });
 }
 

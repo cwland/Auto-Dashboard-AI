@@ -64,11 +64,10 @@ const GENERIC_ICON_URL = 'data:image/svg+xml;utf8,' + encodeURIComponent(`
 let settings = {};
 
 // Apply the saved named theme to <html> (overrides the design tokens in
-// common.css). 'auto'/empty follows the OS light/dark default.
+// common.css). Empty / legacy 'auto' fall back to the Midnight default.
 function applyTheme(theme) {
-  const t = theme && theme !== 'auto' ? theme : null;
-  if (t) document.documentElement.setAttribute('data-theme', t);
-  else document.documentElement.removeAttribute('data-theme');
+  const t = (theme && theme !== 'auto') ? theme : 'midnight';
+  document.documentElement.setAttribute('data-theme', t);
 }
 
 // Apply the theme as early as possible (before first paint) to avoid a flash
@@ -3202,8 +3201,9 @@ function doSegmentEl(options, current, onChange) {
 // ── Theme picker (name + palette preview + dropdown) ──
 // Selectable options: Auto (system) + built-in themes + the user's custom themes.
 function dashThemeOptions() {
-  const opts = [{ id: 'auto', name: 'Auto (System)', colors: null, cat: 'auto' }];
-  const std = (window.ThemeEngine && ThemeEngine.STANDARD_THEMES) || [];
+  const opts = [];
+  const std = ((window.ThemeEngine && ThemeEngine.STANDARD_THEMES) || [])
+    .slice().sort((a, b) => a.name.localeCompare(b.name));
   std.forEach((t) => {
     const isDark = window.ThemeEngine ? ThemeEngine.lum(t.bgPrimary) < 0.4 : false;
     opts.push({ id: t.id, name: t.name, colors: t, cat: isDark ? 'dark' : 'light' });
@@ -3233,7 +3233,7 @@ function dashThemeSwatches(colors) {
   return row;
 }
 function buildThemeDropdown() {
-  const current = settings.theme || 'auto';
+  const current = settings.theme || 'midnight';
   const opts = dashThemeOptions();
   const cur = opts.find((o) => o.id === current) || opts[0];
 
@@ -3512,7 +3512,7 @@ function buildThemeMini(colors) {
 function buildThemePicker() {
   const wrap = document.createElement('div');
   const opts = dashThemeOptions();
-  const committed = () => settings.theme || 'auto';
+  const committed = () => settings.theme || 'midnight';
   const allCards = [];
   const refreshActive = () => allCards.forEach((c) => c.classList.toggle('active', c.dataset.theme === committed()));
 
@@ -3551,7 +3551,7 @@ function buildThemePicker() {
     persistCustomThemes();
     const i = opts.findIndex((o) => o.id === id);
     if (i >= 0) opts.splice(i, 1);
-    if (committed() === id) dashOptSet('theme', 'auto');   // active one was deleted → revert
+    if (committed() === id) dashOptSet('theme', 'midnight');   // active one was deleted → revert
     renderGrid();
   }
   function addGeneratedTheme(theme) {
@@ -3570,16 +3570,6 @@ function buildThemePicker() {
   hint.className = 'theme-picker-hint';
   hint.textContent = 'Click a theme to apply it.';
   wrap.appendChild(hint);
-
-  // Auto (system) — pinned, always available.
-  const auto = document.createElement('button');
-  auto.type = 'button';
-  auto.className = 'theme-auto';
-  auto.dataset.theme = 'auto';
-  auto.innerHTML = '<span class="theme-auto-sw"></span><span>Auto — follow system light / dark</span>';
-  auto.addEventListener('click', () => { dashOptSet('theme', 'auto'); refreshActive(); });
-  allCards.push(auto);
-  wrap.appendChild(auto);
 
   // Light / Dark / Custom tabs.
   const cats = [{ key: 'light', label: 'Light' }, { key: 'dark', label: 'Dark' }, { key: 'custom', label: 'Custom' }];
