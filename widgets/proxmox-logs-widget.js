@@ -188,8 +188,8 @@
       if (typeof ListCarousel !== 'undefined') {
         this.carousel = new ListCarousel({ root: this.el, viewport: this.viewport, track: this.track, enabled: this.cfg.carousel, visibleCount: this.cfg.visibleCount, speed: this.cfg.speed, mode: this.cfg.mode, pauseMs: this.cfg.pauseMs });
         ListCarousel.buildControls(this.toolsEl, this.cfg, (patch) => { this.carousel.update(patch); this._persist(patch); });
-        this.toolsEl.appendChild(ListCarousel.sliderRow('Refresh', () => this.cfg.refreshMins, 1, 60, 1, (v) => { this.cfg.refreshMins = v; this._restartTimer(); this._persist({ refreshMins: v }); }, (v) => `${v} min`));
-        this.toolsEl.appendChild(ListCarousel.sliderRow('Days', () => this.cfg.days, 1, 7, 1, (v) => { this.cfg.days = v; this._persist({ days: v }); this.refresh(); }, (v) => `${v}d`));
+        this.toolsEl.appendChild(ListCarousel.sliderRow('Refresh', () => this.cfg.refreshMins, 1, 60, 1, (v) => { this.cfg.refreshMins = v; this._restartTimer(); this._persist({ refreshMins: v }); }, (v) => `${v} min`, 'How often to reload the log data.'));
+        this.toolsEl.appendChild(ListCarousel.sliderRow('Days', () => this.cfg.days, 1, 7, 1, (v) => { this.cfg.days = v; this._persist({ days: v }); this.refresh(); }, (v) => `${v}d`, 'How many days of history to include.'));
         this._extraControls(this.toolsEl);
       }
     }
@@ -245,7 +245,8 @@
     _extraControls(toolsEl) {
       toolsEl.appendChild(ListCarousel.segmentRow('Level', () => this.cfg.level,
         [['all', 'All'], ['error', 'Error'], ['warn', 'Warn'], ['info', 'Info']],
-        (v) => { this.cfg.level = v; this._persist({ level: v }); this._renderRows(); }));
+        (v) => { this.cfg.level = v; this._persist({ level: v }); this._renderRows(); },
+        'Only show log entries at or above this severity.'));
       this.serviceRow = buildSelectRow('Service', this.cfg.service, [['all', 'All Services']],
         (v) => { this.cfg.service = v; this._persist({ service: v }); this._renderRows(); });
       this.serviceSel = this.serviceRow.querySelector('select');

@@ -284,9 +284,10 @@
       if (!tools) return;
       this.toolsEl = tools;
 
-      const sel = (label, value, options, onChange) => {
+      const sel = (label, value, options, onChange, help) => {
         const grp = document.createElement('div'); grp.className = 'pc-toolgrp';
         const lab = document.createElement('span'); lab.className = 'pc-tlabel'; lab.textContent = label;
+        if (help && typeof ListCarousel !== 'undefined' && ListCarousel.helpIcon) { const ic = ListCarousel.helpIcon(help); if (ic) lab.appendChild(ic); }
         const s = document.createElement('select'); s.className = 'pc-tsel';
         options.forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; if (v === value) o.selected = true; s.appendChild(o); });
         s.addEventListener('change', () => onChange(s.value));
@@ -294,8 +295,8 @@
         return s;
       };
       sel('Status', this.cfg.statusFilter, [['all', 'All'], ['running', 'Running'], ['stopped', 'Stopped']],
-        (v) => this._applyConfig({ statusFilter: v }));
-      this.nodeSel = sel('Node', this.cfg.nodeFilter, [['all', 'All']], (v) => this._applyConfig({ nodeFilter: v }));
+        (v) => this._applyConfig({ statusFilter: v }), 'Only show containers in this run state.');
+      this.nodeSel = sel('Node', this.cfg.nodeFilter, [['all', 'All']], (v) => this._applyConfig({ nodeFilter: v }), 'Only show containers on this cluster node.');
 
       // Poll-interval stepper (seconds) — compact value + stacked ▲/▼ spinner.
       const grp = document.createElement('div'); grp.className = 'pc-toolgrp';

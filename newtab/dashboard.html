@@ -170,25 +170,42 @@
     .widget-config-store { display: none; }
 
     .config-window {
-      position: absolute; z-index: 41; width: 280px; min-width: 240px; min-height: 150px;
+      position: absolute; z-index: 120; width: 280px; min-width: 240px; min-height: 150px;
       max-width: calc(100% - 16px); max-height: calc(100% - 16px);
       display: flex; flex-direction: column; resize: both; overflow: hidden;
-      background: var(--bg-card); border: 1px solid var(--border);
+      background: var(--bg-card) !important; border: 1px solid var(--border);
       border-radius: var(--radius-lg, 12px); box-shadow: 0 18px 50px rgba(0,0,0,0.45);
     }
-    .config-window .cw-head { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--border); background: var(--bg-card); flex: 0 0 auto; cursor: grab; touch-action: none; }
+    .config-window .cw-head { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-bottom: 1px solid var(--border); background: var(--bg-card) !important; flex: 0 0 auto; cursor: grab; touch-action: none; }
     .config-window .cw-grip { color: var(--text-muted); font-size: 13px; }
     .config-window .cw-title { flex: 1; font-size: 13px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .config-window .cw-close { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
     .config-window .cw-close:hover { color: #fff; background: var(--danger, #ef4444); border-color: var(--danger, #ef4444); }
-    .config-window .cw-body { padding: 14px; display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto; overflow-y: auto; background: var(--bg-card); }
+    .config-window .cw-body { padding: 14px; display: flex; flex-direction: column; gap: 14px; flex: 1 1 auto; overflow-y: auto; background: var(--bg-card) !important; }
     .config-window .cw-body .lc-tools,
     .config-window .cw-body .ww-tools,
     .config-window .cw-body .pc-tools,
     .config-window .cw-body .cd-tools,
+    .config-window .cw-body .hdr-tools,
     .config-window .cw-body .tw-tools { position: static; display: flex !important; flex-direction: column; gap: 14px; align-items: stretch; margin: 0; }
 
     .cfg-row { display: flex; flex-direction: column; gap: 6px; }
+    .cfg-label { display: inline-flex; align-items: center; }
+    .cfg-info {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 14px; height: 14px; margin-left: 6px; flex: 0 0 auto;
+      border-radius: 50%; border: 1px solid var(--text-muted);
+      color: var(--text-muted); font: italic 700 9px/1 Georgia, 'Times New Roman', serif;
+      cursor: pointer; vertical-align: middle;
+    }
+    .cfg-info:hover { color: var(--accent); border-color: var(--accent); }
+    .cfg-tip {
+      position: fixed; z-index: 2000; max-width: 240px;
+      background: var(--bg-card); color: var(--text-primary);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 10px; font-size: 12px; line-height: 1.4;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.45); pointer-events: none;
+    }
     .cfg-row.cfg-row-inline { flex-direction: row; align-items: center; justify-content: space-between; }
     .cfg-row-top { display: flex; align-items: baseline; justify-content: space-between; }
     .cfg-label { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
@@ -203,9 +220,37 @@
     .cfg-seg button + button { border-left: 1px solid var(--border); }
     .cfg-seg button.on { background: var(--accent); color: #fff; }
 
+    /* Section Header — a purely-visual organizational item */
+    .grid-stack-item .shdr-section { position: relative; width: 100%; height: 100%; }
+    .shdr-wrap { width: 100%; height: 100%; }
+    .shdr-body {
+      width: 100%; height: 100%; box-sizing: border-box;
+      display: flex; align-items: center; justify-content: flex-start;
+      padding: 6px 14px; overflow: hidden;
+      background: var(--bg-secondary);
+    }
+    /* A Section Header fills its whole grid cell as one flat colour — no frame,
+       no inner border, so the entire area is a single colour. */
+    .grid-stack-item[data-header] > .grid-stack-item-content {
+      padding: 0; border: 0; background: transparent; box-shadow: none;
+    }
+    /* Header config controls live only in the config window — never inline on the
+       grid (mirrors the other widget tool bars), and the panel stays solid. */
+    .grid-stack .hdr-tools { display: none; }
+    .config-window .cw-body .hdr-tools { background: var(--bg-card); }
+    .shdr-text { font-size: 15px; font-weight: 700; letter-spacing: .02em; line-height: 1.25; color: var(--text-primary); white-space: nowrap; }
+
+    /* Config rows used by the Section Header config window (text + colour) */
+    .config-window .cfg-text { width: 100%; padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--bg-secondary); color: var(--text-primary); font: inherit; }
+    .config-window .cfg-color-wrap { display: inline-flex; align-items: center; gap: 8px; }
+    .config-window .cfg-color { width: 34px; height: 24px; padding: 0; border: 1px solid var(--border); border-radius: 6px; background: none; cursor: pointer; }
+    .config-window .cfg-color-reset { font-size: 11px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; }
+    .config-window .cfg-color-reset:hover { color: var(--text-primary); border-color: var(--accent); }
+
     /* Lockdown: dim + block every other widget; the active one stays bright + live. */
     body.config-open .grid-stack-item:not(.config-active) > .grid-stack-item-content { opacity: 0.45; pointer-events: none; }
     body.config-open .grid-stack-item.config-active > .grid-stack-item-content { pointer-events: none; }
+    body.config-open .grid-stack-item.config-active { z-index: 5 !important; }
     /* Only the launching widget keeps its resize handles (it stays resizable, not movable). */
     body.config-open .grid-stack-item:not(.config-active) > [class*="ui-resizable"] { display: none !important; }
     body.config-open .grid-stack-item.config-active [class*="ui-resizable"] { pointer-events: auto !important; }
@@ -1333,6 +1378,11 @@
       <button class="add-choice" id="choice-manual" type="button">
         <span class="ac-ico">✏️</span>
         <span class="ac-txt"><b>Add Manual Item</b><small>Create a link by hand</small></span>
+        <span class="ac-arrow">→</span>
+      </button>
+      <button class="add-choice" id="choice-section-header" type="button">
+        <span class="ac-ico">📑</span>
+        <span class="ac-txt"><b>Section Header</b><small>A labeled divider to organize your dashboard</small></span>
         <span class="ac-arrow">→</span>
       </button>
     </div>

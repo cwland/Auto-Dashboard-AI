@@ -496,10 +496,10 @@
       // Only the display-amount options (Hours, Days) are exposed.
       tools.appendChild(ListCarousel.sliderRow('Hours', () => this.hours, 5, 24, 1, (v) => {
         this.hours = v; if (this.cfg.onHoursChange) this.cfg.onHoursChange(v); this._render();
-      }));
+      }, null, 'How many hours of the hourly forecast to show.'));
       tools.appendChild(ListCarousel.sliderRow('Days', () => this.days, 1, 7, 1, (v) => {
         this.days = v; if (this.cfg.onDaysChange) this.cfg.onDaysChange(v); this._render();
-      }));
+      }, null, 'How many days of the daily forecast to show.'));
     }
     _drawCounts() { /* counts now live in the slider rows */ }
 

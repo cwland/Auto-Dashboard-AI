@@ -27,6 +27,17 @@
     return o;
   }
 
+  // Pass through the Tautulli idle "Poster Showcase" settings (persisted per widget).
+  const POSTER_KEYS = ['posterShowcase', 'posterAnimate', 'posterLockMode', 'posterMax', 'posterAvoidDup',
+    'posterInitialDelayMs', 'posterSlideMs', 'posterLockMs',
+    'posterDisplayMs', 'posterClearMs', 'posterRefreshMins', 'posterReloadEachCycle'];
+  function posterOpts(opts) {
+    const o = {};
+    if (!opts) return o;
+    POSTER_KEYS.forEach((k) => { if (opts[k] != null) o[k] = opts[k]; });
+    return o;
+  }
+
   // Per-widget options for the Proxmox log/backup list widgets (on top of carousel).
   function proxmoxLogOpts(opts) {
     const o = {};
@@ -77,12 +88,13 @@
 
   const MOUNTS = {
     tautulli: (h, s, opts) => {
-      const w = new TautulliWidget(h, withPoll(s, 'tautulli', {
+      const cfg = Object.assign({
         baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey,
         maxVisible: (opts && opts.maxVisible) || N(s.tautulliMaxSessions, 3),
         dwellMs: (opts && opts.dwellMs) || N(s.tautulliCarouselDwellMs, 4000),
         carousel: (opts && opts.carousel != null) ? opts.carousel : true,
-      }));
+      }, posterOpts(opts));
+      const w = new TautulliWidget(h, withPoll(s, 'tautulli', cfg));
       w.onConfigChange = opts && opts.onConfigChange;
       return w;
     },

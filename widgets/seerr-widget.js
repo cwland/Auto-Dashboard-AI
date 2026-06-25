@@ -332,7 +332,8 @@
           const viewRow = ListCarousel.segmentRow('View',
             () => this.view,
             [['requests', 'Requests'], ['stats', 'Stats']],
-            (v) => this.setView(v));
+            (v) => this.setView(v),
+            'Switch between the recent requests list and the request stats summary.');
           this.lcToolsEl.insertBefore(viewRow, this.lcToolsEl.firstChild);
         }
       }

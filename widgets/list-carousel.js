@@ -271,12 +271,50 @@
     global.removeEventListener('pointerup', this._onUp);
   };
 
+  // A small "ⓘ" help icon with a custom hover tooltip (the native `title` was
+  // slow/unreliable and clipped). The tooltip is appended to <body> so the
+  // config window's overflow can't hide it. Returns null when no help text.
+  ListCarousel.helpIcon = function (text) {
+    if (!text) return null;
+    const i = document.createElement('span');
+    i.className = 'cfg-info';
+    i.textContent = 'i';
+    i.setAttribute('aria-label', text);
+    let tip = null;
+    const hide = () => { if (tip) { tip.remove(); tip = null; } };
+    const show = () => {
+      hide();
+      tip = document.createElement('div');
+      tip.className = 'cfg-tip';
+      tip.textContent = text;
+      document.body.appendChild(tip);
+      const r = i.getBoundingClientRect(), t = tip.getBoundingClientRect();
+      let left = r.left + r.width / 2 - t.width / 2;
+      left = Math.max(8, Math.min(left, (global.innerWidth || 1024) - t.width - 8));
+      let top = r.top - t.height - 8;
+      if (top < 8) top = r.bottom + 8;               // flip below if no room above
+      tip.style.left = left + 'px';
+      tip.style.top = top + 'px';
+    };
+    i.addEventListener('mouseenter', show);
+    i.addEventListener('mouseleave', hide);
+    i.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); });
+    return i;
+  };
+  function labelEl(label, help) {
+    const lab = document.createElement('span'); lab.className = 'cfg-label'; lab.textContent = label;
+    const info = ListCarousel.helpIcon(help);
+    if (info) lab.appendChild(info);
+    return lab;
+  }
+
   // A labelled slider row for the config window. get()/set(v) read+write the
-  // value; fmt(v) optionally formats the readout. Returns a .cfg-row element.
-  ListCarousel.sliderRow = function (label, get, min, max, step, set, fmt) {
+  // value; fmt(v) optionally formats the readout; help shows a tooltip icon.
+  // Returns a .cfg-row element.
+  ListCarousel.sliderRow = function (label, get, min, max, step, set, fmt, help) {
     const row = document.createElement('div'); row.className = 'cfg-row';
     const top = document.createElement('div'); top.className = 'cfg-row-top';
-    const lab = document.createElement('span'); lab.className = 'cfg-label'; lab.textContent = label;
+    const lab = labelEl(label, help);
     const val = document.createElement('span'); val.className = 'cfg-value';
     const rng = document.createElement('input'); rng.type = 'range';
     rng.min = min; rng.max = max; rng.step = step; rng.value = get();
@@ -287,9 +325,9 @@
   };
 
   // An on/off toggle-switch row. Returns a .cfg-row element.
-  ListCarousel.toggleRow = function (label, get, set) {
+  ListCarousel.toggleRow = function (label, get, set, help) {
     const row = document.createElement('div'); row.className = 'cfg-row cfg-row-inline';
-    const lab = document.createElement('span'); lab.className = 'cfg-label'; lab.textContent = label;
+    const lab = labelEl(label, help);
     const sw = document.createElement('button'); sw.type = 'button'; sw.className = 'cfg-switch';
     const knob = document.createElement('span'); knob.className = 'cfg-knob'; sw.appendChild(knob);
     const draw = () => { sw.classList.toggle('on', !!get()); sw.setAttribute('aria-pressed', String(!!get())); };
@@ -299,9 +337,9 @@
   };
 
   // A segmented control row (mutually-exclusive options). Returns a .cfg-row.
-  ListCarousel.segmentRow = function (label, get, options, set) {
+  ListCarousel.segmentRow = function (label, get, options, set, help) {
     const row = document.createElement('div'); row.className = 'cfg-row cfg-row-inline';
-    const lab = document.createElement('span'); lab.className = 'cfg-label'; lab.textContent = label;
+    const lab = labelEl(label, help);
     const seg = document.createElement('div'); seg.className = 'cfg-seg';
     const draw = () => { seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', b.dataset.v === String(get()))); };
     options.forEach(([v, t]) => {
@@ -320,21 +358,26 @@
     if (!toolsEl) return;
     toolsEl.classList.add('lc-tools');
     toolsEl.innerHTML = '';
-    toolsEl.appendChild(ListCarousel.toggleRow('Auto-scroll', () => !!cfg.carousel, (on) => { cfg.carousel = on; onChange({ carousel: on }); }));
+    toolsEl.appendChild(ListCarousel.toggleRow('Auto-scroll', () => !!cfg.carousel, (on) => { cfg.carousel = on; onChange({ carousel: on }); },
+      'Automatically scroll the list when there are more items than fit. Off = a normal scrollbar.'));
 
     // Scroll mode + (conditional) pause duration.
     let pauseRow;
     toolsEl.appendChild(ListCarousel.segmentRow('Scroll mode',
       () => (cfg.mode === 'pause' ? 'pause' : 'continuous'),
       [['continuous', 'Continuous'], ['pause', 'Pause']],
-      (v) => { cfg.mode = v; onChange({ mode: v }); if (pauseRow) pauseRow.style.display = v === 'pause' ? '' : 'none'; }));
+      (v) => { cfg.mode = v; onChange({ mode: v }); if (pauseRow) pauseRow.style.display = v === 'pause' ? '' : 'none'; },
+      'Continuous = smooth constant glide. Pause = step to each item and pause on it.'));
     pauseRow = ListCarousel.sliderRow('Pause', () => (cfg.pauseMs || 1000) / 1000, 0.5, 10, 0.5,
-      (v) => { cfg.pauseMs = Math.round(v * 1000); onChange({ pauseMs: cfg.pauseMs }); }, (v) => v.toFixed(1) + 's');
+      (v) => { cfg.pauseMs = Math.round(v * 1000); onChange({ pauseMs: cfg.pauseMs }); }, (v) => v.toFixed(1) + 's',
+      'How long to pause on each item (Pause mode only).');
     pauseRow.style.display = cfg.mode === 'pause' ? '' : 'none';
     toolsEl.appendChild(pauseRow);
 
-    toolsEl.appendChild(ListCarousel.sliderRow('Show', () => cfg.visibleCount, 1, 12, 1, (v) => { cfg.visibleCount = v; onChange({ visibleCount: v }); }));
-    toolsEl.appendChild(ListCarousel.sliderRow('Speed', () => cfg.speed, 5, 100, 5, (v) => { cfg.speed = v; onChange({ speed: v }); }));
+    toolsEl.appendChild(ListCarousel.sliderRow('Show', () => cfg.visibleCount, 1, 12, 1, (v) => { cfg.visibleCount = v; onChange({ visibleCount: v }); }, null,
+      'How many rows are visible at once.'));
+    toolsEl.appendChild(ListCarousel.sliderRow('Speed', () => cfg.speed, 5, 100, 5, (v) => { cfg.speed = v; onChange({ speed: v }); }, null,
+      'Scrolling speed — higher is faster.'));
   };
 
   global.ListCarousel = ListCarousel;

@@ -104,6 +104,29 @@
   border-radius: var(--tw-radius);
 }
 
+/* ── Idle poster showcase ───────────────────────────────────────────────── */
+/* While idle the widget fills its tile so the poster wall uses the full height
+   (scoped to .tw-idle so the streams layout is untouched). */
+.tautulli-widget.tw-idle { height: 100%; min-height: 0; }
+.tautulli-widget.tw-idle .tw-body { flex: 1 1 auto; min-height: 320px; }
+.tautulli-widget .tw-showcase {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.tautulli-widget .tw-sc-poster {
+  position: absolute;
+  top: 0;
+  left: 0;
+  object-fit: cover;            /* fill the whole cell — no empty space inside the poster */
+  object-position: center;
+  border-radius: 10px;          /* rounded poster edges */
+  background: var(--bg-secondary);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.45);
+  will-change: transform;
+}
+.tautulli-widget .tw-sc-poster-fallback { opacity: 0.85; }
+
 /* ── Carousel viewport ──────────────────────────────────────────────────── */
 .tautulli-widget .tw-viewport {
   overflow: hidden;

@@ -343,7 +343,8 @@
           const viewRow = ListCarousel.segmentRow('View',
             () => this.view,
             [['upcoming', 'Upcoming'], ['calendar', 'Calendar']],
-            (v) => this.setView(v));
+            (v) => this.setView(v),
+            'Switch between the upcoming releases list and the month calendar.');
           this.lcToolsEl.insertBefore(viewRow, this.lcToolsEl.firstChild);
         }
       }

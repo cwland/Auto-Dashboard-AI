@@ -831,6 +831,7 @@ function fitAllSectionsToContent() {
 function fitWidgetToContent(el) {
   if (!gridInstance || !el) return;
   if (gridInteracting) return;        // don't fight an in-progress drag/resize
+  if (el.dataset.header) return;      // Section Headers keep their set height (no auto-grow)
   if (el.dataset.manualSize) return;  // respect a size the user set by hand
   if (el.dataset.lcNoFit === '1') return;  // carousel OFF — keep the size; the list scrolls
   const node = el.gridstackNode;
@@ -1399,17 +1400,20 @@ function renderDashboardGrid(dash, folderNames, groups) {
   // Widget groupings (no S/M/L pill; integration widget or a disabled notice).
   (dash.widgets || []).forEach((wdef) => {
     const pos = layout['@w:' + wdef.uid] || {};
+    const header = isSectionHeader(wdef);
     const item = document.createElement('div');
     item.className = 'grid-stack-item';
     item.dataset.widget = wdef.uid;
+    if (header) item.dataset.header = '1';
     // Restore the "hand-sized" flag so auto-fit leaves the saved size alone.
     if (pos.manual) item.dataset.manualSize = '1';
     if (Number.isFinite(pos.x)) item.setAttribute('gs-x', pos.x);
     if (Number.isFinite(pos.y)) item.setAttribute('gs-y', pos.y);
-    item.setAttribute('gs-w', Math.min(GRID_COLS, Number.isFinite(pos.w) ? pos.w : 8));
+    item.setAttribute('gs-w', Math.min(GRID_COLS, Number.isFinite(pos.w) ? pos.w : (header ? Math.round(GRID_COLS / 2) : 8)));
     if (Number.isFinite(pos.h)) item.setAttribute('gs-h', pos.h);
-    item.setAttribute('gs-min-w', 3);
-    item.setAttribute('gs-min-h', 3);
+    else if (header) item.setAttribute('gs-h', 6);
+    item.setAttribute('gs-min-w', header ? 1 : 3);
+    item.setAttribute('gs-min-h', header ? 1 : 3);
     item.setAttribute('gs-max-w', GRID_COLS);
     applyLockedAttrs(item, pos);
 
@@ -1423,6 +1427,7 @@ function renderDashboardGrid(dash, folderNames, groups) {
     content.appendChild(buildGridLock('@w:' + wdef.uid));   // lock/unlock straddling the corner
     item.appendChild(content);
     gridEl.appendChild(item);
+    if (header) requestAnimationFrame(() => setHeaderItemMin(item));
   });
 
   gridInstance = GridStack.init({
@@ -1458,11 +1463,12 @@ function renderDashboardGrid(dash, folderNames, groups) {
   // section narrows, its required height rises and Gridstack won't let it shrink
   // past the point where every icon fits.
   gridInstance.on('resizestart', (e, el) => {
-    gridInteracting = true; setSectionLiveMin(el);
+    gridInteracting = true;
+    if (el.dataset.header) setHeaderItemMin(el); else setSectionLiveMin(el);
     // Icon sections need nothing special: the CSS grid inside reflows live as the
     // section's width changes during the drag (fixed-size cells just re-wrap).
   });
-  gridInstance.on('resize', (e, el) => setSectionLiveMin(el));
+  gridInstance.on('resize', (e, el) => { if (el.dataset.header) setHeaderItemMin(el); else setSectionLiveMin(el); });
   gridInstance.on('resizestop', (e, el) => {
     gridInteracting = false;
     // A manually-resized widget keeps its size (auto-fit no longer touches it).
@@ -2354,6 +2360,7 @@ function setupAddItemFlow() {
   document.getElementById('choice-bookmark')?.addEventListener('click', () => { closeChooser(); openAddBookmarkModal(); });
   document.getElementById('choice-widget')?.addEventListener('click', () => { closeChooser(); openWidgetModal(); });
   document.getElementById('choice-manual')?.addEventListener('click', () => { closeChooser(); openManualItemModal(); });
+  document.getElementById('choice-section-header')?.addEventListener('click', () => { closeChooser(); addSectionHeader(); });
 
   // Browser-bookmark picker
   document.getElementById('add-bm-close')?.addEventListener('click', closeAddBookmarkModal);
@@ -2490,6 +2497,208 @@ function addWidgetItemInPlace(wdef) {
   setTimeout(() => { fitWidgetToContent(item); persistWidgetPos(wdef.uid); }, 400);
 }
 
+// ─── Section Header — a purely-visual organizational item ────────────────────
+// Stored as a widget entry (wid 'section-header') so it inherits the whole widget
+// lifecycle: grid geometry capture, persistence, drag/resize, lock and delete.
+// It mounts no integration — buildWidgetSection short-circuits to render a label.
+const SECTION_HEADER_WID = 'section-header';
+function isSectionHeader(wdef) { return !!wdef && wdef.wid === SECTION_HEADER_WID; }
+function headerCfg(wdef) {
+  const c = wdef.config || (wdef.config = {});
+  if (typeof c.text !== 'string') c.text = 'Sample Header';
+  if (typeof c.showText !== 'boolean') c.showText = true;
+  if (c.align !== 'center' && c.align !== 'right') c.align = 'left';
+  if (!Number.isFinite(c.fontSize)) c.fontSize = 15;
+  if (c.corners !== 'rounded' && c.corners !== 'round') c.corners = 'square';
+  if (c.bg === undefined) c.bg = null;
+  if (c.fg === undefined) c.fg = null;
+  return c;
+}
+
+// Apply text / alignment / colours to a header element (the .shdr-wrap).
+function applyHeaderStyle(wrap, wdef) {
+  const c = headerCfg(wdef);
+  const body = wrap.querySelector('.shdr-body');
+  const text = wrap.querySelector('.shdr-text');
+  if (!body || !text) return;
+  text.textContent = c.showText ? (c.text || '') : '';
+  text.style.display = c.showText ? '' : 'none';
+  text.style.fontSize = c.fontSize ? c.fontSize + 'px' : '';
+  body.style.justifyContent = c.align === 'center' ? 'center' : (c.align === 'right' ? 'flex-end' : 'flex-start');
+  body.style.borderRadius = c.corners === 'round' ? '20px' : (c.corners === 'rounded' ? '10px' : '0');
+  body.style.background = c.bg || '';   // '' → CSS default (slightly-offset surface)
+  text.style.color = c.fg || '';        // '' → CSS default (theme text colour)
+}
+
+// The visible header container plus its (collected-into-config-window) controls.
+function buildSectionHeaderBody(wdef) {
+  const wrap = document.createElement('div');
+  wrap.className = 'widget-body shdr-wrap';
+  const body = document.createElement('div');
+  body.className = 'shdr-body';
+  const text = document.createElement('span');
+  text.className = 'shdr-text';
+  body.appendChild(text);
+  wrap.appendChild(body);
+  wrap.appendChild(buildSectionHeaderTools(wdef, () => { applyHeaderStyle(wrap, wdef); setHeaderItemMin(wrap, true); }));
+  applyHeaderStyle(wrap, wdef);
+  return wrap;
+}
+
+let _hdrSaveTimer = null;
+function persistDashSoon() {
+  if (_hdrSaveTimer) clearTimeout(_hdrSaveTimer);
+  _hdrSaveTimer = setTimeout(() => { try { chromeSet({ dashboards: state.dashboards }); } catch (_) {} }, 300);
+}
+
+// Resolve a theme CSS variable to a hex string for the colour inputs.
+function cssVarHex(name) {
+  try { return (getComputedStyle(document.documentElement).getPropertyValue(name) || '').trim() || null; }
+  catch (_) { return null; }
+}
+function headerDefaultBg() { return cssVarHex('--bg-secondary') || '#1a1a24'; }
+function headerDefaultFg() { return cssVarHex('--text-primary') || '#e2e8f0'; }
+
+// A colour-picker config row with a "Reset" (use theme default) button.
+function cfgColorRow(label, get, fallbackHex, set) {
+  const row = document.createElement('div'); row.className = 'cfg-row cfg-row-inline';
+  const lab = document.createElement('span'); lab.className = 'cfg-label'; lab.textContent = label;
+  const wrap = document.createElement('span'); wrap.className = 'cfg-color-wrap';
+  const input = document.createElement('input'); input.type = 'color'; input.className = 'cfg-color';
+  input.value = get() || fallbackHex || '#888888';
+  input.addEventListener('input', () => set(input.value));
+  const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'cfg-color-reset';
+  reset.textContent = 'Reset'; reset.title = 'Use the theme default colour';
+  reset.addEventListener('click', (e) => { e.preventDefault(); input.value = fallbackHex || '#888888'; set(null); });
+  wrap.append(input, reset);
+  row.append(lab, wrap);
+  return row;
+}
+
+// Live config controls for a header, collected into the config window via .hdr-tools.
+function buildSectionHeaderTools(wdef, onApply) {
+  const c = headerCfg(wdef);
+  const tools = document.createElement('div');
+  tools.className = 'hdr-tools';
+  const apply = () => { if (onApply) onApply(); };
+
+  // Header text.
+  const tRow = document.createElement('div'); tRow.className = 'cfg-row';
+  const tTop = document.createElement('div'); tTop.className = 'cfg-row-top';
+  const tLab = document.createElement('span'); tLab.className = 'cfg-label'; tLab.textContent = 'Header text';
+  tTop.appendChild(tLab);
+  const tInput = document.createElement('input'); tInput.type = 'text'; tInput.className = 'cfg-text';
+  tInput.value = c.text || ''; tInput.placeholder = 'Sample Header';
+  tInput.addEventListener('input', () => { c.text = tInput.value; apply(); persistDashSoon(); });
+  tRow.append(tTop, tInput); tools.appendChild(tRow);
+
+  // Show / hide text.
+  tools.appendChild(ListCarousel.toggleRow('Show text', () => c.showText !== false,
+    (on) => { c.showText = on; apply(); persistDashSoon(); }));
+
+  // Alignment.
+  tools.appendChild(ListCarousel.segmentRow('Align', () => c.align || 'left',
+    [['left', 'Left'], ['center', 'Center'], ['right', 'Right']],
+    (v) => { c.align = v; apply(); persistDashSoon(); }));
+
+  // Font size.
+  tools.appendChild(ListCarousel.sliderRow('Font size', () => c.fontSize || 15, 10, 48, 1,
+    (v) => { c.fontSize = v; apply(); persistDashSoon(); }, (v) => v + 'px'));
+
+  // Corner style.
+  tools.appendChild(ListCarousel.segmentRow('Corners', () => c.corners || 'square',
+    [['square', 'Square'], ['rounded', 'Rounded'], ['round', 'Round']],
+    (v) => { c.corners = v; apply(); persistDashSoon(); }));
+
+  // Background + font colour (with reset-to-theme).
+  tools.appendChild(cfgColorRow('Background', () => c.bg, headerDefaultBg(), (hex) => { c.bg = hex; apply(); persistDashSoon(); }));
+  tools.appendChild(cfgColorRow('Font colour', () => c.fg, headerDefaultFg(), (hex) => { c.fg = hex; apply(); persistDashSoon(); }));
+
+  return tools;
+}
+
+// Floor the header's grid size to its text (never smaller than the visible label,
+// but never below 1×1). Sets the live Gridstack node mins + the gs-min attributes.
+function setHeaderItemMin(elOrChild, grow) {
+  const item = elOrChild.closest ? elOrChild.closest('.grid-stack-item') : null;
+  if (!item || !item.gridstackNode) return;
+  const text = item.querySelector('.shdr-text');
+  const PAD = 28;   // matches .shdr-body horizontal/vertical padding allowance
+  let minW = 1, minH = 1;
+  if (text && text.style.display !== 'none' && text.textContent) {
+    const tw = text.scrollWidth, th = text.offsetHeight || 18;
+    minW = Math.max(1, Math.ceil((tw + PAD) / BASE_CELL_PX));
+    minH = Math.max(1, Math.ceil((th + PAD) / GRID_CELL));
+  }
+  const node = item.gridstackNode;
+  node.minW = minW; node.minH = minH;
+  item.setAttribute('gs-min-w', minW);
+  item.setAttribute('gs-min-h', minH);
+  // From a config change (not a live drag): grow the item if it's now too small
+  // for the text (e.g. a larger font size) so the text never clips.
+  if (grow && gridInstance && (node.w < minW || node.h < minH)) {
+    const wasStatic = !state.rearrangeMode;
+    if (wasStatic) gridInstance.setStatic(false);
+    gridInstance.update(item, { w: Math.max(node.w, minW), h: Math.max(node.h, minH) });
+    if (wasStatic) gridInstance.setStatic(true);
+    persistWidgetPos(item.dataset.widget);
+  }
+}
+
+// Create a Section Header and drop it at the bottom of the active dashboard.
+function addSectionHeader() {
+  const dash = getActiveDash();
+  if (!dash) return;
+  if (!Array.isArray(dash.widgets)) dash.widgets = [];
+  const uid = 'wg_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const wdef = {
+    uid, wid: SECTION_HEADER_WID, intId: SECTION_HEADER_WID, name: 'Section Header',
+    config: { text: 'Sample Header', showText: true, align: 'left', bg: null, fg: null },
+  };
+  dash.widgets.push(wdef);
+  addSectionHeaderItem(wdef);
+  try { chromeSet({ dashboards: state.dashboards }); } catch (_) {}
+  showToast('Section header added ✓');
+}
+
+function addSectionHeaderItem(wdef) {
+  const gridEl = gridInstance && gridInstance.el;
+  if (!gridInstance || !gridEl) { renderDashboard(state.activeDashboardId); return; }
+  // Bottom row = below every existing item.
+  let bottom = 0;
+  const nodes = (gridInstance.engine && gridInstance.engine.nodes) || [];
+  nodes.forEach((n) => { bottom = Math.max(bottom, (n.y || 0) + (n.h || 0)); });
+
+  const halfCols = Math.max(2, Math.round(GRID_COLS / 2));   // 50% of the dashboard width
+  const item = document.createElement('div');
+  item.className = 'grid-stack-item';
+  item.dataset.widget = wdef.uid;
+  item.dataset.header = '1';
+  item.setAttribute('gs-x', 0);
+  item.setAttribute('gs-y', bottom);
+  item.setAttribute('gs-w', halfCols);
+  item.setAttribute('gs-h', 6);          // ~one text line; auto-fit trims to content
+  item.setAttribute('gs-min-w', 1);
+  item.setAttribute('gs-min-h', 1);
+  item.setAttribute('gs-max-w', GRID_COLS);
+  const content = document.createElement('div');
+  content.className = 'grid-stack-item-content';
+  const wsec = buildWidgetSection(wdef);
+  content.appendChild(wsec);
+  attachWidgetToolsBubble(content, wsec, wdef);
+  content.appendChild(buildGridLock('@w:' + wdef.uid));
+  item.appendChild(content);
+
+  const wasStatic = !state.rearrangeMode;
+  if (wasStatic) gridInstance.setStatic(false);
+  gridEl.appendChild(item);
+  gridInstance.makeWidget(item);
+  if (wasStatic) gridInstance.setStatic(true);
+
+  persistWidgetPos(wdef.uid);
+  requestAnimationFrame(() => { fitWidgetToContent(item); setHeaderItemMin(item); persistWidgetPos(wdef.uid); });
+}
+
 // Remove a widget's placement from the active dashboard (edit-mode delete).
 // Only the board placement + its saved layout entry are removed — the
 // integration's configuration in Settings is untouched.
@@ -2590,7 +2799,7 @@ function attachWidgetToolsBubble(content, sec, wdef) {
   // Collect the widget's live, already-wired control bars and stash them in a
   // hidden store. A single "Configure" button (straddling the top border, edit
   // mode only) moves them into a draggable config window on demand.
-  const tools = [...sec.querySelectorAll('.lc-tools, .pc-tools, .ww-tools, .cd-tools, .tw-tools')].filter((t) => t.children.length);
+  const tools = [...sec.querySelectorAll('.lc-tools, .pc-tools, .ww-tools, .cd-tools, .tw-tools, .hdr-tools')].filter((t) => t.children.length);
   if (!tools.length) return;
   const store = document.createElement('div');
   store.className = 'widget-config-store';
@@ -2804,6 +3013,13 @@ function buildWidgetSection(wdef) {
   del.addEventListener('click', (e) => { e.stopPropagation(); removeWidgetGrouping(wdef.uid); });
   sec.appendChild(del);
 
+  // Section Header: purely visual, no integration mount — render a label + config.
+  if (isSectionHeader(wdef)) {
+    sec.classList.add('shdr-section');
+    sec.appendChild(buildSectionHeaderBody(wdef));
+    return sec;
+  }
+
   const bodyEl = document.createElement('div');
   bodyEl.className = 'widget-body';
   const w = widgetDef(wdef.wid);
@@ -2871,9 +3087,7 @@ function buildWidgetSection(wdef) {
         opts.onSpeedChange = (n) => persist({ speedMs: n });
         opts.onScrollChange = (on) => persist({ carousel: on });
       } else if (wdef.intId === 'tautulli') {
-        if (wdef.config && wdef.config.maxVisible) opts.maxVisible = wdef.config.maxVisible;
-        if (wdef.config && wdef.config.dwellMs) opts.dwellMs = wdef.config.dwellMs;
-        if (wdef.config && wdef.config.carousel != null) opts.carousel = wdef.config.carousel;
+        if (wdef.config) Object.assign(opts, wdef.config);   // streams + poster-showcase settings
         opts.onConfigChange = (patch) => {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });

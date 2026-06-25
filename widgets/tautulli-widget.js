@@ -17,6 +17,12 @@
 'use strict';
 
 (function (global) {
+  // Neutral poster placeholder (shown if real artwork fails to load).
+  const POSTER_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300">' +
+    '<rect width="200" height="300" rx="10" fill="#2a2a3e"/>' +
+    '<text x="100" y="160" font-size="64" text-anchor="middle" fill="#6b6b86">🎬</text></svg>');
+
   // ─── API helper ───────────────────────────────────────────────────────────
   const TautulliApi = {
     normalizeBase(url) {
@@ -296,9 +302,22 @@
     constructor(container, config) {
       this.el = container;
       this.cfg = Object.assign(
-        { baseUrl: '', apiKey: '', maxVisible: 3, pollMs: 5000, dwellMs: 4000, carousel: true },
+        { baseUrl: '', apiKey: '', maxVisible: 3, pollMs: 5000, dwellMs: 4000, carousel: true,
+          // Idle "Poster Showcase" — random library posters when nothing is playing.
+          posterShowcase: true, posterAnimate: true, posterLockMode: false, posterMax: 24, posterAvoidDup: true,
+          posterInitialDelayMs: 400, posterSlideMs: 600, posterLockMs: 1000,
+          posterDisplayMs: 8000, posterClearMs: 700, posterRefreshMins: 30, posterReloadEachCycle: true },
         config || {}
       );
+
+      // Poster-showcase state.
+      this.showcaseOn = false;
+      this.posters = [];          // pool of poster URLs
+      this.posterFetchAt = 0;
+      this._scTimers = [];
+      this._scRefreshTimer = null;
+      this._scResizeRaf = null;
+      this._scFetching = false;
 
       this.cards = new Map();     // key -> { el, fields:Map, data }
       this.order = [];            // ring order of keys
@@ -314,7 +333,7 @@
 
       this._buildSkeleton();
 
-      this._onResize = () => this._layout();
+      this._onResize = () => { this._layout(); if (this.showcaseOn) this._scheduleShowcaseResize(); };
       this.ro = ('ResizeObserver' in global)
         ? new ResizeObserver(this._onResize)
         : null;
@@ -339,8 +358,11 @@
       const prevDwell = this.cfg.dwellMs;
       Object.assign(this.cfg, patch || {});
       this._layout();
-      // If the speed changed while idling between slides, apply it immediately.
-      if (this.mode === 'carousel' && !this.animating && this.cfg.dwellMs !== prevDwell) {
+      if (this._idle) {
+        // Re-apply the idle view so poster-showcase settings take effect at once.
+        this._exitShowcase();
+        this._enterIdle();
+      } else if (this.mode === 'carousel' && !this.animating && this.cfg.dwellMs !== prevDwell) {
         this._scheduleStep();
       }
     }
@@ -348,6 +370,7 @@
     destroy() {
       this.destroyed = true;
       this.stop();
+      this._exitShowcase();
       if (this.ro) this.ro.disconnect();
       else global.removeEventListener('resize', this._onResize);
       this.el.innerHTML = '';
@@ -378,17 +401,28 @@
       const lan = fmt.mbps(data.lan_bandwidth);
 
       if (count <= 0) {
+        // ── Idle: no active streams ──────────────────────────────────────────
+        this._idle = true;
+        this.el.classList.add('tw-idle');
         this.headerTitle.textContent = 'Tautulli';
         this.headerSummary.textContent = '';
-        this.noStreams.style.display = 'flex';
-      } else {
-        this.headerTitle.textContent = 'Tautulli';
-        const sLabel = `${count} stream${count === 1 ? '' : 's'}`;
-        const tLabel = `${transcodes} transcode${transcodes === 1 ? '' : 's'}`;
-        this.headerSummary.textContent =
-          `Sessions: ${sLabel} (${tLabel}) | Bandwidth: ${total} (LAN: ${lan})`;
-        this.noStreams.style.display = 'none';
+        this._reconcile([]);   // drop any leftover stream cards
+        this._enterIdle();
+        return;
       }
+
+      // ── Playing: active streams replace the showcase immediately ───────────
+      this._idle = false;
+      this.el.classList.remove('tw-idle');
+      this._exitShowcase();
+      this.showcase.style.display = 'none';
+      this.noStreams.style.display = 'none';
+      this.viewport.style.display = '';
+      this.headerTitle.textContent = 'Tautulli';
+      const sLabel = `${count} stream${count === 1 ? '' : 's'}`;
+      const tLabel = `${transcodes} transcode${transcodes === 1 ? '' : 's'}`;
+      this.headerSummary.textContent =
+        `Sessions: ${sLabel} (${tLabel}) | Bandwidth: ${total} (LAN: ${lan})`;
 
       const sessions = (data.sessions || []).map((s) =>
         describeSession(s, this.cfg.baseUrl, this.cfg.apiKey));
@@ -430,6 +464,231 @@
       this._layout();
     }
 
+    // ── Idle "Poster Showcase" ──────────────────────────────────────────────
+    _enterIdle() {
+      if (this.cfg.posterShowcase !== false) {
+        this.noStreams.style.display = 'none';
+        this.viewport.style.display = 'none';
+        this.showcase.style.display = '';
+        this._enterShowcase();
+      } else {
+        this._exitShowcase();
+        this.showcase.style.display = 'none';
+        this.viewport.style.display = 'none';
+        this.noStreams.style.display = 'flex';
+      }
+    }
+
+    // Idempotent — repeated idle polls won't restart a running showcase.
+    async _enterShowcase() {
+      if (this.showcaseOn || this.destroyed) return;
+      this.showcaseOn = true;
+      await this._ensurePosters();
+      if (!this.showcaseOn || this.destroyed) return;   // playback may have resumed mid-fetch
+      this._renderShowcase();
+      this._armStaticRefresh();
+    }
+
+    _exitShowcase() {
+      this.showcaseOn = false;
+      this._clearScTimers();
+      if (this._scRefreshTimer) { clearTimeout(this._scRefreshTimer); this._scRefreshTimer = null; }
+      if (this._scResizeRaf) { cancelAnimationFrame(this._scResizeRaf); this._scResizeRaf = null; }
+      if (this.showcase) this.showcase.innerHTML = '';
+    }
+
+    _clearScTimers() { (this._scTimers || []).forEach((t) => clearTimeout(t)); this._scTimers = []; }
+    _scTimeout(fn, ms) {
+      const t = setTimeout(() => { if (this.showcaseOn && !this.destroyed) fn(); }, Math.max(0, ms || 0));
+      this._scTimers.push(t); return t;
+    }
+
+    // Static mode: refresh the wall on the configured interval (animated mode
+    // refreshes once per cycle instead).
+    _armStaticRefresh() {
+      if (this._scRefreshTimer) { clearTimeout(this._scRefreshTimer); this._scRefreshTimer = null; }
+      if (this.cfg.posterAnimate !== false) return;
+      const mins = Math.max(1, Number(this.cfg.posterRefreshMins) || 30);
+      this._scRefreshTimer = setTimeout(async () => {
+        if (!this.showcaseOn || this.destroyed) return;
+        this.posterFetchAt = 0;
+        await this._ensurePosters();
+        if (this.showcaseOn && !this.destroyed) { this._renderShowcase(); this._armStaticRefresh(); }
+      }, mins * 60000);
+    }
+
+    // Fetch (and cache) a pool of poster URLs from the MOST-WATCHED movies & TV
+    // shows (Tautulli home stats). Falls back to recently-added (movie/TV
+    // libraries only) if home stats are unavailable.
+    async _ensurePosters() {
+      if (this._scFetching) return;
+      const now = Date.now();
+      const refreshMs = Math.max(1, Number(this.cfg.posterRefreshMins) || 30) * 60000;
+      if (this.posters.length && (now - this.posterFetchAt) < refreshMs) return;
+      this._scFetching = true;
+      const base = this.cfg.baseUrl, key = this.cfg.apiKey;
+      const add = (urls, seen, img) => {
+        if (!img) return;
+        const u = TautulliApi.posterUrl(base, key, img, 300, 450);
+        if (u && !seen.has(u)) { seen.add(u); urls.push(u); }
+      };
+      try {
+        const urls = [], seen = new Set();
+        // 1) Most-watched (and most-popular) movies & TV from home stats.
+        try {
+          const stats = await TautulliApi.getHomeStats(base, key, { timeRange: 90, count: 25 }, null);
+          const WANT = { top_movies: 1, top_tv: 1, popular_movies: 1, popular_tv: 1 };
+          (stats || []).forEach((cat) => {
+            if (!cat || !WANT[cat.stat_id]) return;
+            (cat.rows || []).forEach((r) => add(urls, seen, r.grandparent_thumb || r.thumb || r.parent_thumb));
+          });
+        } catch (_) { /* fall through to recently-added */ }
+
+        // 2) Fallback: recently-added from Movie/TV libraries only.
+        if (!urls.length) {
+          let items = [];
+          try {
+            const libs = await TautulliApi.getLibraries(base, key, null);
+            const sections = (libs || []).filter((l) => l && (l.section_type === 'movie' || l.section_type === 'show')).map((l) => l.section_id);
+            for (const sid of sections) {
+              try { const d = await TautulliApi._call(base, key, 'get_recently_added', { count: 50, section_id: sid }, null); items = items.concat((d && d.recently_added) || []); } catch (_) {}
+            }
+          } catch (_) { items = await TautulliApi.getRecentlyAdded(base, key, 100, null); }
+          const VIDEO = { movie: 1, show: 1, season: 1, episode: 1 };
+          items.forEach((it) => { if (it.media_type && !VIDEO[it.media_type]) return; add(urls, seen, it.grandparent_thumb || it.thumb || it.parent_thumb); });
+        }
+
+        if (urls.length) { this.posters = urls; this.posterFetchAt = now; }
+      } catch (_) { /* keep any existing pool — graceful */ }
+      finally { this._scFetching = false; }
+    }
+
+    _pickPosters(n) {
+      const pool = this.posters.slice();
+      if (!pool.length) return [];
+      const out = [];
+      if (this.cfg.posterAvoidDup !== false) {
+        for (let i = pool.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+        for (let i = 0; i < n; i++) out.push(pool[i % pool.length]);   // repeat only if pool smaller than n
+      } else {
+        for (let i = 0; i < n; i++) out.push(pool[(Math.random() * pool.length) | 0]);
+      }
+      return out;
+    }
+
+    // A SINGLE row of 2:3 posters, each scaled to the full widget height (never
+    // cropped), placed side-by-side across the width.
+    _scLayout() {
+      const host = this.showcase;
+      const W = host.clientWidth, H = host.clientHeight;
+      if (W < 40 || H < 40) return null;
+      // A single full-height row of TRUE 2:3 posters (no stretching), snapped
+      // right next to each other. Fit as many as the width allows and center the
+      // row. object-fit:cover keeps each poster filling its (already-2:3) cell.
+      const gap = 2;
+      const ar = 2 / 3;                     // poster width / height (true aspect)
+      const ph = H;
+      const pw = ph * ar;                   // = H * 2/3 — correct poster shape
+      if (pw < 1 || ph < 1) return null;
+      let cols = Math.max(1, Math.floor((W + gap) / (pw + gap)));
+      cols = Math.min(cols, Math.max(1, Number(this.cfg.posterMax) || 24));
+      const blockW = cols * pw + (cols - 1) * gap;
+      const offX = Math.max(0, (W - blockW) / 2);   // center the row
+      return { cols, rows: 1, pw, ph, gap, W, H, offX, offY: 0, count: cols };
+    }
+
+    _posterPos(layout, idx) {
+      return { x: (layout.offX || 0) + idx * (layout.pw + layout.gap), y: layout.offY || 0 };
+    }
+
+    _makePoster(url, layout) {
+      const img = document.createElement('img');
+      img.className = 'tw-sc-poster';
+      img.alt = '';
+      img.style.width = layout.pw + 'px';
+      img.style.height = layout.ph + 'px';
+      // On failure: log it and swap to a neutral placeholder (not a black box).
+      img.onerror = () => {
+        img.onerror = null;
+        try { (global.console && console.warn) && console.warn('[Tautulli] poster failed to load:', url); } catch (_) {}
+        img.classList.add('tw-sc-poster-fallback');
+        img.src = POSTER_PLACEHOLDER;
+      };
+      img.src = url;
+      return img;
+    }
+
+    _renderShowcase() {
+      if (!this.showcaseOn) return;
+      const layout = this._scLayout();
+      if (!layout) { this._scTimeout(() => this._renderShowcase(), 120); return; }   // not laid out yet
+      const posters = this._pickPosters(layout.count);
+      if (!posters.length) { this._scTimeout(() => this._renderShowcase(), 1500); return; }
+      if (this.cfg.posterAnimate !== false) this._showcaseAnimate(layout, posters);
+      else this._showcaseStatic(layout, posters);
+    }
+
+    _showcaseStatic(layout, posters) {
+      this._clearScTimers();
+      this.showcase.innerHTML = '';
+      posters.forEach((url, i) => {
+        const p = this._posterPos(layout, i);
+        const img = this._makePoster(url, layout);
+        img.style.left = p.x + 'px'; img.style.top = p.y + 'px';
+        img.style.transform = 'none';
+        this.showcase.appendChild(img);
+      });
+    }
+
+    _showcaseAnimate(layout, posters) {
+      this._clearScTimers();
+      this.showcase.innerHTML = '';
+      const slide   = Math.max(50, Number(this.cfg.posterSlideMs)        || 600);
+      const lock    = Math.max(0,  Number(this.cfg.posterLockMs)         || 1000);   // pause after a poster locks, before the next slides in
+      const initial = Math.max(0,  Number(this.cfg.posterInitialDelayMs) || 400);
+      const display = Math.max(0,  Number(this.cfg.posterDisplayMs)      || 8000);
+      const clear   = Math.max(50, Number(this.cfg.posterClearMs)        || 700);
+      const offR = layout.W + layout.pw + 20, offL = -(layout.W + layout.pw + 20);
+
+      const els = posters.map((url, i) => {
+        const p = this._posterPos(layout, i);
+        const img = this._makePoster(url, layout);
+        img.style.left = p.x + 'px'; img.style.top = p.y + 'px';
+        img.style.transform = `translateX(${offR}px)`;
+        img.style.transition = `transform ${slide}ms cubic-bezier(.22,.61,.36,1)`;
+        this.showcase.appendChild(img);
+        return img;
+      });
+
+      // One poster at a time: slide in → lock for `lock` ms → next slides in.
+      const interval = slide + lock;
+      els.forEach((img, i) => this._scTimeout(() => { img.style.transform = 'translateX(0)'; }, initial + i * interval));
+
+      // Lock Mode: leave the completed wall up indefinitely (no cycling/reload).
+      if (this.cfg.posterLockMode) return;
+
+      // Once the wall is complete, hold for the display duration, then clear left
+      // and start a fresh cycle with new posters.
+      const completeAt = initial + (els.length - 1) * interval + slide;
+      this._scTimeout(() => {
+        this._scTimeout(() => {
+          els.forEach((img) => { img.style.transition = `transform ${clear}ms ease-in`; img.style.transform = `translateX(${offL}px)`; });
+          this._scTimeout(async () => {
+            if (this.cfg.posterReloadEachCycle !== false) { this.posterFetchAt = 0; await this._ensurePosters(); }
+            if (this.showcaseOn && !this.destroyed) this._renderShowcase();
+          }, clear + 40);
+        }, display);
+      }, completeAt);
+    }
+
+    _scheduleShowcaseResize() {
+      if (this._scResizeRaf) cancelAnimationFrame(this._scResizeRaf);
+      this._scResizeRaf = requestAnimationFrame(() => {
+        this._scResizeRaf = null;
+        if (this.showcaseOn && !this.destroyed) this._renderShowcase();
+      });
+    }
+
     // ── DOM construction ────────────────────────────────────────────────────
     _buildSkeleton() {
       this.el.classList.add('tautulli-widget');
@@ -443,12 +702,14 @@
         </div>
         <div class="tw-body">
           <div class="tw-empty" style="display:none">No Streams</div>
+          <div class="tw-showcase" style="display:none"></div>
           <div class="tw-viewport"><div class="tw-track"></div></div>
         </div>`;
       this.headerTitle   = this.el.querySelector('.tw-header-title');
       this.headerSummary = this.el.querySelector('.tw-header-summary');
       this.errorEl       = this.el.querySelector('.tw-error');
       this.noStreams     = this.el.querySelector('.tw-empty');
+      this.showcase      = this.el.querySelector('.tw-showcase');
       this.viewport      = this.el.querySelector('.tw-viewport');
       this.track         = this.el.querySelector('.tw-track');
       this.track.addEventListener('transitionend', (e) => {
@@ -469,16 +730,34 @@
       // Auto-scroll on/off.
       tools.appendChild(ListCarousel.toggleRow('Auto-scroll',
         () => this.cfg.carousel !== false,
-        (on) => { this.cfg.carousel = on; change({ carousel: on }); }));
+        (on) => { this.cfg.carousel = on; change({ carousel: on }); },
+        'Automatically rotate through the active streams when there are more than fit on screen.'));
       // Number of streams shown at once.
       tools.appendChild(ListCarousel.sliderRow('Streams',
         () => this.cfg.maxVisible, 1, 6, 1,
-        (v) => change({ maxVisible: v })));
+        (v) => change({ maxVisible: v }), null,
+        'How many stream cards are visible at once.'));
       // Seconds between slide rotations.
       tools.appendChild(ListCarousel.sliderRow('Speed',
         () => Math.round(this.cfg.dwellMs / 1000), 2, 12, 1,
         (v) => change({ dwellMs: v * 1000 }),
-        (v) => v + 's'));
+        (v) => v + 's',
+        'Seconds each stream stays before the carousel rotates to the next.'));
+
+      // ── Idle Poster Showcase ──────────────────────────────────────────────
+      const c = this.cfg;
+      tools.appendChild(ListCarousel.toggleRow('Poster showcase', () => c.posterShowcase !== false, (on) => change({ posterShowcase: on }), 'Show a wall of your most-watched movie & TV posters when nothing is playing.'));
+      tools.appendChild(ListCarousel.toggleRow('Animate posters', () => c.posterAnimate !== false, (on) => change({ posterAnimate: on }), 'Slide posters in one at a time. Off = they all appear instantly (static).'));
+      tools.appendChild(ListCarousel.toggleRow('Lock mode', () => !!c.posterLockMode, (on) => change({ posterLockMode: on }), 'Run the slide-in once and leave the wall up — no clearing or cycling.'));
+      tools.appendChild(ListCarousel.sliderRow('Max posters', () => c.posterMax || 24, 1, 60, 1, (v) => change({ posterMax: v }), null, 'Maximum number of posters to display across the row.'));
+      tools.appendChild(ListCarousel.toggleRow('Avoid duplicates', () => c.posterAvoidDup !== false, (on) => change({ posterAvoidDup: on }), "Don't repeat the same poster within a single cycle when possible."));
+      tools.appendChild(ListCarousel.sliderRow('Initial delay', () => Math.round((c.posterInitialDelayMs || 400) / 100) / 10, 0, 5, 0.1, (v) => change({ posterInitialDelayMs: Math.round(v * 1000) }), (v) => v.toFixed(1) + 's', 'Wait this long before the first poster slides in.'));
+      tools.appendChild(ListCarousel.sliderRow('Slide duration', () => c.posterSlideMs || 600, 100, 2000, 50, (v) => change({ posterSlideMs: v }), (v) => v + 'ms', 'How long each poster takes to slide into place.'));
+      tools.appendChild(ListCarousel.sliderRow('Lock delay', () => c.posterLockMs || 1000, 0, 5000, 100, (v) => change({ posterLockMs: v }), (v) => v + 'ms', 'Pause after a poster locks before the next one slides in.'));
+      tools.appendChild(ListCarousel.sliderRow('Display time', () => Math.round((c.posterDisplayMs || 8000) / 1000), 1, 60, 1, (v) => change({ posterDisplayMs: v * 1000 }), (v) => v + 's', 'How long the finished poster wall stays before it clears.'));
+      tools.appendChild(ListCarousel.sliderRow('Clear duration', () => c.posterClearMs || 700, 100, 2000, 50, (v) => change({ posterClearMs: v }), (v) => v + 'ms', 'How long the posters take to slide off-screen when clearing.'));
+      tools.appendChild(ListCarousel.sliderRow('Refresh', () => c.posterRefreshMins || 30, 1, 240, 1, (v) => change({ posterRefreshMins: v }), (v) => v + 'm', 'How often (minutes) to fetch a fresh set of posters.'));
+      tools.appendChild(ListCarousel.toggleRow('Reload each cycle', () => c.posterReloadEachCycle !== false, (on) => change({ posterReloadEachCycle: on }), 'Pick a new random set of posters at the start of each cycle.'));
     }
 
     _createCard(s) {

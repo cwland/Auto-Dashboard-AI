@@ -221,8 +221,8 @@
   // shared ListCarousel.toggleRow styling when available, else a checkbox row.
   function buildUnitTools(toolsEl, getUnits, setUnits) {
     toolsEl.classList.add('cd-tools', 'cd-unit-tools');
-    const mkToggle = (label, get, set) => {
-      if (typeof ListCarousel !== 'undefined' && ListCarousel.toggleRow) return ListCarousel.toggleRow(label, get, set);
+    const mkToggle = (label, get, set, help) => {
+      if (typeof ListCarousel !== 'undefined' && ListCarousel.toggleRow) return ListCarousel.toggleRow(label, get, set, help);
       const row = document.createElement('label');
       row.className = 'cfg-row cfg-row-inline';
       row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;';
@@ -235,7 +235,8 @@
     UNIT_GROUPS.forEach(([, label, gunits]) => {
       toolsEl.appendChild(mkToggle(label,
         () => groupEnabled(getUnits(), gunits),
-        (on) => { setUnits(toggleGroup(getUnits(), gunits, on)); }));
+        (on) => { setUnits(toggleGroup(getUnits(), gunits, on)); },
+        `Show ${String(label).toLowerCase()} in the countdown display.`));
     });
   }
 
