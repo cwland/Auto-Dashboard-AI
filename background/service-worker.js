@@ -740,6 +740,159 @@ async function gistTest(token) {
 }
 
 
+// ── Manual versioned backups (separate from the auto-sync file) ───────────────
+// Each manual backup is its OWN private gist named
+//   auto-dashboard-config-<browser>-YYYY-MM-DD-HH-MM-SS.json
+// so backups never overwrite each other or the single auto-sync file
+// (auto-dashboard-config-<browser>.json), which is left completely untouched.
+// The file holds a cleartext metadata envelope (description, createdAt, schema,
+// appVersion) plus the AES-encrypted {settings,dashboards,…} payload, and the
+// gist description carries the same human-readable summary so the restore list
+// can be built from one /gists call without downloading every backup.
+const MANUAL_GIST_DESC = 'Auto Dashboard AI backup';
+const MANUAL_FILE_RE = /^auto-dashboard-config-[a-z0-9]+-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.json$/i;
+
+function _pad2(n) { return String(n).padStart(2, '0'); }
+function manualFileName(browser, ts) {
+  const d = new Date(ts);
+  const stamp = `${d.getFullYear()}-${_pad2(d.getMonth() + 1)}-${_pad2(d.getDate())}-${_pad2(d.getHours())}-${_pad2(d.getMinutes())}-${_pad2(d.getSeconds())}`;
+  return `${GIST_FILE_BASE}-${browser}-${stamp}.json`;
+}
+function appVersion() {
+  try { return (chrome.runtime.getManifest && chrome.runtime.getManifest().version) || ''; } catch (_) { return ''; }
+}
+function manualGistDescription(ver, desc) {
+  let s = MANUAL_GIST_DESC;
+  if (ver) s += ` (v${ver})`;
+  if (desc && String(desc).trim()) s += ` — ${String(desc).trim()}`;
+  return s;
+}
+function parseManualDescription(desc) {
+  const m = /^Auto Dashboard AI backup(?: \(v([^)]+)\))?(?: — ([\s\S]*))?$/.exec(desc || '');
+  if (m) return { appVersion: m[1] || '', description: (m[2] || '').trim() };
+  return { appVersion: '', description: '' };
+}
+
+// Build the stored object for a manual backup: cleartext metadata + (encrypted) payload.
+async function manualBuildStored(hash, ts, obj, description) {
+  const st = await cfgLoadState();
+  const meta = {
+    app: 'Auto Dashboard AI', type: 'config-backup', kind: 'manual',
+    schema: CFG_SCHEMA, hash, ts,
+    createdAt: new Date(ts).toISOString(),
+    appVersion: appVersion(),
+    description: (description || '').trim(),
+    deviceId: st.deviceId,
+  };
+  const pass = await backupGetPass();
+  if (pass) { meta.enc = await backupEncrypt(JSON.stringify(obj), pass); meta.encrypted = true; }
+  else { Object.assign(meta, obj); }   // unencrypted fallback (UI requires a passphrase)
+  return meta;
+}
+
+// Create a NEW gist for this manual backup. Returns {ok,id,filename,createdAt} | {ok:false,reason}.
+async function manualBackupNow(description) {
+  const { settings } = await chrome.storage.local.get('settings');
+  if (!settings || settings.gistSync !== true) return { ok: false, reason: 'disabled' };
+  if (!settings.gistToken) return { ok: false, reason: 'auth' };
+  if (!settings.backupPassphrase) return { ok: false, reason: 'noPassphrase' };
+  const { obj, hash } = await cfgBuild();
+  const ts = Date.now();
+  const meta = await manualBuildStored(hash, ts, obj, description);
+  const browser = await getBrowserType();
+  const fname = manualFileName(browser, ts);
+  const files = { [fname]: { content: JSON.stringify(meta) } };
+  const body = JSON.stringify({ description: manualGistDescription(meta.appVersion, description), public: false, files });
+  const r = await gistFetch(`${GIST_API}/gists`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
+  if (r === null) return { ok: false, reason: 'auth' };
+  if (r.status === 401 || r.status === 403) return { ok: false, reason: 'auth' };
+  if (!r.ok) return { ok: false, reason: 'http', status: r.status };
+  const g = await r.json().catch(() => null);
+  if (!g || !g.id) return { ok: false, reason: 'http' };
+  return { ok: true, id: g.id, filename: fname, createdAt: meta.createdAt };
+}
+
+// Enumerate every manual backup gist (any browser), newest first. The single
+// auto-sync file (no timestamp) never matches MANUAL_FILE_RE, so it's excluded.
+async function manualBackupList() {
+  const token = await gistGetToken();
+  if (!token) return { ok: false, reason: 'auth' };
+  const out = [];
+  for (let page = 1; page <= 5; page++) {
+    const r = await gistFetch(`${GIST_API}/gists?per_page=100&page=${page}`);
+    if (r === null || r.status === 401 || r.status === 403) return { ok: false, reason: 'auth' };
+    if (!r.ok) return { ok: false, reason: 'http', status: r.status };
+    const list = await r.json().catch(() => null);
+    if (!Array.isArray(list) || !list.length) break;
+    for (const g of list) {
+      if (!g || !g.files) continue;
+      const fname = Object.keys(g.files).find((n) => MANUAL_FILE_RE.test(n));
+      if (!fname) continue;
+      const parsed = parseManualDescription(g.description || '');
+      out.push({ id: g.id, filename: fname, createdAt: g.created_at || null, description: parsed.description, appVersion: parsed.appVersion });
+    }
+    if (list.length < 100) break;
+  }
+  out.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  return { ok: true, backups: out };
+}
+
+// Fetch + parse a single manual backup gist. Returns {data,meta} | {reason}.
+async function manualReadGist(id) {
+  const r = await gistFetch(`${GIST_API}/gists/${id}`);
+  if (r === null || r.status === 401 || r.status === 403) return { reason: 'auth' };
+  if (r.status === 404) return { reason: 'notfound' };
+  if (!r.ok) return { reason: 'http', status: r.status };
+  const g = await r.json().catch(() => null);
+  if (!g || !g.files) return { reason: 'corrupt' };
+  const fname = Object.keys(g.files).find((n) => MANUAL_FILE_RE.test(n));
+  if (!fname) return { reason: 'notfound' };
+  const file = g.files[fname];
+  let content = file.content;
+  if (file.truncated && file.raw_url) {
+    try { const rr = await fetch(file.raw_url); if (rr.ok) content = await rr.text(); } catch (_) {}
+  }
+  let data; try { data = JSON.parse(content); } catch (_) { return { reason: 'corrupt' }; }
+  if ((data.schema || 1) > CFG_SCHEMA) return { reason: 'schema' };
+  return { data, meta: { description: data.description || '', createdAt: data.createdAt || null, appVersion: data.appVersion || '' } };
+}
+
+// Validate that a backup can be decrypted with the current passphrase (no restore).
+async function manualBackupValidate(id) {
+  const res = await manualReadGist(id);
+  if (res.reason) return { ok: false, reason: res.reason };
+  const dec = await backupReadPayload(res.data);
+  if (dec.error) return { ok: false, reason: dec.error };
+  if (!dec.obj || !dec.obj.settings) return { ok: false, reason: 'corrupt' };
+  return { ok: true };
+}
+
+// Apply a restored payload as a REAL local edit (so it propagates via auto-sync),
+// preserving this device's local-only secrets (token/passphrase).
+async function manualApply(obj) {
+  const cur = (await chrome.storage.local.get('settings')).settings || {};
+  const writeLocal = {};
+  CFG_SYNC_KEYS.forEach((k) => { if (obj[k] !== undefined) writeLocal[k] = obj[k]; });
+  if (writeLocal.dashboards) writeLocal.dashboards = cfgStripDashboards(writeLocal.dashboards);
+  if (writeLocal.settings && typeof writeLocal.settings === 'object') {
+    const merged = { ...writeLocal.settings };
+    CFG_LOCAL_ONLY_SETTINGS.forEach((k) => { if (cur[k] !== undefined) merged[k] = cur[k]; });
+    writeLocal.settings = merged;
+  }
+  await chrome.storage.local.set(writeLocal);   // real edit → onChanged bumps localTs + schedules auto-backup
+}
+
+async function manualRestore(id) {
+  const res = await manualReadGist(id);
+  if (res.reason) return { ok: false, reason: res.reason };
+  const dec = await backupReadPayload(res.data);
+  if (dec.error) return { ok: false, reason: dec.error };
+  if (!dec.obj || !dec.obj.settings) return { ok: false, reason: 'corrupt' };
+  await manualApply(dec.obj);
+  notifyConfigReplaced();
+  return { ok: true };
+}
+
 // Open config page on first install
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   if (reason === 'install') {
@@ -802,6 +955,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'gistRestore') { gistRestoreNow().then(sendResponse); return true; }
   if (msg.type === 'gistStatus')  { gistStatus().then(sendResponse); return true; }
   if (msg.type === 'gistTest')    { gistTest(msg.token).then(sendResponse); return true; }
+  // Manual versioned backups (separate gists; never touch the auto-sync file).
+  if (msg.type === 'manualBackup')         { manualBackupNow(msg.description).then(sendResponse); return true; }
+  if (msg.type === 'manualBackupList')     { manualBackupList().then(sendResponse); return true; }
+  if (msg.type === 'manualBackupValidate') { manualBackupValidate(msg.id).then(sendResponse); return true; }
+  if (msg.type === 'manualRestore')        { manualRestore(msg.id).then(sendResponse); return true; }
   // A dashboard page just opened — check for a newer backup right away.
   if (msg.type === 'gistAutoPullCheck') { gistReconcile().finally(() => sendResponse({ ok: true })); return true; }
 

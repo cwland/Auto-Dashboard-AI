@@ -1732,19 +1732,10 @@ function setupSettingsListeners() {
   const gistTestBtn = document.getElementById('gist-test-btn');
   if (gistTestBtn) gistTestBtn.addEventListener('click', gistTestToken);
   const gistBackupBtn = document.getElementById('gist-backup-btn');
-  if (gistBackupBtn) gistBackupBtn.addEventListener('click', async () => {
-    // Embed icons first so the backup always includes them.
-    const orig = gistBackupBtn.textContent;
-    gistBackupBtn.disabled = true; gistBackupBtn.textContent = 'Embedding icons…';
-    try { await embedDashboardIcons(); } catch (_) {}
-    gistBackupBtn.disabled = false; gistBackupBtn.textContent = orig;
-    gistAction('gistBackup', gistBackupBtn, 'Backing up…');
-  });
+  if (gistBackupBtn) gistBackupBtn.addEventListener('click', openManualBackupModal);
   const gistRestoreBtn = document.getElementById('gist-restore-btn');
-  if (gistRestoreBtn) gistRestoreBtn.addEventListener('click', () => {
-    if (!confirm('Restore will REPLACE your current settings and dashboards with the GitHub Gist backup. Continue?')) return;
-    gistAction('gistRestore', gistRestoreBtn, 'Restoring…');
-  });
+  if (gistRestoreBtn) gistRestoreBtn.addEventListener('click', openRestoreModal);
+  wireManualBackupModals();
   refreshGistStatus();
   const exportBtn = document.getElementById('export-config-btn');
   if (exportBtn) exportBtn.addEventListener('click', async () => {
@@ -6056,6 +6047,159 @@ async function gistTestToken() {
     else if (r === 'network') showGistValidationResult('error', '✗ Network error: ' + (resp.msg || 'could not reach GitHub.'));
     else showGistValidationResult('error', '✗ Could not validate the token' + (resp && resp.status ? ` (HTTP ${resp.status})` : '') + '.');
   }
+}
+
+// ── Manual versioned backups & restore (separate from the auto-sync file) ─────
+const restoreState = { backups: [], selectedId: null };
+
+function fmtBackupWhen(iso) {
+  try { return new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }); } catch (_) { return iso || ''; }
+}
+function showModalMsg(el, text, kind) {
+  if (!el) return;
+  el.className = 'modal-msg ' + (kind || 'error');
+  el.textContent = text;
+  el.style.display = text ? 'block' : 'none';
+}
+// Map a background-action failure reason to a clear, actionable message.
+function manualErrorText(resp) {
+  if (!resp) return 'Could not reach the extension background. Try reloading this page.';
+  switch (resp.reason) {
+    case 'disabled': return 'Turn on “Back up to a private GitHub Gist”, add a token + passphrase, and click Save first.';
+    case 'auth': return 'GitHub rejected the request. Check your token (Gist scope) is saved and not expired.';
+    case 'noPassphrase': return 'Set an encryption passphrase below and click Save first.';
+    case 'passphrase': return 'The passphrase doesn’t match this backup — it can’t be decrypted. Enter the matching passphrase below and click Save, then try again.';
+    case 'corrupt': return 'This backup is corrupted or unreadable.';
+    case 'schema': return 'This backup was made by a newer version of the extension. Update this browser first.';
+    case 'notfound': return 'That backup could not be found — it may have been deleted on GitHub.';
+    case 'http': return 'GitHub returned an error' + (resp.status ? ` (HTTP ${resp.status})` : '') + '. Please try again.';
+    case 'network': return 'Network error reaching GitHub. Check your connection and try again.';
+    default: return 'Something went wrong. Please try again.';
+  }
+}
+
+function wireManualBackupModals() {
+  const byId = (id) => document.getElementById(id);
+  byId('manual-backup-close') && byId('manual-backup-close').addEventListener('click', closeManualBackupModal);
+  byId('manual-backup-cancel') && byId('manual-backup-cancel').addEventListener('click', closeManualBackupModal);
+  byId('manual-backup-save') && byId('manual-backup-save').addEventListener('click', doManualBackup);
+  byId('manual-backup-modal') && byId('manual-backup-modal').addEventListener('click', (e) => { if (e.target.id === 'manual-backup-modal') closeManualBackupModal(); });
+
+  byId('restore-backup-close') && byId('restore-backup-close').addEventListener('click', closeRestoreModal);
+  byId('restore-backup-cancel') && byId('restore-backup-cancel').addEventListener('click', closeRestoreModal);
+  byId('restore-backup-confirm') && byId('restore-backup-confirm').addEventListener('click', doRestore);
+  byId('restore-search') && byId('restore-search').addEventListener('input', renderRestoreList);
+  byId('restore-backup-modal') && byId('restore-backup-modal').addEventListener('click', (e) => { if (e.target.id === 'restore-backup-modal') closeRestoreModal(); });
+}
+
+function openManualBackupModal() {
+  const m = document.getElementById('manual-backup-modal');
+  if (!m) return;
+  document.getElementById('manual-backup-desc').value = '';
+  document.getElementById('manual-backup-when').value = new Date().toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
+  showModalMsg(document.getElementById('manual-backup-msg'), '', 'error');
+  const save = document.getElementById('manual-backup-save');
+  save.disabled = false; save.textContent = 'Save Backup';
+  m.classList.add('visible');
+  setTimeout(() => { const d = document.getElementById('manual-backup-desc'); if (d) d.focus(); }, 40);
+}
+function closeManualBackupModal() {
+  const m = document.getElementById('manual-backup-modal');
+  if (m) m.classList.remove('visible');
+}
+async function doManualBackup() {
+  const save = document.getElementById('manual-backup-save');
+  const msg = document.getElementById('manual-backup-msg');
+  const desc = (document.getElementById('manual-backup-desc').value || '').trim();
+  showModalMsg(msg, '', 'error');
+  save.disabled = true;
+  const orig = save.textContent;
+  save.textContent = 'Embedding icons…';
+  try { await embedDashboardIcons(); } catch (_) {}     // capture icons into the backup
+  save.textContent = 'Saving…';
+  const resp = await sendBg({ type: 'manualBackup', description: desc });
+  if (resp && resp.ok) {
+    showModalMsg(msg, '✓ Backup saved' + (resp.filename ? ` (${resp.filename})` : '') + '.', 'success');
+    save.textContent = 'Saved';
+    setTimeout(closeManualBackupModal, 1100);
+    refreshGistStatus();
+  } else {
+    save.disabled = false; save.textContent = orig;
+    showModalMsg(msg, manualErrorText(resp), 'error');
+  }
+}
+
+function openRestoreModal() {
+  const m = document.getElementById('restore-backup-modal');
+  if (!m) return;
+  restoreState.backups = []; restoreState.selectedId = null;
+  document.getElementById('restore-search').value = '';
+  document.getElementById('restore-backup-confirm').disabled = true;
+  showModalMsg(document.getElementById('restore-msg'), '', 'error');
+  document.getElementById('restore-list').innerHTML = '<div class="restore-empty">Loading backups…</div>';
+  m.classList.add('visible');
+  loadBackupList();
+}
+function closeRestoreModal() {
+  const m = document.getElementById('restore-backup-modal');
+  if (m) m.classList.remove('visible');
+}
+async function loadBackupList() {
+  const list = document.getElementById('restore-list');
+  const resp = await sendBg({ type: 'manualBackupList' });
+  if (!resp || !resp.ok) { list.innerHTML = `<div class="restore-empty">${escapeHtml(manualErrorText(resp))}</div>`; return; }
+  restoreState.backups = Array.isArray(resp.backups) ? resp.backups : [];
+  renderRestoreList();
+}
+function renderRestoreList() {
+  const list = document.getElementById('restore-list');
+  if (!list) return;
+  if (!restoreState.backups.length) {
+    list.innerHTML = '<div class="restore-empty">No manual backups found yet. Create one with “Manual Backup”.</div>';
+    return;
+  }
+  const q = (document.getElementById('restore-search').value || '').toLowerCase();
+  const items = restoreState.backups.filter((b) => !q
+    || (b.description || '').toLowerCase().includes(q)
+    || (b.filename || '').toLowerCase().includes(q));
+  if (!items.length) { list.innerHTML = '<div class="restore-empty">No backups match your search.</div>'; return; }
+  list.innerHTML = items.map((b) => {
+    const sel = b.id === restoreState.selectedId ? ' selected' : '';
+    const desc = b.description ? escapeHtml(b.description) : '<span class="restore-nodesc">(No description)</span>';
+    const ver = b.appVersion ? ` · v${escapeHtml(b.appVersion)}` : '';
+    return `<button type="button" class="restore-row${sel}" data-id="${escapeHtml(b.id)}">`
+      + `<span class="restore-row-desc">${desc}</span>`
+      + `<span class="restore-row-meta">${escapeHtml(fmtBackupWhen(b.createdAt))}${ver}</span>`
+      + `<span class="restore-row-file">${escapeHtml(b.filename)}</span>`
+      + '</button>';
+  }).join('');
+  list.querySelectorAll('.restore-row').forEach((el) => el.addEventListener('click', () => {
+    restoreState.selectedId = el.dataset.id;
+    renderRestoreList();
+    document.getElementById('restore-backup-confirm').disabled = false;
+  }));
+}
+async function doRestore() {
+  const id = restoreState.selectedId;
+  if (!id) return;
+  const btn = document.getElementById('restore-backup-confirm');
+  const msg = document.getElementById('restore-msg');
+  showModalMsg(msg, '', 'error');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Checking…';
+  // 1) Validate the backup decrypts with the current passphrase before doing anything.
+  const v = await sendBg({ type: 'manualBackupValidate', id });
+  if (!v || !v.ok) { btn.disabled = false; btn.textContent = orig; showModalMsg(msg, manualErrorText(v), 'error'); return; }
+  // 2) Explicit, irreversible-action confirmation.
+  if (!confirm('You are about to restore this backup. This will overwrite your current dashboard configuration and cannot be undone. Are you sure you want to continue?')) {
+    btn.disabled = false; btn.textContent = orig; return;
+  }
+  // 3) Restore, then reload so the whole UI reflects the restored config.
+  btn.textContent = 'Restoring…';
+  const r = await sendBg({ type: 'manualRestore', id });
+  if (r && r.ok) { alert('Backup restored successfully.'); location.reload(); return; }
+  btn.disabled = false; btn.textContent = orig;
+  showModalMsg(msg, manualErrorText(r), 'error');
 }
 
 // ── Export / Import (universal cross-browser backup) ─────────────────────────
