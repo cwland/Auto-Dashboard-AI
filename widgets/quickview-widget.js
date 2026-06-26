@@ -43,6 +43,14 @@
       const pad = (x) => String(x).padStart(2, '0');
       return `${h}:${pad(m)}:${pad(s)}`;
     },
+    // bytes → "1.0 GB" / "512 MB"
+    bytes(n) {
+      let v = Number(n) || 0;
+      const u = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+      let i = 0;
+      while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
+      return `${i === 0 ? Math.round(v) : v.toFixed(1)} ${u[i]}`;
+    },
     // large integers → "4,032"
     num(n) {
       const v = Number(n);
@@ -240,6 +248,21 @@
           { label: 'Online', value: fmt.num(online), tone: 'good' },
           { label: 'Offline', value: fmt.num(offline), tone: offline ? 'bad' : '' },
           { label: 'Disabled', value: fmt.num(disabled), tone: disabled ? 'warn' : '' },
+        ];
+      },
+    },
+
+    proxmox: {
+      title: 'Proxmox', subtitle: 'Cluster overview', icon: 'proxmox.svg',
+      async load(cfg, signal) {
+        const o = await global.ProxmoxOverviewApi.getOverview(cfg.baseUrl, cfg, signal);
+        const cpuTone = o.cpuPct >= 90 ? 'bad' : o.cpuPct >= 75 ? 'warn' : 'accent';
+        const memTone = o.memPct >= 90 ? 'bad' : o.memPct >= 75 ? 'warn' : 'good';
+        return [
+          { label: 'CPU', value: fmt.pct(o.cpuPct), tone: cpuTone },
+          { label: 'Memory Usage', value: fmt.bytes(o.memUsed), tone: memTone },
+          { label: 'Active', value: fmt.num(o.running), tone: o.running ? 'good' : '' },
+          { label: 'Inactive', value: fmt.num(o.stopped), tone: o.stopped ? 'warn' : '' },
         ];
       },
     },

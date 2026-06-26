@@ -57,6 +57,8 @@ It's also a deliberate learning project — a way to build a real application pr
 - **Home Assistant widget** — live states of the entities you pick (lights, switches, sensors) with on/off toggles. Try `widgets/calendar-home-demo.html`
 - **Nextcloud widget** — recent Nextcloud notifications. (For Nextcloud calendars, point the iCal widget at a calendar's exported `.ics` link.) Try `widgets/calendar-home-demo.html`
 - **OPNsense widget** — firewall summary: CPU and memory usage, version, and per-interface traffic shown as live rates. Try `widgets/opnsense-demo.html`
+- **n8n widgets** — connect an [n8n](https://n8n.io/) instance (REST API key) for two widgets: a **Quick View** of running / failed-today / succeeded-today executions, and an **Upcoming Schedule** list that reads each active workflow's Schedule Trigger and computes the next run time (relative + clock), newest first. Read-only.
+- **Quick View widgets** — a compact, at-a-glance metric card (icon + title + four-or-five key numbers) available for many integrations: Sonarr, Radarr, Seerr, Tautulli, Plex, SABnzbd, qBittorrent, Transmission, Uptime Kuma, Portainer, Prowlarr, Speedtest, Proxmox, and n8n. Each is optionally clickable to open the service, can hide its frame/background to blend into the dashboard, and can show an online/offline status badge.
 
 ## Installation
 
@@ -147,6 +149,7 @@ Versions follow the format `major.minor.patch` and increment by `0.0.1` each rel
 
 | Version | Date | Notes |
 |---|---|---|
+| 1.3.0 | 2026-06-25 | Quick View widgets — compact at-a-glance metric cards for Sonarr, Radarr, Seerr, Tautulli, Plex, SABnzbd, qBittorrent, Transmission, Uptime Kuma, Portainer, Prowlarr, Speedtest, Proxmox, and n8n (clickable open-on-tap, optional frame/background, online/offline status badge). New n8n integration (workflow monitoring): a Quick View of running/failed/succeeded executions plus an Upcoming Schedule list that computes each active workflow's next run from its Schedule Trigger. Prowlarr and Speedtest gained scrolling list widgets (indexer health, speedtest history). Per-widget custom display names, the Widget Library renamed to Integration Library, and assorted UI polish. |
 | 1.2.1 | 2026-06-23 | Per-widget config menus with scrolling for Seerr (Requests/Stats), Sonarr/Radarr (Upcoming/Calendar) and Tautulli (slider controls); a redesigned Light/Dark/Custom theme picker (12 light + 12 dark, Midnight default, AI “Surprise me”); a multi-select widgets-and-dashboards "add to dashboard" chooser; a rewritten tabbed How to Use guide with Privacy moved to the end; bookmark-sync folder placed last and reconciled on save; smoother two-way drag edge-scrolling; list widgets hold a stable minimum size; icons 25% smaller with 15% larger glyphs; solid config-popup backgrounds; and the widget remove ✕ moved onto the corner. |
 | 1.2.0 | 2026-06-23 | Proxmox dashboards (Health, System Logs, Backup Logs, Storage, VMs & LXCs, Overview), redesigned themes with full-palette swatches and editable custom themes, the renamed Widget Library, a new Privacy page, encrypted Gist backup & sync, and dashboard-creation improvements (blank dashboards, optional bookmarks, auto-open). Consolidates releases 1.0.15–1.0.26. |
 | 1.0.14 | 2026-06-16 | Card polish: moved the platform icon below the fields (no longer overlaps text on narrow 3-up cards), restacked the footer so the username always shows with a smaller avatar initial above it, and slowed the carousel slide into a gentle ease-in-out glide |
@@ -184,8 +187,14 @@ auto-dashboard-ai/
 ├── styles/
 │   └── common.css         # Shared design system
 ├── widgets/
-│   ├── tautulli-widget.js  # Reusable Tautulli activity widget (preview + future dashboards)
-│   └── tautulli-widget.css # Widget styles (bubble cards, carousel, progress)
+│   ├── dashboard-mounts.js   # Maps each widget id → its widget class + config
+│   ├── quickview-widget.js   # Generic Quick View card; per-integration metric specs
+│   ├── list-carousel.js      # Shared auto-scrolling list framework (Prowlarr, n8n, …)
+│   ├── n8n-widget.js         # n8n API + Upcoming Schedule list widget
+│   ├── tautulli-widget.js    # Reusable Tautulli activity widget (one file per integration)
+│   ├── *-widget.css          # Per-widget styles (bubble cards, carousel, progress)
+│   ├── sample.html / sample.js  # Offline sample previews for the Integration Library
+│   └── …                     # One *-widget.js (+ .css) per integration
 └── icons/
     ├── icon16.png
     ├── icon48.png
@@ -200,7 +209,7 @@ auto-dashboard-ai/
 | `storage` | Save settings, API key, and dashboard data locally |
 | `favicon` | Resolve each site's favicon for bookmark icons |
 | `alarms` | Schedule the periodic Gist auto-sync check |
-| `host_permissions` | Reach the OpenWeatherMap API (weather widget) and your self-hosted servers (Tautulli, Uptime Kuma, Sonarr, Radarr, Overseerr/Jellyseerr, Pi-hole, AdGuard Home, Plex, UniFi, SABnzbd, qBittorrent, Transmission, PeaNUT, Umami, Speedtest Tracker, ntfy, Audiobookshelf, Navidrome, Prowlarr, Tracearr, Glances, dash., Unraid, OpenMediaVault, TrueNAS, Proxmox, PBS, Beszel, Home Assistant, Nextcloud, OPNsense, and any iCal feed). These can run on any local IP/port, so broad `http(s)://*/*` access is requested; requests are only ever made to the OpenWeatherMap endpoint and the server URLs you configure |
+| `host_permissions` | Reach the OpenWeatherMap API (weather widget) and your self-hosted servers (Tautulli, Uptime Kuma, Sonarr, Radarr, Overseerr/Jellyseerr, Pi-hole, AdGuard Home, Plex, UniFi, SABnzbd, qBittorrent, Transmission, PeaNUT, Umami, Speedtest Tracker, ntfy, Audiobookshelf, Navidrome, Prowlarr, Tracearr, Glances, dash., Unraid, OpenMediaVault, TrueNAS, Proxmox, PBS, Beszel, Home Assistant, Nextcloud, OPNsense, n8n, and any iCal feed). These can run on any local IP/port, so broad `http(s)://*/*` access is requested; requests are only ever made to the OpenWeatherMap endpoint and the server URLs you configure |
 
 ## Tautulli widget
 
@@ -277,9 +286,17 @@ Open **Settings → Widgets** and enable the integration(s) you want. **Audioboo
 
 Open **Settings → Widgets** and enable the integration(s) you want. **PeaNUT** needs the server URL (username/password only if your PeaNUT requires auth). **Umami** needs the API URL, a website ID, and either an API key or a username/password, plus a time frame. **Speedtest Tracker** needs the URL and an API token (*Profile → API Tokens*). **ntfy** needs the server URL and a topic (token only for protected topics). Click **Test Connection**, then **Preview Widget**. All four are read-only. For a no-server, clickable demo of all four, open `widgets/extras-demo.html` in a browser.
 
+## n8n widgets
+
+Open **Settings → Integration Library** and enable **n8n**. It needs the instance URL (e.g. `http://192.168.1.10:5678`) and an API key (*Settings → n8n API → Create an API key*). Click **Test Connection**, then **Preview Widget** to see both widgets. Two are available: a **Quick View** (running / failed-today / succeeded-today execution counts) and an **Upcoming Schedule** list that reads each active workflow's Schedule Trigger and shows the next run time. Because n8n's API exposes no "next run" value, schedule times are computed locally from cron expressions and interval rules (interval-only triggers are anchored on the most recent execution). Read-only.
+
+## Quick View widgets
+
+Many integrations also offer a **Quick View** — a compact card showing an icon, a title, and four-or-five key numbers. Add one from **Settings → Integration Library** (the integration's widget list) or the dashboard's add-widget picker. Each Quick View has its own Configure panel: toggle whether clicking opens the service, show/hide the inner frame and background (off blends it into the dashboard), and enable an online/offline status badge. Available for Sonarr, Radarr, Seerr, Tautulli, Plex, SABnzbd, qBittorrent, Transmission, Uptime Kuma, Portainer, Prowlarr, Speedtest, Proxmox, and n8n.
+
 ## Acknowledgements
 
-The Uptime Kuma, Sonarr, Radarr, Seerr, Pi-hole, AdGuard Home, Plex, Jellyfin, Emby, UniFi Controller, SABnzbd, qBittorrent, Transmission, PeaNUT, Umami, Speedtest Tracker, ntfy, Audiobookshelf, Navidrome, Prowlarr, Tracearr, Glances, Dashdot, Unraid, OpenMediaVault, TrueNAS, Proxmox VE, Beszel, iCal, Home Assistant, Nextcloud, and OPNsense widgets' data logic and visual layouts are adapted from the [Homarr](https://github.com/homarr-labs/homarr) project, which is licensed under the Apache License 2.0. The Proxmox Backup Server widget is original work (PBS is not a Homarr integration), written against the documented PBS REST API. See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for the full attribution and license notice.
+The Uptime Kuma, Sonarr, Radarr, Seerr, Pi-hole, AdGuard Home, Plex, Jellyfin, Emby, UniFi Controller, SABnzbd, qBittorrent, Transmission, PeaNUT, Umami, Speedtest Tracker, ntfy, Audiobookshelf, Navidrome, Prowlarr, Tracearr, Glances, Dashdot, Unraid, OpenMediaVault, TrueNAS, Proxmox VE, Beszel, iCal, Home Assistant, Nextcloud, and OPNsense widgets' data logic and visual layouts are adapted from the [Homarr](https://github.com/homarr-labs/homarr) project, which is licensed under the Apache License 2.0. The Proxmox Backup Server and n8n widgets are original work (neither is a Homarr integration), written against the documented PBS and n8n REST APIs. The Quick View widgets are original compact cards built on the same integration data helpers. See [THIRD-PARTY-LICENSES.md](THIRD-PARTY-LICENSES.md) for the full attribution and license notice.
 
 The integration brand icons (in `icons/integrations/`, shown in the Settings section titles and each widget's header) come from [homarr-labs/dashboard-icons](https://github.com/homarr-labs/dashboard-icons), mirroring the icon URLs Homarr uses. They are not committed — run `icons/integrations/fetch-icons.sh` once to download them locally (keeps the extension free of runtime external requests).
 

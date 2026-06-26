@@ -1,0 +1,24 @@
+/* Auto Dashboard AI — n8n Upcoming Schedule widget styles. Scoped under .n8n-schedule-widget. */
+.n8n-schedule-widget {
+  --ns-accent: var(--accent, #ea4b71);
+  display: flex; flex-direction: column; gap: 12px; width: 100%;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.n8n-schedule-widget .ns-header { display: flex; align-items: center; gap: 10px; }
+.n8n-schedule-widget .wg-icon { width: 18px; height: 18px; object-fit: contain; flex: 0 0 auto; }
+.n8n-schedule-widget .ns-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.n8n-schedule-widget .ns-summary { font-size: 11px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.n8n-schedule-widget .ns-summary:empty { display: none; }
+.n8n-schedule-widget .ns-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+.n8n-schedule-widget .lc-tools { margin-left: auto; }
+/* List → scrollable carousel (Sonarr / Prowlarr style). */
+.n8n-schedule-widget .ns-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.n8n-schedule-widget .ns-viewport { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius, 10px); background: var(--bg-secondary); }
+.n8n-schedule-widget .ns-track { display: flex; flex-direction: column; will-change: transform; }
+.n8n-schedule-widget .ns-row { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; padding: 9px 12px; border-top: 1px solid var(--border); }
+.n8n-schedule-widget .ns-row:first-child { border-top: none; }
+.n8n-schedule-widget .ns-when { display: flex; flex-direction: column; align-items: flex-start; min-width: 56px; }
+.n8n-schedule-widget .ns-rel { font-size: 13px; font-weight: 700; color: var(--ns-accent); white-space: nowrap; }
+.n8n-schedule-widget .ns-abs { font-size: 10px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.n8n-schedule-widget .ns-name { min-width: 0; font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.n8n-schedule-widget .ns-empty { padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }

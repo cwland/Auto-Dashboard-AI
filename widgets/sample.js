@@ -317,6 +317,19 @@ const SAMPLES = {
     const indexers = [{ id: 1, name: '1337x', indexerUrls: ['https://1337x.to'], enable: true }, { id: 2, name: 'Nyaa', indexerUrls: ['https://nyaa.si'], enable: true }, { id: 3, name: 'RARBG (dead)', indexerUrls: ['https://rarbg.to'], enable: true }, { id: 4, name: 'Old Tracker', indexerUrls: ['https://example.org'], enable: false }];
     new ProwlarrWidget(tile('Prowlarr'), { carousel: false, dataProvider: () => Promise.resolve(ProwlarrApi.buildIndexers(indexers, [{ indexerId: 3 }])) }).start();
   },
+  n8n(h) {
+    if (typeof N8nScheduleWidget === 'undefined') return;
+    const now = Date.now();
+    const mins = (m) => ({ nextRun: now + m * 60000 });
+    const schedule = [
+      Object.assign({ name: 'Database Backup' }, mins(5)),
+      Object.assign({ name: 'Discord Digest' }, mins(12)),
+      Object.assign({ name: 'RSS Poll' }, mins(24)),
+      Object.assign({ name: 'Invoice Sync' }, mins(60)),
+      Object.assign({ name: 'Weekly Report' }, mins(180)),
+    ];
+    new N8nScheduleWidget(tile('n8n — Upcoming Schedule'), { carousel: false, dataProvider: () => Promise.resolve(schedule) }).start();
+  },
   tracearr(h) {
     const stats = { activeStreams: 3, totalUsers: 14, totalSessions: 5210, recentViolations: 2, timestamp: '' };
     const streams = { summary: { total: 3, transcodes: 1, directStreams: 1, directPlays: 1, totalBitrate: '24 Mbps' }, data: [
@@ -582,6 +595,10 @@ const QV_SAMPLE = {
   speedtest: [
     { label: 'Download', value: '942 Mbps', tone: 'accent' }, { label: 'Upload', value: '118 Mbps', tone: 'good' },
     { label: 'Ping', value: '12 ms' }, { label: 'Last Test', value: '30m ago' },
+  ],
+  proxmox: [
+    { label: 'CPU', value: '23.4%', tone: 'accent' }, { label: 'Memory Usage', value: '19.6 GB', tone: 'good' },
+    { label: 'Active', value: '12', tone: 'good' }, { label: 'Inactive', value: '3', tone: 'warn' },
   ],
 };
 Object.keys(QV_SAMPLE).forEach((key) => {

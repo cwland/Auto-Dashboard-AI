@@ -2010,12 +2010,14 @@ WIDGET_CATALOG.push(
   { wid: 'qv-portainer', intId: 'qv-portainer', name: 'Portainer', icon: 'portainer.svg', enabledKey: 'portainerEnabled', quickView: true },
   { wid: 'qv-prowlarr', intId: 'qv-prowlarr', name: 'Prowlarr', icon: 'prowlarr.svg', enabledKey: 'prowlarrEnabled', quickView: true },
   { wid: 'qv-n8n', intId: 'qv-n8n', name: 'n8n', icon: 'n8n.svg', enabledKey: 'n8nEnabled', quickView: true },
+  { wid: 'n8n-schedule', intId: 'n8n-schedule', name: 'n8n Upcoming Schedule', icon: 'n8n.svg', enabledKey: 'n8nEnabled' },
   { wid: 'qv-speedtest', intId: 'qv-speedtest', name: 'Speedtest Tracker', icon: 'speedtest-tracker.png', enabledKey: 'speedtestEnabled', quickView: true },
+  { wid: 'qv-proxmox', intId: 'qv-proxmox', name: 'Proxmox', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled', quickView: true },
 );
 
 // Carousel "list" widgets: when first added to a board they default to a compact
 // 5-row window with auto-scroll on, instead of expanding to show every row.
-const LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups', 'speedtest-history', 'prowlarr']);
+const LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups', 'speedtest-history', 'prowlarr', 'n8n-schedule']);
 
 function widgetDef(wid) { return WIDGET_CATALOG.find((w) => w.wid === wid); }
 function widgetEnabled(wid) { const w = widgetDef(wid); return !!(w && settings[w.enabledKey] === true); }
@@ -3224,7 +3226,7 @@ function buildWidgetSection(wdef) {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });
         };
-      } else if (wdef.intId === 'stocks' || wdef.intId === 'countdown-list' || wdef.intId === 'tautulli-list' || wdef.intId === 'tautulli-recent' || wdef.intId === 'tautulli-watch' || wdef.intId === 'speedtest-history' || wdef.intId === 'prowlarr') {
+      } else if (wdef.intId === 'stocks' || wdef.intId === 'countdown-list' || wdef.intId === 'tautulli-list' || wdef.intId === 'tautulli-recent' || wdef.intId === 'tautulli-watch' || wdef.intId === 'speedtest-history' || wdef.intId === 'prowlarr' || wdef.intId === 'n8n-schedule') {
         applyCarouselOpts(wdef, opts);
         // Per-widget display-unit visibility (Countdown List).
         if (wdef.config && wdef.config.units) opts.units = wdef.config.units;

@@ -4385,6 +4385,7 @@ const QV_PREVIEW_CFG = {
   prowlarr: (s) => ({ baseUrl: s.prowlarrUrl, apiKey: s.prowlarrApiKey }),
   speedtest: (s) => ({ baseUrl: s.speedtestUrl, token: s.speedtestToken }),
   n8n: (s) => ({ baseUrl: s.n8nUrl, apiKey: s.n8nApiKey }),
+  proxmox: (s) => ({ baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey }),
 };
 function destroyPreviewQv(svc) {
   if (state[`${svc}QvPreview`]) { try { state[`${svc}QvPreview`].destroy(); } catch (_) {} state[`${svc}QvPreview`] = null; }
@@ -4585,9 +4586,9 @@ async function validateN8n() {
   } catch (err) { state.n8nValidated = false; showExtraValidation('n8n', 'error', `✗ Unable to connect: ${err.message}`); }
   finally { setValidateBusy('n8n', false); updateN8nPreviewButton(); updateSaveBar(); }
 }
-function updateN8nPreviewButton() { /* no widget yet — preview added with the n8n widget */ }
-function openN8nPreview() {}
-function closeN8nPreview() {}
+function updateN8nPreviewButton() { setExtraPreviewBtn('n8n', state.n8nValidated && !!state.currentSettings.n8nUrl, 'Opens a live preview of your n8n widgets.'); }
+function openN8nPreview() { const s = state.currentSettings; openExtraPreview('n8n', typeof N8nScheduleWidget !== 'undefined' ? N8nScheduleWidget : undefined, () => ({ baseUrl: s.n8nUrl, apiKey: s.n8nApiKey, carousel: false })); }
+function closeN8nPreview() { closeExtraPreview('n8n'); }
 
 // ── Tracearr ──
 async function validateTracearr() {
@@ -4668,6 +4669,11 @@ function openProxmoxPreview() {
     return { card, host: tile };
   };
   state.proxmoxPreviewWidgets = [];
+  if (typeof QuickViewWidget !== 'undefined' && window.QUICKVIEW_SPECS && QUICKVIEW_SPECS.proxmox) {
+    const c = mkCard('Quick View'); grid.appendChild(c.card);
+    const w = new QuickViewWidget(c.host, withPoll('proxmox', Object.assign({ key: 'proxmox', clickable: false }, QV_PREVIEW_CFG.proxmox(s))));
+    w.start(); state.proxmoxPreviewWidgets.push(w);
+  }
   if (typeof ProxmoxOverviewWidget !== 'undefined') {
     const c = mkCard('Overview'); grid.appendChild(c.card);
     const w = new ProxmoxOverviewWidget(c.host, cfg()); w.start(); state.proxmoxPreviewWidgets.push(w);
@@ -7716,7 +7722,9 @@ const WIZ_WIDGETS = (() => {
     { wid: 'qv-portainer',   intId: 'qv-portainer',   name: 'Quick View', icon: 'portainer.svg',    enabledKey: 'portainerEnabled' },
     { wid: 'qv-prowlarr',    intId: 'qv-prowlarr',    name: 'Quick View', icon: 'prowlarr.svg',     enabledKey: 'prowlarrEnabled' },
     { wid: 'qv-n8n',         intId: 'qv-n8n',         name: 'Quick View', icon: 'n8n.svg',          enabledKey: 'n8nEnabled' },
+    { wid: 'n8n-schedule',   intId: 'n8n-schedule',   name: 'Upcoming Schedule', icon: 'n8n.svg',    enabledKey: 'n8nEnabled' },
     { wid: 'qv-speedtest',   intId: 'qv-speedtest',   name: 'Quick View', icon: 'speedtest-tracker.png', enabledKey: 'speedtestEnabled' },
+    { wid: 'qv-proxmox',     intId: 'qv-proxmox',     name: 'Quick View', icon: 'proxmox.svg',       enabledKey: 'proxmoxEnabled' },
   );
   return list;
 })();
@@ -7737,10 +7745,11 @@ const WIZ_BASE_INT = {
   'countdown-list': 'countdown',
   'speedtest-history': 'speedtest',
   'proxmox-health': 'proxmox', 'proxmox-logs': 'proxmox', 'proxmox-backups': 'proxmox',
-  'proxmox-storage': 'proxmox', 'proxmox-guests': 'proxmox', 'proxmox-overview': 'proxmox',
+  'proxmox-storage': 'proxmox', 'proxmox-guests': 'proxmox', 'proxmox-overview': 'proxmox', 'qv-proxmox': 'proxmox',
   'qv-sabnzbd': 'sabnzbd', 'qv-sonarr': 'sonarr', 'qv-radarr': 'radarr', 'qv-seerr': 'seerr',
   'qv-tautulli': 'tautulli', 'qv-plex': 'plex', 'qv-qbittorrent': 'qbittorrent', 'qv-transmission': 'transmission',
   'qv-uptimekuma': 'uptimekuma', 'qv-portainer': 'portainer', 'qv-prowlarr': 'prowlarr', 'qv-n8n': 'n8n', 'qv-speedtest': 'speedtest',
+  'n8n-schedule': 'n8n',
 };
 function wizBaseInt(intId) { return WIZ_BASE_INT[intId] || intId; }
 
@@ -7760,7 +7769,7 @@ function wizServiceMeta(key, widgets) {
 
 // Carousel "list" widgets default to a compact 5-row window with scroll on when
 // first added (mirrors newtab's LIST_DEFAULT_5).
-const WIZ_LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups', 'speedtest-history', 'prowlarr']);
+const WIZ_LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups', 'speedtest-history', 'prowlarr', 'n8n-schedule']);
 
 function wizWidgetCard(w, sample, updateCount, endpointId, endpointName, nameOverride) {
   const epKey = endpointId || null;

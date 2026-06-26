@@ -159,6 +159,7 @@
     audiobookshelf: (h, s) => new AudiobookshelfWidget(h, withPoll(s, 'audiobookshelf', { baseUrl: s.audiobookshelfUrl, apiKey: s.audiobookshelfToken })),
     navidrome: (h, s) => new NavidromeWidget(h, withPoll(s, 'navidrome', { baseUrl: s.navidromeUrl, username: s.navidromeUsername, password: s.navidromePassword })),
     prowlarr: (h, s, opts) => new ProwlarrWidget(h, withPoll(s, 'prowlarr', Object.assign({ baseUrl: s.prowlarrUrl, apiKey: s.prowlarrApiKey }, carouselOpts(opts)))),
+    'n8n-schedule': (h, s, opts) => new N8nScheduleWidget(h, withPoll(s, 'n8n', Object.assign({ baseUrl: s.n8nUrl, apiKey: s.n8nApiKey, count: N(s.n8nScheduleCount, 12) }, carouselOpts(opts)))),
     tracearr: (h, s) => new TracearrWidget(h, withPoll(s, 'tracearr', { baseUrl: s.tracearrUrl, apiKey: s.tracearrApiKey })),
     proxmox: (h, s) => new ProxmoxWidget(h, withPoll(s, 'proxmox', { baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey })),
     'proxmox-health': (h, s) => new ProxmoxHealthWidget(h, withPoll(s, 'proxmox', { baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey })),
@@ -210,6 +211,7 @@
     'qv-prowlarr': (h, s, opts) => quickView(h, s, opts, 'prowlarr', (x) => ({ baseUrl: x.prowlarrUrl, apiKey: x.prowlarrApiKey, url: x.prowlarrUrl })),
     'qv-n8n': (h, s, opts) => quickView(h, s, opts, 'n8n', (x) => ({ baseUrl: x.n8nUrl, apiKey: x.n8nApiKey, url: x.n8nUrl })),
     'qv-speedtest': (h, s, opts) => quickView(h, s, opts, 'speedtest', (x) => ({ baseUrl: x.speedtestUrl, token: x.speedtestToken, url: x.speedtestUrl })),
+    'qv-proxmox': (h, s, opts) => quickView(h, s, opts, 'proxmox', (x) => ({ baseUrl: x.proxmoxUrl, username: x.proxmoxUsername, realm: x.proxmoxRealm, tokenId: x.proxmoxTokenId, apiKey: x.proxmoxApiKey, url: x.proxmoxUrl })),
   };
 
   // Build a Quick View widget. `key` is the spec id (== base integration), used
@@ -259,11 +261,13 @@
     'proxmox-overview': 'proxmox',
     'proxmox-backups': 'proxmox',
     'speedtest-history': 'speedtest',
+    'n8n-schedule': 'n8n',
     // Quick View widgets all group under a single "Quick View" service.
     'qv-sabnzbd': 'quickview', 'qv-sonarr': 'quickview', 'qv-radarr': 'quickview',
     'qv-seerr': 'quickview', 'qv-tautulli': 'quickview', 'qv-qbittorrent': 'quickview',
     'qv-transmission': 'quickview', 'qv-uptimekuma': 'quickview', 'qv-portainer': 'quickview',
     'qv-prowlarr': 'quickview', 'qv-n8n': 'quickview', 'qv-plex': 'quickview', 'qv-speedtest': 'quickview',
+    'qv-proxmox': 'quickview',
   };
   function baseIntOf(intId) { return WIDGET_BASE_INT[intId] || intId; }
   global.dashboardWidgetBaseInt = baseIntOf;

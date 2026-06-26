@@ -23,6 +23,7 @@
   <link rel="stylesheet" href="../widgets/audiobookshelf-widget.css">
   <link rel="stylesheet" href="../widgets/navidrome-widget.css">
   <link rel="stylesheet" href="../widgets/prowlarr-widget.css">
+  <link rel="stylesheet" href="../widgets/n8n-widget.css">
   <link rel="stylesheet" href="../widgets/tracearr-widget.css">
   <link rel="stylesheet" href="../widgets/system-health-widget.css">
   <link rel="stylesheet" href="../widgets/proxmox-widget.css">
@@ -1149,7 +1150,7 @@
       <a class="logo-icon" href="../newtab/dashboard.html" title="Open your dashboard"><img src="../icons/logo.png" alt="Auto Dashboard AI" style="width:24px;height:24px;object-fit:contain;display:block;"></a>
       <div>
         <div class="logo-name">Auto Dashboard AI</div>
-        <div class="logo-ver" id="app-version">v1.2.2</div>
+        <div class="logo-ver" id="app-version">v1.3.0</div>
       </div>
     </div>
 
@@ -3163,6 +3164,10 @@
               </div>
               <div id="n8n-validation-result" style="display:none;margin-top:8px;"></div>
               <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">In n8n: <strong>Settings → n8n API → Create an API key</strong>.</p></div>
+            <div class="form-group" style="margin-bottom:0;">
+              <button class="btn btn-primary" id="n8n-preview-btn" disabled>Preview Widget</button>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="n8n-preview-hint">Test the connection to enable a live preview.</p>
+            </div>
           </div>
         </div>
       </div>
@@ -3602,6 +3607,12 @@
     <div class="modal-footer"><button class="btn btn-ghost" id="navidrome-preview-done">Close</button></div>
   </div></div>
   <!-- Prowlarr preview modal -->
+  <div class="modal-overlay" id="n8n-preview-modal"><div class="modal-box modal-wide">
+    <div class="modal-header"><h3>⚙️ n8n Widget Preview</h3><button class="modal-close-btn" id="n8n-preview-close">✕</button></div>
+    <div class="modal-body"><div id="n8n-preview-host"></div></div>
+    <div class="modal-footer"><button class="btn btn-ghost" id="n8n-preview-done">Close</button></div>
+  </div></div>
+
   <div class="modal-overlay" id="prowlarr-preview-modal"><div class="modal-box modal-wide">
     <div class="modal-header"><h3>🔎 Prowlarr Widget Preview</h3><button class="modal-close-btn" id="prowlarr-preview-close">✕</button></div>
     <div class="modal-body"><div id="prowlarr-preview-host"></div></div>

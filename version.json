@@ -1,5 +1,5 @@
 {
-  "version": "1.2.2",
-  "notes": "Per-widget config menus with scrolling for Seerr, Sonarr/Radarr and Tautulli (slider controls + view switches), a redesigned Light/Dark/Custom theme picker with an AI “Surprise me” option, a multi-select “add to dashboard” chooser, a rewritten How to Use guide, smoother drag edge-scrolling, steadier list-widget sizing, smaller icons with larger glyphs, and assorted UI polish.",
+  "version": "1.3.0",
+  "notes": "Quick View widgets — compact at-a-glance metric cards for Sonarr, Radarr, Seerr, Tautulli, Plex, SABnzbd, qBittorrent, Transmission, Uptime Kuma, Portainer, Prowlarr, Speedtest, Proxmox, and n8n, with clickable open-on-tap, optional frame/background, and an online/offline status badge. New n8n integration for workflow automation (a Quick View of running/failed/successful executions plus an Upcoming Schedule list that computes each workflow's next run). Prowlarr and Speedtest gained Quick Views and scrolling list widgets (Prowlarr indexer health, Speedtest history). Per-widget custom display names, the Widget Library renamed to Integration Library, and assorted UI polish.",
   "downloadUrl": "https://github.com/cwland/Auto-Dashboard-AI/releases"
 }

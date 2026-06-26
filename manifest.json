@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Auto Dashboard AI",
-  "version": "1.2.2",
+  "version": "1.3.0",
   "_comment_key": "Pins the extension ID to the same value on every device so the dashboard's chrome-extension:// URL (e.g. for the Home button) is identical across synced computers. Resulting ID: laaaekkkcndolobpejoknmhgjljbmcdi",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAj2QiIzx/UYHAtcyO8Xoqz9QThvdHzF6y9/sHO1ZEmvPQYag+ftZ8PXEz5YCY1y2iw2wnZNldGYBzGSvh5v/Vk7Y6FmM0nMAHJjzZZ7aQGSecwSWssDHT5rImHqrjhEuQLupGiS9F70uFSLxMAijHMXYuwOud5XV2jA7TID88/UYkohkBnNlzBVnWehFSaVEmoFeeCajLf1C6pj027kq2g18Dbr8S47YHUL7kb4UeaPVxKVfhUIyLlWW52Xx+5SF9781icvLKpGy4NZJaocrfPpM5egnKc0BIiAgzOiv33U+RMSOwDnaEXXw/LMV+ZHENWUHF+EFA5mr1gZpF+Usy5QIDAQAB",
   "description": "Auto-generate beautiful dashboards from your bookmarks with AI-powered descriptions and icons.",
