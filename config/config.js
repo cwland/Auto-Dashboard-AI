@@ -272,6 +272,7 @@ const POLL_DEFAULTS = {
   glances: { def: 30, min: 10 }, dashdot: { def: 30, min: 10 }, unraid: { def: 30, min: 10 },
   openmediavault: { def: 30, min: 10 }, truenas: { def: 30, min: 10 },
   seerr: { def: 60, min: 15 }, prowlarr: { def: 60, min: 15 }, speedtest: { def: 60, min: 15 },
+  n8n: { def: 30, min: 10 },
   umami: { def: 60, min: 15 }, audiobookshelf: { def: 60, min: 15 }, pbs: { def: 60, min: 15 },
   navidrome: { def: 60, min: 20 }, nextcloud: { def: 60, min: 20 },
   sonarr: { def: 300, min: 15 }, radarr: { def: 300, min: 15 },
@@ -434,6 +435,9 @@ const DEFAULT_SETTINGS = {
   prowlarrEnabled: false,
   prowlarrUrl: '',
   prowlarrApiKey: '',
+  n8nEnabled: false,
+  n8nUrl: '',
+  n8nApiKey: '',
   tracearrEnabled: false,
   tracearrUrl: '',
   tracearrApiKey: '',
@@ -503,6 +507,8 @@ let state = {
   navidromePreviewWidget: null,
   prowlarrValidated: false,
   prowlarrPreviewWidget: null,
+  n8nValidated: false,
+  n8nPreviewWidget: null,
   tracearrValidated: false,
   tracearrPreviewWidget: null,
   glancesValidated: false, glancesPreviewWidget: null,
@@ -609,6 +615,7 @@ async function loadSettings() {
     state.audiobookshelfValidated  = !!(stored.settings.audiobookshelfUrl && stored.settings.audiobookshelfToken);
     state.navidromeValidated       = !!(stored.settings.navidromeUrl && stored.settings.navidromeUsername);
     state.prowlarrValidated        = !!(stored.settings.prowlarrUrl && stored.settings.prowlarrApiKey);
+    state.n8nValidated             = !!(stored.settings.n8nUrl && stored.settings.n8nApiKey);
     state.tracearrValidated        = !!(stored.settings.tracearrUrl && stored.settings.tracearrApiKey);
     state.glancesValidated         = !!stored.settings.glancesUrl;
     state.dashdotValidated         = !!stored.settings.dashdotUrl;
@@ -1428,6 +1435,7 @@ function applySettingsToUI() {
   updateNavidromePreviewButton();
   setToggle('prowlarr'); setVal('prowlarr-url', s.prowlarrUrl); setVal('prowlarr-api-key', s.prowlarrApiKey);
   updateProwlarrPreviewButton();
+  setToggle('n8n'); setVal('n8n-url', s.n8nUrl); setVal('n8n-api-key', s.n8nApiKey);
   setToggle('tracearr'); setVal('tracearr-url', s.tracearrUrl); setVal('tracearr-api-key', s.tracearrApiKey);
   updateTracearrPreviewButton();
 
@@ -2225,6 +2233,11 @@ function setupSettingsListeners() {
     secret: ['prowlarr-api-key', 'prowlarr-key-toggle'], invalidates: true,
     validate: validateProwlarr, update: updateProwlarrPreviewButton, open: openProwlarrPreview, close: closeProwlarrPreview,
   });
+  setupExtraListeners('n8n', {
+    fields: { 'n8n-url': 'n8nUrl', 'n8n-api-key': 'n8nApiKey' },
+    secret: ['n8n-api-key', 'n8n-key-toggle'], invalidates: true,
+    validate: validateN8n, update: updateN8nPreviewButton, open: openN8nPreview, close: closeN8nPreview,
+  });
   setupExtraListeners('tracearr', {
     fields: { 'tracearr-url': 'tracearrUrl', 'tracearr-api-key': 'tracearrApiKey' },
     secret: ['tracearr-api-key', 'tracearr-key-toggle'], invalidates: true,
@@ -2857,6 +2870,9 @@ async function saveSettings() {
     prowlarrEnabled:     state.currentSettings.prowlarrEnabled,
     prowlarrUrl:         state.currentSettings.prowlarrUrl,
     prowlarrApiKey:      state.currentSettings.prowlarrApiKey,
+    n8nEnabled:          state.currentSettings.n8nEnabled,
+    n8nUrl:              state.currentSettings.n8nUrl,
+    n8nApiKey:           state.currentSettings.n8nApiKey,
     tracearrEnabled:     state.currentSettings.tracearrEnabled,
     tracearrUrl:         state.currentSettings.tracearrUrl,
     tracearrApiKey:      state.currentSettings.tracearrApiKey,
@@ -3546,6 +3562,9 @@ function openTautulliPreview() {
     state.tautulliPreviewWidgets.push(w);
   };
 
+  if (typeof QuickViewWidget !== 'undefined') {
+    mk('Quick View', (el) => new QuickViewWidget(el, { key: 'tautulli', baseUrl: base, apiKey, clickable: false, pollMs }));
+  }
   mk('Activity (carousel)', (el) => new TautulliWidget(el, {
     baseUrl: base, apiKey,
     maxVisible: parseInt(state.currentSettings.tautulliMaxSessions, 10) || 3,
@@ -3675,9 +3694,9 @@ function openUptimeKumaPreview() {
     state.uptimeKumaPreviewWidget.destroy();
     state.uptimeKumaPreviewWidget = null;
   }
-  host.innerHTML = '';
+  const mainEl = preparePreviewHost('uptimekuma', host);
 
-  state.uptimeKumaPreviewWidget = new UptimeKumaWidget(host, withPoll('uptimekuma', uptimeKumaWidgetConfig()));
+  state.uptimeKumaPreviewWidget = new UptimeKumaWidget(mainEl, withPoll('uptimekuma', uptimeKumaWidgetConfig()));
   state.uptimeKumaPreviewWidget.start();
   modal.classList.add('visible');
 }
@@ -3689,6 +3708,7 @@ function closeUptimeKumaPreview() {
     state.uptimeKumaPreviewWidget.destroy();
     state.uptimeKumaPreviewWidget = null;
   }
+  destroyPreviewQv('uptimekuma');
 }
 
 // ─── Sonarr + Radarr (shared "arr" calendar integrations) ────────────────────
@@ -3782,9 +3802,9 @@ function openArrPreview(svc) {
     state[`${svc}PreviewWidget`].destroy();
     state[`${svc}PreviewWidget`] = null;
   }
-  host.innerHTML = '';
+  const mainEl = preparePreviewHost(svc, host);
 
-  state[`${svc}PreviewWidget`] = new ArrCalendarWidget(host, withPoll(svc, arrWidgetConfig(svc)));
+  state[`${svc}PreviewWidget`] = new ArrCalendarWidget(mainEl, withPoll(svc, arrWidgetConfig(svc)));
   state[`${svc}PreviewWidget`].start();
   modal.classList.add('visible');
 }
@@ -3796,6 +3816,7 @@ function closeArrPreview(svc) {
     state[`${svc}PreviewWidget`].destroy();
     state[`${svc}PreviewWidget`] = null;
   }
+  destroyPreviewQv(svc);
 }
 
 // ─── Seerr (Overseerr / Jellyseerr media requests) ───────────────────────────
@@ -3873,9 +3894,9 @@ function openSeerrPreview() {
   if (!modal || !host || typeof SeerrWidget === 'undefined') return;
 
   if (state.seerrPreviewWidget) { state.seerrPreviewWidget.destroy(); state.seerrPreviewWidget = null; }
-  host.innerHTML = '';
+  const mainEl = preparePreviewHost('seerr', host);
 
-  state.seerrPreviewWidget = new SeerrWidget(host, withPoll('seerr', seerrWidgetConfig()));
+  state.seerrPreviewWidget = new SeerrWidget(mainEl, withPoll('seerr', seerrWidgetConfig()));
   state.seerrPreviewWidget.start();
   modal.classList.add('visible');
 }
@@ -3884,6 +3905,7 @@ function closeSeerrPreview() {
   const modal = document.getElementById('seerr-preview-modal');
   if (modal) modal.classList.remove('visible');
   if (state.seerrPreviewWidget) { state.seerrPreviewWidget.destroy(); state.seerrPreviewWidget = null; }
+  destroyPreviewQv('seerr');
 }
 
 // ─── Pi-hole + AdGuard (DNS-hole integrations) ───────────────────────────────
@@ -4037,16 +4059,33 @@ function openPlexPreview() {
   const modal = document.getElementById('plex-preview-modal');
   const host = document.getElementById('plex-preview-host');
   if (!modal || !host || typeof PlexWidget === 'undefined') return;
-  if (state.plexPreviewWidget) { state.plexPreviewWidget.destroy(); state.plexPreviewWidget = null; }
+  closePlexPreviewWidgets();
   host.innerHTML = '';
-  state.plexPreviewWidget = new PlexWidget(host, withPoll('plex', { baseUrl: state.currentSettings.plexUrl, token: state.currentSettings.plexToken }));
-  state.plexPreviewWidget.start();
+  const cfg = { baseUrl: state.currentSettings.plexUrl, token: state.currentSettings.plexToken };
+  state.plexPreviewWidgets = [];
+  const mk = (label, factory) => {
+    const wrap = document.createElement('div'); wrap.style.marginBottom = '18px';
+    const cap = document.createElement('div');
+    cap.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:8px;';
+    cap.textContent = label;
+    const hostEl = document.createElement('div'); wrap.append(cap, hostEl); host.appendChild(wrap);
+    const w = factory(hostEl); w.start(); state.plexPreviewWidgets.push(w);
+  };
+  if (typeof QuickViewWidget !== 'undefined') {
+    mk('Quick View', (el) => new QuickViewWidget(el, withPoll('plex', { key: 'plex', baseUrl: cfg.baseUrl, token: cfg.token, clickable: false })));
+  }
+  mk('Now Playing', (el) => new PlexWidget(el, withPoll('plex', Object.assign({}, cfg))));
   modal.classList.add('visible');
+}
+function closePlexPreviewWidgets() {
+  if (Array.isArray(state.plexPreviewWidgets)) state.plexPreviewWidgets.forEach((w) => { try { w.destroy(); } catch (_) {} });
+  state.plexPreviewWidgets = [];
+  if (state.plexPreviewWidget) { try { state.plexPreviewWidget.destroy(); } catch (_) {} state.plexPreviewWidget = null; }
 }
 function closePlexPreview() {
   const modal = document.getElementById('plex-preview-modal');
   if (modal) modal.classList.remove('visible');
-  if (state.plexPreviewWidget) { state.plexPreviewWidget.destroy(); state.plexPreviewWidget = null; }
+  closePlexPreviewWidgets();
 }
 
 // ─── Jellyfin / Emby (shared media-server widget) ────────────────────────────
@@ -4303,8 +4342,8 @@ function openDownloadPreview(svc) {
   const host = document.getElementById(`${svc}-preview-host`);
   if (!modal || !host || typeof DownloadClientWidget === 'undefined') return;
   if (state[`${svc}PreviewWidget`]) { state[`${svc}PreviewWidget`].destroy(); state[`${svc}PreviewWidget`] = null; }
-  host.innerHTML = '';
-  state[`${svc}PreviewWidget`] = new DownloadClientWidget(host, withPoll(svc, downloadWidgetConfig(svc)));
+  const mainEl = preparePreviewHost(svc, host);
+  state[`${svc}PreviewWidget`] = new DownloadClientWidget(mainEl, withPoll(svc, downloadWidgetConfig(svc)));
   state[`${svc}PreviewWidget`].start();
   modal.classList.add('visible');
 }
@@ -4312,6 +4351,7 @@ function closeDownloadPreview(svc) {
   const modal = document.getElementById(`${svc}-preview-modal`);
   if (modal) modal.classList.remove('visible');
   if (state[`${svc}PreviewWidget`]) { state[`${svc}PreviewWidget`].destroy(); state[`${svc}PreviewWidget`] = null; }
+  destroyPreviewQv(svc);
 }
 
 // ─── Extra integrations: shared preview helpers ──────────────────────────────
@@ -4329,14 +4369,60 @@ function setValidateBusy(svc, busy) {
   btn.disabled = busy;
   btn.innerHTML = busy ? '<span class="spinner"></span>' : 'Test Connection';
 }
+// Maps an integration → the config its Quick View widget needs (read from the
+// current settings). Used to mount a Quick View at the top of every preview.
+const QV_PREVIEW_CFG = {
+  sonarr: (s) => ({ baseUrl: s.sonarrUrl, apiKey: s.sonarrApiKey }),
+  radarr: (s) => ({ baseUrl: s.radarrUrl, apiKey: s.radarrApiKey }),
+  seerr: (s) => ({ baseUrl: s.seerrUrl, apiKey: s.seerrApiKey }),
+  tautulli: (s) => ({ baseUrl: s.tautulliUrl, apiKey: s.tautulliApiKey }),
+  plex: (s) => ({ baseUrl: s.plexUrl, token: s.plexToken }),
+  sabnzbd: (s) => ({ baseUrl: s.sabnzbdUrl, apiKey: s.sabnzbdApiKey }),
+  qbittorrent: (s) => ({ baseUrl: s.qbittorrentUrl, username: s.qbittorrentUsername, password: s.qbittorrentPassword }),
+  transmission: (s) => ({ baseUrl: s.transmissionUrl, username: s.transmissionUsername, password: s.transmissionPassword }),
+  uptimekuma: (s) => ({ baseUrl: s.uptimeKumaUrl, slug: s.uptimeKumaSlug || 'default' }),
+  portainer: (s) => ({ baseUrl: s.portainerUrl, apiKey: s.portainerApiKey }),
+  prowlarr: (s) => ({ baseUrl: s.prowlarrUrl, apiKey: s.prowlarrApiKey }),
+  speedtest: (s) => ({ baseUrl: s.speedtestUrl, token: s.speedtestToken }),
+  n8n: (s) => ({ baseUrl: s.n8nUrl, apiKey: s.n8nApiKey }),
+};
+function destroyPreviewQv(svc) {
+  if (state[`${svc}QvPreview`]) { try { state[`${svc}QvPreview`].destroy(); } catch (_) {} state[`${svc}QvPreview`] = null; }
+}
+// Build a labelled preview tile (caption + sub-host) inside `host`.
+function previewTile(host, label) {
+  const wrap = document.createElement('div'); wrap.style.marginBottom = '18px';
+  if (label) {
+    const cap = document.createElement('div');
+    cap.style.cssText = 'font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-muted);margin-bottom:8px;';
+    cap.textContent = label;
+    wrap.appendChild(cap);
+  }
+  const el = document.createElement('div'); wrap.appendChild(el); host.appendChild(wrap);
+  return el;
+}
+// Clear `host`, mount the integration's Quick View at the TOP (if it has one),
+// then return a fresh sub-host for the main widget. Tracks the QV for cleanup.
+function preparePreviewHost(svc, host) {
+  destroyPreviewQv(svc);
+  host.innerHTML = '';
+  const map = QV_PREVIEW_CFG[svc];
+  if (map && typeof QuickViewWidget !== 'undefined' && window.QUICKVIEW_SPECS && QUICKVIEW_SPECS[svc]) {
+    const qv = new QuickViewWidget(previewTile(host, 'Quick View'), withPoll(svc, Object.assign({ key: svc, clickable: false }, map(state.currentSettings))));
+    qv.start();
+    state[`${svc}QvPreview`] = qv;
+  }
+  return previewTile(host, '');
+}
+
 function openExtraPreview(svc, WidgetClass, makeCfg) {
   if (!state[`${svc}Validated`]) return;
   const modal = document.getElementById(`${svc}-preview-modal`);
   const host = document.getElementById(`${svc}-preview-host`);
   if (!modal || !host || typeof WidgetClass === 'undefined') return;
   if (state[`${svc}PreviewWidget`]) { state[`${svc}PreviewWidget`].destroy(); state[`${svc}PreviewWidget`] = null; }
-  host.innerHTML = '';
-  state[`${svc}PreviewWidget`] = new WidgetClass(host, withPoll(svc, makeCfg()));
+  const mainEl = preparePreviewHost(svc, host);
+  state[`${svc}PreviewWidget`] = new WidgetClass(mainEl, withPoll(svc, makeCfg()));
   state[`${svc}PreviewWidget`].start();
   modal.classList.add('visible');
 }
@@ -4344,6 +4430,7 @@ function closeExtraPreview(svc) {
   const modal = document.getElementById(`${svc}-preview-modal`);
   if (modal) modal.classList.remove('visible');
   if (state[`${svc}PreviewWidget`]) { state[`${svc}PreviewWidget`].destroy(); state[`${svc}PreviewWidget`] = null; }
+  destroyPreviewQv(svc);
 }
 function setExtraPreviewBtn(svc, ready, readyHint) {
   const btn = document.getElementById(`${svc}-preview-btn`);
@@ -4472,8 +4559,35 @@ async function validateProwlarr() {
   finally { setValidateBusy('prowlarr', false); updateProwlarrPreviewButton(); updateSaveBar(); }
 }
 function updateProwlarrPreviewButton() { setExtraPreviewBtn('prowlarr', state.prowlarrValidated && !!state.currentSettings.prowlarrUrl && !!state.currentSettings.prowlarrApiKey, 'Opens a live preview of your indexers.'); }
-function openProwlarrPreview() { const s = state.currentSettings; openExtraPreview('prowlarr', typeof ProwlarrWidget !== 'undefined' ? ProwlarrWidget : undefined, () => ({ baseUrl: s.prowlarrUrl, apiKey: s.prowlarrApiKey })); }
+function openProwlarrPreview() { const s = state.currentSettings; openExtraPreview('prowlarr', typeof ProwlarrWidget !== 'undefined' ? ProwlarrWidget : undefined, () => ({ baseUrl: s.prowlarrUrl, apiKey: s.prowlarrApiKey, carousel: false })); }
 function closeProwlarrPreview() { closeExtraPreview('prowlarr'); }
+
+// n8n — workflow-automation monitoring. Tests against the public REST API
+// (GET /api/v1/workflows with the X-N8N-API-KEY header). The dashboard widget
+// is added in a later step, so there's no live preview yet (no-op handlers).
+async function validateN8n() {
+  const s = state.currentSettings;
+  if (!/^https?:\/\//i.test(s.n8nUrl || '')) { showExtraValidation('n8n', 'error', 'Enter a URL starting with http:// or https://'); return; }
+  if (!s.n8nApiKey) { showExtraValidation('n8n', 'error', 'Enter your API key.'); return; }
+  setValidateBusy('n8n', true);
+  try {
+    const base = String(s.n8nUrl).trim().replace(/\/+$/, '');
+    const res = await fetch(`${base}/api/v1/workflows?limit=100`, {
+      cache: 'no-store', headers: { 'X-N8N-API-KEY': s.n8nApiKey, Accept: 'application/json' },
+    });
+    if (res.status === 401 || res.status === 403) throw new Error('invalid API key');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json().catch(() => null);
+    const list = (data && data.data) || [];
+    const active = list.filter((w) => w && w.active).length;
+    state.n8nValidated = true;
+    showExtraValidation('n8n', 'success', `✓ Connected — ${list.length} workflow${list.length === 1 ? '' : 's'} (${active} active).`);
+  } catch (err) { state.n8nValidated = false; showExtraValidation('n8n', 'error', `✗ Unable to connect: ${err.message}`); }
+  finally { setValidateBusy('n8n', false); updateN8nPreviewButton(); updateSaveBar(); }
+}
+function updateN8nPreviewButton() { /* no widget yet — preview added with the n8n widget */ }
+function openN8nPreview() {}
+function closeN8nPreview() {}
 
 // ── Tracearr ──
 async function validateTracearr() {
@@ -7523,6 +7637,7 @@ const INTEGRATIONS = [
   { id:'jellyfin',       name:'Jellyfin',              cat:'Media Server',     icon:'jellyfin.svg',              w:1 },
   { id:'emby',           name:'Emby',                  cat:'Media Server',     icon:'emby.svg',                  w:1 },
   { id:'navidrome',      name:'Navidrome',             cat:'Media Library',    icon:'navidrome.svg',             w:1 },
+  { id:'n8n',            name:'n8n',                   cat:'Automation',       icon:'n8n.svg',                   w:1 },
   { id:'nextcloud',      name:'Nextcloud',             cat:'Productivity',     icon:'nextcloud.svg',             w:1 },
   { id:'ntfy',           name:'ntfy',                  cat:'Notifications',    icon:'ntfy.svg',                  w:1 },
   { id:'openmediavault', name:'OpenMediaVault',        cat:'System Health',    icon:'openmediavault.svg',        w:1 },
@@ -7541,7 +7656,7 @@ const INTEGRATIONS = [
   { id:'sabnzbd',        name:'SABnzbd',               cat:'Downloads',        icon:'sabnzbd.svg',               w:1 },
   { id:'seerr',          name:'Seerr',                 cat:'Media Requests',   icon:'seerr.svg',                 w:1 },
   { id:'sonarr',         name:'Sonarr',                cat:'Media Management', icon:'sonarr.svg',                w:1 },
-  { id:'speedtest',      name:'Speedtest Tracker',     cat:'Network',          icon:'speedtest-tracker.png',     w:1 },
+  { id:'speedtest',      name:'Speedtest Tracker',     cat:'Network',          icon:'speedtest-tracker.png',     w:2 },
   { id:'tautulli',       name:'Tautulli',              cat:'Media Server',     icon:'tautulli.svg',              w:6, validatedKey:'tautulliApiKeyValidated' },
   { id:'tracearr',       name:'Tracearr',              cat:'Media Monitoring', icon:'tracearr.svg',              w:1 },
   { id:'transmission',   name:'Transmission',          cat:'Downloads',        icon:'transmission.svg',          w:1 },
@@ -7562,8 +7677,11 @@ const INTEGRATIONS = [
 // Per-widget catalog for the create-dashboard wizard (mirrors newtab's
 // WIDGET_CATALOG). One entry per addable widget, incl. multi-widget variants.
 const WIZ_WIDGETS = (() => {
+  // weather + n8n have no "base" widget — they only expose variant widgets
+  // (weather-*, and n8n's Quick View), pushed below.
+  const NO_BASE_WIDGET = new Set(['weather', 'n8n']);
   const list = INTEGRATIONS
-    .filter((e) => e.id !== 'weather')   // weather only exposes the variant widgets below
+    .filter((e) => !NO_BASE_WIDGET.has(e.id))
     .map((e) => ({ wid: e.id, intId: e.id, name: e.name, icon: e.icon, enabledKey: e.enabledKey }));
   list.push(
     { wid: 'tautulli-list',    intId: 'tautulli-list',    name: 'Tautulli Streams',  icon: 'tautulli.svg', enabledKey: 'tautulliEnabled' },
@@ -7576,6 +7694,29 @@ const WIZ_WIDGETS = (() => {
     { wid: 'weather-hourly',   intId: 'weather-hourly',   name: 'Hourly Forecast',    icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
     { wid: 'weather-forecast', intId: 'weather-forecast', name: '5-Day Forecast',     icon: INT_SUN_ICON,   enabledKey: 'weatherEnabled' },
     { wid: 'countdown-list',   intId: 'countdown-list',   name: 'Countdown List',     icon: INT_HOURGLASS_ICON, enabledKey: 'countdownEnabled' },
+    { wid: 'speedtest-history', intId: 'speedtest-history', name: 'Speedtest History', icon: 'speedtest-tracker.png', enabledKey: 'speedtestEnabled' },
+    { wid: 'proxmox-health',   intId: 'proxmox-health',   name: 'Proxmox Health',     icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+    { wid: 'proxmox-logs',     intId: 'proxmox-logs',     name: 'Proxmox System Logs', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+    { wid: 'proxmox-backups',  intId: 'proxmox-backups',  name: 'Proxmox Backup Logs', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+    { wid: 'proxmox-storage',  intId: 'proxmox-storage',  name: 'Proxmox Storage',    icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+    { wid: 'proxmox-guests',   intId: 'proxmox-guests',   name: 'Proxmox VMs & LXCs', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+    { wid: 'proxmox-overview', intId: 'proxmox-overview', name: 'Proxmox Overview',   icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+    // Quick View widgets — counted under each parent integration (they're enabled
+    // by the same toggle). On the dashboard they group under a "Quick View"
+    // category; here they appear within their integration's widget list.
+    { wid: 'qv-sabnzbd',     intId: 'qv-sabnzbd',     name: 'Quick View', icon: 'sabnzbd.svg',      enabledKey: 'sabnzbdEnabled' },
+    { wid: 'qv-sonarr',      intId: 'qv-sonarr',      name: 'Quick View', icon: 'sonarr.svg',       enabledKey: 'sonarrEnabled' },
+    { wid: 'qv-radarr',      intId: 'qv-radarr',      name: 'Quick View', icon: 'radarr.svg',       enabledKey: 'radarrEnabled' },
+    { wid: 'qv-seerr',       intId: 'qv-seerr',       name: 'Quick View', icon: 'seerr.svg',        enabledKey: 'seerrEnabled' },
+    { wid: 'qv-tautulli',    intId: 'qv-tautulli',    name: 'Quick View', icon: 'tautulli.svg',     enabledKey: 'tautulliEnabled' },
+    { wid: 'qv-plex',        intId: 'qv-plex',        name: 'Quick View', icon: 'plex.svg',          enabledKey: 'plexEnabled' },
+    { wid: 'qv-qbittorrent', intId: 'qv-qbittorrent', name: 'Quick View', icon: 'qbittorrent.svg',  enabledKey: 'qbittorrentEnabled' },
+    { wid: 'qv-transmission', intId: 'qv-transmission', name: 'Quick View', icon: 'transmission.svg', enabledKey: 'transmissionEnabled' },
+    { wid: 'qv-uptimekuma',  intId: 'qv-uptimekuma',  name: 'Quick View', icon: 'uptime-kuma.svg',  enabledKey: 'uptimeKumaEnabled' },
+    { wid: 'qv-portainer',   intId: 'qv-portainer',   name: 'Quick View', icon: 'portainer.svg',    enabledKey: 'portainerEnabled' },
+    { wid: 'qv-prowlarr',    intId: 'qv-prowlarr',    name: 'Quick View', icon: 'prowlarr.svg',     enabledKey: 'prowlarrEnabled' },
+    { wid: 'qv-n8n',         intId: 'qv-n8n',         name: 'Quick View', icon: 'n8n.svg',          enabledKey: 'n8nEnabled' },
+    { wid: 'qv-speedtest',   intId: 'qv-speedtest',   name: 'Quick View', icon: 'speedtest-tracker.png', enabledKey: 'speedtestEnabled' },
   );
   return list;
 })();
@@ -7594,8 +7735,23 @@ const WIZ_BASE_INT = {
   'tautulli-libraries': 'tautulli', 'tautulli-top': 'tautulli',
   'weather-combined': 'weather', 'weather-current': 'weather', 'weather-hourly': 'weather', 'weather-forecast': 'weather',
   'countdown-list': 'countdown',
+  'speedtest-history': 'speedtest',
+  'proxmox-health': 'proxmox', 'proxmox-logs': 'proxmox', 'proxmox-backups': 'proxmox',
+  'proxmox-storage': 'proxmox', 'proxmox-guests': 'proxmox', 'proxmox-overview': 'proxmox',
+  'qv-sabnzbd': 'sabnzbd', 'qv-sonarr': 'sonarr', 'qv-radarr': 'radarr', 'qv-seerr': 'seerr',
+  'qv-tautulli': 'tautulli', 'qv-plex': 'plex', 'qv-qbittorrent': 'qbittorrent', 'qv-transmission': 'transmission',
+  'qv-uptimekuma': 'uptimekuma', 'qv-portainer': 'portainer', 'qv-prowlarr': 'prowlarr', 'qv-n8n': 'n8n', 'qv-speedtest': 'speedtest',
 };
 function wizBaseInt(intId) { return WIZ_BASE_INT[intId] || intId; }
+
+// Keep each integration's "N Widgets Available" count in lock-step with the
+// actual catalog so the Integration Library can never under- or over-report (these
+// counts used to be hand-maintained `w:` values that drifted as widgets were
+// added). Derived once from WIZ_WIDGETS grouped by base integration.
+INTEGRATIONS.forEach((e) => {
+  const n = WIZ_WIDGETS.filter((w) => wizBaseInt(w.intId) === e.id).length;
+  if (n > 0) e.w = n;
+});
 function wizServiceMeta(key, widgets) {
   const o = WIZ_SERVICE_META[key] || {};
   const first = widgets[0] || {};
@@ -7604,7 +7760,7 @@ function wizServiceMeta(key, widgets) {
 
 // Carousel "list" widgets default to a compact 5-row window with scroll on when
 // first added (mirrors newtab's LIST_DEFAULT_5).
-const WIZ_LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups']);
+const WIZ_LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups', 'speedtest-history', 'prowlarr']);
 
 function wizWidgetCard(w, sample, updateCount, endpointId, endpointName, nameOverride) {
   const epKey = endpointId || null;
@@ -7688,7 +7844,7 @@ function renderWizWidgetPanel() {
     const e = document.createElement('div'); e.className = 'wiz-wp-empty';
     e.innerHTML = sample
       ? 'No sample apps available.'
-      : 'No apps configured yet — set some up in <a href="?tab=integrations">Setup → Widget Library</a>, or switch to <b>Sample apps</b>.';
+      : 'No apps configured yet — set some up in <a href="?tab=integrations">Setup → Integration Library</a>, or switch to <b>Sample apps</b>.';
     body.appendChild(e); updateCount(); return;
   }
 

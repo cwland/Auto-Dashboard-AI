@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quick View Widgets — Sample Dashboard</title>
+<link rel="stylesheet" href="../styles/common.css">
+<link rel="stylesheet" href="quickview-widget.css">
+<style>
+  body { margin: 0; background: var(--bg-primary); padding: 28px; }
+  .page { max-width: 1180px; margin: 0 auto; }
+  h1 { font: 700 22px/1.3 system-ui, sans-serif; color: var(--text-primary); margin: 0 0 4px; }
+  .lede { font: 400 13px/1.6 system-ui, sans-serif; color: var(--text-muted); margin: 0 0 18px; max-width: 90ch; }
+  .section-title { font: 700 13px/1.3 system-ui, sans-serif; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-secondary); margin: 26px 0 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 16px; }
+  .opt { display: inline-flex; align-items: center; gap: 8px; font: 500 13px/1 system-ui, sans-serif; color: var(--text-secondary); cursor: pointer; margin: 0 0 6px; }
+  .opt input { accent-color: var(--accent); width: 15px; height: 15px; }
+  .hint { font: 400 12px/1.5 system-ui, sans-serif; color: var(--text-muted); margin: 8px 0 0; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <h1>⚡ Quick View Widgets — Sample Dashboard</h1>
+    <p class="lede">
+      An offline preview of the new <strong>Quick View</strong> widget category. Each card shows ~4–5
+      of an integration's most important metrics in a compact, dashboard-friendly format. These use the
+      <em>same</em> <code>QuickViewWidget</code> class and per-integration specs the live dashboard uses —
+      here driven by static mock data instead of a network call. Toggle <strong>Clickable</strong> to see
+      the click-to-open affordance (cards open the integration's address on the real dashboard).
+    </p>
+
+    <label class="opt"><input id="clickable" type="checkbox" checked> Clickable widget (opens integration on click)</label>
+
+    <div class="section-title">Media</div>
+    <div class="grid" id="grid-media"></div>
+
+    <div class="section-title">Downloaders</div>
+    <div class="grid" id="grid-dl"></div>
+
+    <div class="section-title">Infrastructure</div>
+    <div class="grid" id="grid-infra"></div>
+
+    <p class="hint">Tip: on the live dashboard these appear at the top of the Add Widget → Sample list under a “Quick View” group.</p>
+  </div>
+
+  <script src="quickview-widget.js"></script>
+  <script>
+    // Mock metric sets (mirror widgets/sample-mounts.js).
+    const DATA = {
+      sabnzbd: [ {label:'Rate',value:'0 B/s'}, {label:'Queue',value:'0'}, {label:'Time Left',value:'0:00:00'}, {label:'Status',value:'Idle'} ],
+      sonarr:  [ {label:'Wanted',value:'301',tone:'warn'}, {label:'Queued',value:'1',tone:'accent'}, {label:'Series',value:'395'}, {label:'Monitored',value:'372'} ],
+      radarr:  [ {label:'Wanted',value:'26',tone:'warn'}, {label:'Missing',value:'58',tone:'bad'}, {label:'Queued',value:'1',tone:'accent'}, {label:'Movies',value:'4,032'} ],
+      seerr:   [ {label:'Pending',value:'0'}, {label:'Approved',value:'171',tone:'good'}, {label:'Completed',value:'72'}, {label:'Total',value:'243'} ],
+      tautulli:[ {label:'Streams',value:'2',tone:'accent'}, {label:'Transcodes',value:'0'}, {label:'Direct Play',value:'2',tone:'good'}, {label:'Bandwidth',value:'10.0 Mbps'} ],
+      plex:[ {label:'Streams',value:'3',tone:'accent'}, {label:'Transcodes',value:'1',tone:'warn'}, {label:'Direct Play',value:'2',tone:'good'}, {label:'Bandwidth',value:'24.5 Mbps'} ],
+      qbittorrent:[ {label:'Download',value:'1.2 MB/s',tone:'accent'}, {label:'Upload',value:'256 KB/s',tone:'good'}, {label:'Active',value:'3',tone:'accent'}, {label:'Seeding',value:'18'}, {label:'Total',value:'42'} ],
+      transmission:[ {label:'Download',value:'0 B/s'}, {label:'Upload',value:'64 KB/s',tone:'good'}, {label:'Active',value:'0'}, {label:'Seeding',value:'9'}, {label:'Total',value:'21'} ],
+      uptimekuma:[ {label:'Up',value:'23',tone:'good'}, {label:'Down',value:'1',tone:'bad'}, {label:'Paused',value:'2',tone:'warn'}, {label:'Uptime',value:'99.6%',tone:'good'} ],
+      portainer:[ {label:'Running',value:'31',tone:'good'}, {label:'Stopped',value:'4',tone:'bad'}, {label:'Total',value:'35'}, {label:'Endpoints',value:'2'} ],
+      speedtest:[ {label:'Download',value:'942 Mbps',tone:'accent'}, {label:'Upload',value:'118 Mbps',tone:'good'}, {label:'Ping',value:'12 ms'}, {label:'Last Test',value:'30m ago'} ],
+      prowlarr:[ {label:'Providers',value:'14'}, {label:'Online',value:'12',tone:'good'}, {label:'Offline',value:'1',tone:'bad'}, {label:'Disabled',value:'1',tone:'warn'} ],
+      n8n:[ {label:'Running',value:'2',tone:'accent'}, {label:'Failed today',value:'1',tone:'bad'}, {label:'Success today',value:'37',tone:'good'} ],
+    };
+    const GROUPS = {
+      'grid-media': ['sabnzbd','sonarr','radarr','seerr','tautulli','plex','prowlarr'],
+      'grid-dl':    ['qbittorrent','transmission'],
+      'grid-infra': ['uptimekuma','portainer','speedtest','n8n'],
+    };
+    let instances = [];
+    function render() {
+      const clickable = document.getElementById('clickable').checked;
+      instances.forEach((w) => w.destroy());
+      instances = [];
+      Object.entries(GROUPS).forEach(([gridId, keys]) => {
+        const grid = document.getElementById(gridId);
+        grid.innerHTML = '';
+        keys.forEach((key) => {
+          const host = document.createElement('div');
+          grid.appendChild(host);
+          const w = new QuickViewWidget(host, {
+            key,
+            url: 'https://example.com/' + key,   // demo target
+            clickable,
+            dataProvider: () => Promise.resolve(DATA[key]),
+          });
+          w.start();
+          instances.push(w);
+        });
+      });
+    }
+    document.getElementById('clickable').addEventListener('change', render);
+    render();
+  </script>
+</body>
+</html>

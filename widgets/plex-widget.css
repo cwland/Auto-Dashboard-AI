@@ -54,7 +54,7 @@
 }
 .plex-widget .plex-row {
   display: grid;
-  grid-template-columns: 26px 1fr auto;
+  grid-template-columns: 26px 1fr 150px;   /* fixed user column so avatars/names line up row-to-row */
   align-items: start;            /* top-align so titles line up row-to-row */
   gap: 12px;
   padding: 10px 12px;

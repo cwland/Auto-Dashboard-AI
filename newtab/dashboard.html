@@ -34,6 +34,7 @@
   <link rel="stylesheet" href="../widgets/proxmox-guests-widget.css">
   <link rel="stylesheet" href="../widgets/proxmox-overview-widget.css">
   <link rel="stylesheet" href="../widgets/portainer-widget.css">
+  <link rel="stylesheet" href="../widgets/quickview-widget.css">
   <link rel="stylesheet" href="../widgets/stocks-widget.css">
   <link rel="stylesheet" href="../widgets/countdown-widget.css">
   <link rel="stylesheet" href="../widgets/pbs-widget.css">
@@ -187,7 +188,15 @@
     .config-window .cw-body .pc-tools,
     .config-window .cw-body .cd-tools,
     .config-window .cw-body .hdr-tools,
+    .config-window .cw-body .qv-tools,
     .config-window .cw-body .tw-tools { position: static; display: flex !important; flex-direction: column; gap: 14px; align-items: stretch; margin: 0; }
+
+    /* Widget-name field (top of every widget's Configure panel). */
+    .config-window .cw-body .wg-name-tool { display: flex; flex-direction: column; gap: 6px; padding-bottom: 14px; margin-bottom: 2px; border-bottom: 1px solid var(--border); }
+    .wg-name-tool .wg-name-label { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+    .wg-name-tool .wg-name-input { width: 100%; box-sizing: border-box; padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-secondary); color: var(--text-primary); font: inherit; font-size: 13px; }
+    .wg-name-tool .wg-name-input:focus { outline: none; border-color: var(--accent, #6366f1); }
+    .wg-name-tool .wg-name-hint { font-size: 11px; color: var(--text-muted); }
 
     .cfg-row { display: flex; flex-direction: column; gap: 6px; }
     .cfg-label { display: inline-flex; align-items: center; }
@@ -1666,6 +1675,7 @@
 <script src="../widgets/audiobookshelf-widget.js"></script>
 <script src="../widgets/navidrome-widget.js"></script>
 <script src="../widgets/prowlarr-widget.js"></script>
+<script src="../widgets/n8n-widget.js"></script>
 <script src="../widgets/tracearr-widget.js"></script>
 <script src="../widgets/system-health-widget.js"></script>
 <script src="../widgets/proxmox-widget.js"></script>
@@ -1687,6 +1697,7 @@
 <script src="../widgets/nextcloud-widget.js"></script>
 <script src="../widgets/opnsense-widget.js"></script>
 <script src="../widgets/weather-widget.js"></script>
+<script src="../widgets/quickview-widget.js"></script>
 <script src="../widgets/dashboard-mounts.js"></script>
 <script src="../widgets/sample-mounts.js"></script>
 <script src="newtab.js"></script>

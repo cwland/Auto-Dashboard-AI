@@ -39,10 +39,19 @@
   <link rel="stylesheet" href="../widgets/opnsense-widget.css">
   <link rel="stylesheet" href="../widgets/weather-widget.css">
   <link rel="stylesheet" href="../widgets/portainer-widget.css">
+  <link rel="stylesheet" href="../widgets/quickview-widget.css">
   <link rel="stylesheet" href="../widgets/stocks-widget.css">
   <link rel="stylesheet" href="../widgets/countdown-widget.css">
   <style>
     html, body { height: 100%; overflow: hidden; }
+
+    /* Widget "Preview" modals are display-only — hide the widget CONTROL bars
+       (Auto-scroll / Scroll mode / Show / Speed, etc.) so previews look like the
+       live dashboard tiles, where controls live in the Configure window. Targets
+       the specific control-bar classes only — NOT header wrappers like
+       .plex-tools / .st-tools, which carry the error message and count and must
+       stay visible. Covers all integration preview modals in one place. */
+    [id$="-preview-modal"] :is(.lc-tools, .ww-tools, .tw-tools, .pc-tools, .cd-tools, .pxl-tools, .qv-tools, .hdr-tools) { display: none !important; }
 
     .page {
       display: flex;
@@ -1140,7 +1149,7 @@
       <a class="logo-icon" href="../newtab/dashboard.html" title="Open your dashboard"><img src="../icons/logo.png" alt="Auto Dashboard AI" style="width:24px;height:24px;object-fit:contain;display:block;"></a>
       <div>
         <div class="logo-name">Auto Dashboard AI</div>
-        <div class="logo-ver" id="app-version">v1.2.1</div>
+        <div class="logo-ver" id="app-version">v1.2.2</div>
       </div>
     </div>
 
@@ -1158,7 +1167,7 @@
         <span class="tab-icon">🗂️</span> Dashboards
       </button>
       <button class="tab-btn" data-tab="integrations">
-        <span class="tab-icon">🧩</span> Widget Library
+        <span class="tab-icon">🧩</span> Integration Library
       </button>
       <button class="tab-btn" data-tab="privacy">
         <span class="tab-icon">🔒</span> Privacy
@@ -2786,9 +2795,12 @@
         <div id="qbittorrent-config" style="display:none;">
           <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
             <p class="banner banner-warning" style="margin-bottom:18px;">
-              qBittorrent's WebUI uses a cookie login and may reject cross-origin requests; you might need to
-              disable <em>"Enable Host header validation"</em> / enable CSRF-friendly settings in
-              <strong>Options → Web UI</strong>.
+              qBittorrent's WebUI uses a cookie login, so its CSRF / Host-header protection will reject the
+              browser's cross-origin request — this shows up as <strong>HTTP 401</strong> on Test Connection
+              (a wrong password instead reports <em>"invalid credentials"</em>). To fix it, go to
+              <strong>Options → Web UI → Security</strong> and turn off
+              <em>"Enable Cross-Site Request Forgery (CSRF) protection"</em> and
+              <em>"Enable Host header validation"</em> (or add this address to its allowed list), then test again.
             </p>
             <div class="form-group">
               <label class="label" for="qbittorrent-url">qBittorrent WebUI URL</label>
@@ -3123,6 +3135,34 @@
               <button class="btn btn-primary" id="prowlarr-preview-btn" disabled>Preview Widget</button>
               <p style="font-size:12px;color:var(--text-muted);margin-top:6px;" id="prowlarr-preview-hint">Test the connection to enable a live preview.</p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- n8n Integration -->
+      <div class="card">
+        <div class="toggle-row">
+          <div>
+            <div class="section-title" style="margin-bottom:3px;"><img class="int-icon" src="../icons/integrations/n8n.svg" alt="">n8n Integration</div>
+            <p style="font-size:12px;color:var(--text-muted);margin:0;">Monitor your n8n workflows &amp; recent executions</p>
+          </div>
+          <label class="toggle-switch"><input type="checkbox" id="n8n-toggle"><span class="toggle-slider"></span></label>
+        </div>
+        <div id="n8n-config" style="display:none;">
+          <div style="border-top:1px solid var(--border);margin-top:18px;padding-top:18px;">
+            <p class="banner banner-info" style="margin-bottom:18px;">
+              <a href="https://n8n.io/" target="_blank" rel="noopener" style="color:var(--accent);">n8n</a> workflow automation — monitor your workflows and their recent executions.
+            </p>
+            <div class="form-group"><label class="label" for="n8n-url">n8n URL</label>
+              <input class="input" type="text" id="n8n-url" placeholder="e.g. http://192.168.1.10:5678" autocomplete="off"></div>
+            <div class="form-group" style="margin-bottom:0;"><label class="label">API Key</label>
+              <div class="api-key-row">
+                <input class="input input-mono" type="text" id="n8n-api-key" placeholder="n8n API key…" autocomplete="off">
+                <button class="btn btn-ghost eyeball-btn" id="n8n-key-toggle" title="Hide key"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20C5 20 1 12 1 12a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg></button>
+                <button class="btn btn-secondary" id="n8n-validate-btn">Test Connection</button>
+              </div>
+              <div id="n8n-validation-result" style="display:none;margin-top:8px;"></div>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:6px;">In n8n: <strong>Settings → n8n API → Create an API key</strong>.</p></div>
           </div>
         </div>
       </div>
@@ -4193,6 +4233,7 @@
 <script src="../widgets/audiobookshelf-widget.js"></script>
 <script src="../widgets/navidrome-widget.js"></script>
 <script src="../widgets/prowlarr-widget.js"></script>
+<script src="../widgets/n8n-widget.js"></script>
 <script src="../widgets/tracearr-widget.js"></script>
 <script src="../widgets/system-health-widget.js"></script>
 <script src="../widgets/proxmox-widget.js"></script>
@@ -4213,6 +4254,7 @@
 <script src="../widgets/portainer-widget.js"></script>
 <script src="../widgets/stocks-widget.js"></script>
 <script src="../widgets/countdown-widget.js"></script>
+<script src="../widgets/quickview-widget.js"></script>
 <script src="config.js"></script>
 <script src="../shared/update-notifier.js"></script>
 </body>

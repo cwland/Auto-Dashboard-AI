@@ -154,6 +154,11 @@
           body: new URLSearchParams({ username: username || '', password: password || '' }).toString(),
           signal,
         });
+        // 401 here is NOT a bad password (that returns 200 "Fails." below) — it's
+        // qBittorrent's CSRF / Host-header protection rejecting the cross-origin
+        // request. 403 means the IP was banned after repeated failed logins.
+        if (res.status === 401) throw new Error("rejected (401) — turn off “Enable Host header validation” and CSRF protection in qBittorrent → Options → Web UI");
+        if (res.status === 403) throw new Error('IP banned after failed logins — wait a few minutes or restart qBittorrent');
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const text = (await res.text()).trim();
         if (text && text.toLowerCase() !== 'ok.') throw new Error('invalid credentials');

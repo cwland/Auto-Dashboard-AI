@@ -60,14 +60,23 @@
   class ProwlarrWidget {
     constructor(container, config) {
       this.el = container;
-      this.cfg = Object.assign({ baseUrl: '', apiKey: '', pollMs: 60000, dataProvider: null }, config || {});
-      this.data = null; this.pollTimer = null; this.abort = null; this.destroyed = false;
+      this.cfg = Object.assign({
+        baseUrl: '', apiKey: '', pollMs: 60000, dataProvider: null,
+        // Shared ListCarousel scroll settings (same as the Sonarr / Seerr lists).
+        carousel: true, visibleCount: 5, speed: 18, mode: 'continuous', pauseMs: 2000,
+        onConfigChange: null,
+      }, config || {});
+      this.data = null; this.pollTimer = null; this.abort = null; this.destroyed = false; this.carousel = null;
       this._buildSkeleton();
     }
     start() { this.stop(); this.poll(); this.pollTimer = setInterval(() => this.poll(), Math.max(15000, this.cfg.pollMs)); }
     stop() { if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; } if (this.abort) { this.abort.abort(); this.abort = null; } }
-    setConfig(patch) { Object.assign(this.cfg, patch || {}); if (this.pollTimer || this.cfg.dataProvider) this.poll(); else if (this.data) this._render(this.data); }
-    destroy() { this.destroyed = true; this.stop(); this.el.innerHTML = ''; }
+    setConfig(patch) {
+      Object.assign(this.cfg, patch || {});
+      if (this.carousel && patch) this.carousel.update(patch);   // live scroll changes
+      if (this.pollTimer || this.cfg.dataProvider) this.poll(); else if (this.data) this._render(this.data);
+    }
+    destroy() { this.destroyed = true; this.stop(); if (this.carousel) { try { this.carousel.destroy(); } catch (_) {} this.carousel = null; } this.el.innerHTML = ''; }
     async poll() {
       if (this.destroyed) return;
       if (this.abort) this.abort.abort();
@@ -80,16 +89,44 @@
     }
     _buildSkeleton() {
       this.el.classList.add('prowlarr-widget');
-      this.el.innerHTML = `<div class="pr-header"><img class="wg-icon" src="../icons/integrations/prowlarr.svg" alt=""><div class="pr-title">Prowlarr</div><div class="pr-tools"><div class="pr-error" style="display:none"></div><span class="pr-count"></span></div></div><div class="pr-body"></div>`;
-      this.errorEl = this.el.querySelector('.pr-error'); this.countEl = this.el.querySelector('.pr-count'); this.body = this.el.querySelector('.pr-body');
+      this.el.innerHTML =
+        '<div class="pr-header"><img class="wg-icon" src="../icons/integrations/prowlarr.svg" alt="">' +
+          '<div class="pr-title">Prowlarr</div><span class="pr-count"></span>' +
+          '<div class="lc-tools"></div><div class="pr-error" style="display:none"></div></div>' +
+        '<div class="pr-body"><div class="pr-empty" style="display:none">No indexers configured.</div>' +
+          '<div class="pr-viewport"><div class="pr-track"></div></div></div>';
+      this.errorEl = this.el.querySelector('.pr-error');
+      this.countEl = this.el.querySelector('.pr-count');
+      this.emptyEl = this.el.querySelector('.pr-empty');
+      this.viewport = this.el.querySelector('.pr-viewport');
+      this.track = this.el.querySelector('.pr-track');
+      this.lcToolsEl = this.el.querySelector('.lc-tools');
+      this._initCarousel();
+    }
+    // Auto-scroll behaviour + the standard Scroll/Show/Speed controls, identical
+    // to the app's other list widgets.
+    _initCarousel() {
+      if (typeof ListCarousel === 'undefined' || !this.viewport || !this.track) return;
+      this.carousel = new ListCarousel({
+        root: this.el, viewport: this.viewport, track: this.track,
+        enabled: this.cfg.carousel !== false, visibleCount: this.cfg.visibleCount,
+        speed: this.cfg.speed, mode: this.cfg.mode, pauseMs: this.cfg.pauseMs,
+      });
+      if (this.lcToolsEl && ListCarousel.buildControls) {
+        ListCarousel.buildControls(this.lcToolsEl, this.cfg, (patch) => {
+          if (this.carousel) this.carousel.update(patch);
+          if (this.cfg.onConfigChange) this.cfg.onConfigChange(patch);
+        });
+      }
     }
     _render(indexers) {
       const list = indexers || [];
       const healthy = list.filter((ix) => ProwlarrApi.isHealthy(ix)).length;
       this.countEl.textContent = list.length ? `${healthy}/${list.length} healthy` : '';
       this.countEl.classList.toggle('pr-count-warn', list.length > 0 && healthy < list.length);
-      if (!list.length) { this.body.innerHTML = `<div class="pr-empty">No indexers configured.</div>`; return; }
-      this.body.innerHTML = `<div class="pr-list">${list.map((ix) => {
+      if (!list.length) { this.emptyEl.style.display = ''; this.viewport.style.display = 'none'; this.track.innerHTML = ''; return; }
+      this.emptyEl.style.display = 'none'; this.viewport.style.display = '';
+      this.track.innerHTML = list.map((ix) => {
         const state = !ix.enabled ? 'disabled' : (ix.status ? 'ok' : 'error');
         const label = !ix.enabled ? 'Disabled' : (ix.status ? 'OK' : 'Error');
         return `
@@ -98,7 +135,8 @@
             <div class="pr-main"><span class="pr-name" title="${escapeAttr(ix.name)}">${escapeHtml(ix.name)}</span>${ix.url ? `<span class="pr-host">${escapeHtml(hostOf(ix.url))}</span>` : ''}</div>
             <span class="pr-state pr-${state}">${label}</span>
           </div>`;
-      }).join('')}</div>`;
+      }).join('');
+      if (this.carousel) this.carousel.layout();
     }
     _showError(msg) {
       this.errorEl.style.display = 'block';

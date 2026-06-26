@@ -28,6 +28,102 @@
 
   const M = {};
 
+  // ── Quick View widgets ──────────────────────────────────────────────────────
+  // Compact at-a-glance metric cards. Registered FIRST so they sort to the top
+  // of the Sample list. Each preview renders static stats via a dataProvider
+  // (no network) — the same shape the live spec.load() returns.
+  function qv(key, stats) {
+    return (host) => {
+      if (typeof QuickViewWidget === 'undefined') return null;
+      const w = new QuickViewWidget(host, {
+        key,
+        clickable: false,                       // previews never navigate
+        dataProvider: () => Promise.resolve(stats),
+      });
+      w.start();
+      return w;
+    };
+  }
+  M['qv-sabnzbd'] = qv('sabnzbd', [
+    { label: 'Rate', value: '0 B/s' },
+    { label: 'Queue', value: '0' },
+    { label: 'Time Left', value: '0:00:00' },
+    { label: 'Status', value: 'Idle' },
+  ]);
+  M['qv-sonarr'] = qv('sonarr', [
+    { label: 'Wanted', value: '301', tone: 'warn' },
+    { label: 'Queued', value: '1', tone: 'accent' },
+    { label: 'Series', value: '395' },
+    { label: 'Monitored', value: '372' },
+  ]);
+  M['qv-radarr'] = qv('radarr', [
+    { label: 'Wanted', value: '26', tone: 'warn' },
+    { label: 'Missing', value: '58', tone: 'bad' },
+    { label: 'Queued', value: '1', tone: 'accent' },
+    { label: 'Movies', value: '4,032' },
+  ]);
+  M['qv-seerr'] = qv('seerr', [
+    { label: 'Pending', value: '0' },
+    { label: 'Approved', value: '171', tone: 'good' },
+    { label: 'Completed', value: '72' },
+    { label: 'Total', value: '243' },
+  ]);
+  M['qv-tautulli'] = qv('tautulli', [
+    { label: 'Streams', value: '2', tone: 'accent' },
+    { label: 'Transcodes', value: '0' },
+    { label: 'Direct Play', value: '2', tone: 'good' },
+    { label: 'Bandwidth', value: '10.0 Mbps' },
+  ]);
+  M['qv-plex'] = qv('plex', [
+    { label: 'Streams', value: '3', tone: 'accent' },
+    { label: 'Transcodes', value: '1', tone: 'warn' },
+    { label: 'Direct Play', value: '2', tone: 'good' },
+    { label: 'Bandwidth', value: '24.5 Mbps' },
+  ]);
+  M['qv-qbittorrent'] = qv('qbittorrent', [
+    { label: 'Download', value: '1.2 MB/s', tone: 'accent' },
+    { label: 'Upload', value: '256 KB/s', tone: 'good' },
+    { label: 'Active', value: '3', tone: 'accent' },
+    { label: 'Seeding', value: '18' },
+    { label: 'Total', value: '42' },
+  ]);
+  M['qv-transmission'] = qv('transmission', [
+    { label: 'Download', value: '0 B/s' },
+    { label: 'Upload', value: '64 KB/s', tone: 'good' },
+    { label: 'Active', value: '0' },
+    { label: 'Seeding', value: '9' },
+    { label: 'Total', value: '21' },
+  ]);
+  M['qv-uptimekuma'] = qv('uptimekuma', [
+    { label: 'Up', value: '23', tone: 'good' },
+    { label: 'Down', value: '1', tone: 'bad' },
+    { label: 'Paused', value: '2', tone: 'warn' },
+    { label: 'Uptime', value: '99.6%', tone: 'good' },
+  ]);
+  M['qv-portainer'] = qv('portainer', [
+    { label: 'Running', value: '31', tone: 'good' },
+    { label: 'Stopped', value: '4', tone: 'bad' },
+    { label: 'Total', value: '35' },
+    { label: 'Endpoints', value: '2' },
+  ]);
+  M['qv-prowlarr'] = qv('prowlarr', [
+    { label: 'Providers', value: '14' },
+    { label: 'Online', value: '12', tone: 'good' },
+    { label: 'Offline', value: '1', tone: 'bad' },
+    { label: 'Disabled', value: '1', tone: 'warn' },
+  ]);
+  M['qv-n8n'] = qv('n8n', [
+    { label: 'Running', value: '2', tone: 'accent' },
+    { label: 'Failed today', value: '1', tone: 'bad' },
+    { label: 'Success today', value: '37', tone: 'good' },
+  ]);
+  M['qv-speedtest'] = qv('speedtest', [
+    { label: 'Download', value: '942 Mbps', tone: 'accent' },
+    { label: 'Upload', value: '118 Mbps', tone: 'good' },
+    { label: 'Ping', value: '12 ms' },
+    { label: 'Last Test', value: '30m ago' },
+  ]);
+
   // ── Media servers ─────────────────────────────────────────────────────────
   M.plex = dp(typeof PlexWidget !== 'undefined' ? PlexWidget : undefined, () => PlexApi.mapSessions([
     { type: 'episode', grandparentTitle: 'Severance', parentTitle: 'Season 2', title: 'Cold Harbor', index: '4', user: { title: 'avery' }, player: { product: 'Plex Web', title: 'Chrome' }, session: { id: 's1' } },
@@ -163,8 +259,26 @@
   ] }]));
   M.speedtest = dp(typeof SpeedtestWidget !== 'undefined' ? SpeedtestWidget : undefined, () => ({
     latest: SpeedtestApi.mapLatest({ id: 1, ping: 12.4, download_bits: 942000000, upload_bits: 118000000, healthy: true, created_at: new Date(Date.now() - 1800000).toISOString() }),
-    stats: SpeedtestApi.mapStats({ ping: { avg: 13.8, min: 9, max: 40 }, download: { avg: 910.2 }, upload: { avg: 115.6 }, total_results: 412 }),
+    // Stats averages arrive in bytes/sec (`avg`) with bits/sec in `avg_bits`.
+    stats: SpeedtestApi.mapStats({ ping: { avg: 13.8, min: 9, max: 40 }, download: { avg: 113775000, avg_bits: 910200000 }, upload: { avg: 14450000, avg_bits: 115600000 }, total_results: 412 }),
   }));
+  // Speedtest history (list) — newest first, mapped from raw API results.
+  M['speedtest-history'] = (host) => {
+    if (typeof SpeedtestHistoryWidget === 'undefined') return null;
+    const seed = [
+      [940, 118, 12.4, true], [905, 112, 13.1, true], [921, 119, 11.8, true],
+      [880, 104, 14.6, true], [610, 96, 22.3, false], [933, 121, 12.0, true],
+      [912, 115, 13.4, true], [898, 109, 15.2, true], [927, 120, 12.7, true],
+      [870, 101, 16.1, true], [905, 113, 13.9, true], [918, 117, 12.2, true],
+    ];
+    const data = seed.map(([dMbps, uMbps, ping, healthy], i) => SpeedtestApi.mapLatest({
+      id: i + 1, ping, download_bits: dMbps * 1e6, upload_bits: uMbps * 1e6, healthy,
+      created_at: new Date(Date.now() - i * 3600000).toISOString(),
+    }));
+    const w = new SpeedtestHistoryWidget(host, { dataProvider: () => Promise.resolve(data), carousel: false, visibleCount: 5 });
+    w.start();
+    return w;
+  };
   M.opnsense = dp(typeof OpnsenseWidget !== 'undefined' ? OpnsenseWidget : undefined, () => ({
     version: OpnsenseApi.mapVersion({ versions: ['24.7.3', 'OpenSSL 3.0'] }).version,
     cpu: OpnsenseApi.mapCpu({ total: 14 }),

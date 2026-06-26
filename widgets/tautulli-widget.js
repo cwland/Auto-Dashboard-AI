@@ -587,14 +587,19 @@
       // row. object-fit:cover keeps each poster filling its (already-2:3) cell.
       const gap = 2;
       const ar = 2 / 3;                     // poster width / height (true aspect)
-      const ph = H;
-      const pw = ph * ar;                   // = H * 2/3 — correct poster shape
+      // Leave a little vertical breathing room so the poster top doesn't butt up
+      // against the header divider. The slightly shorter posters are also a bit
+      // narrower, so a few more fit across the row.
+      const vPad = Math.max(8, Math.round(H * 0.1));
+      const ph = Math.max(1, H - vPad * 2);
+      const pw = ph * ar;                   // = ph * 2/3 — correct poster shape
       if (pw < 1 || ph < 1) return null;
       let cols = Math.max(1, Math.floor((W + gap) / (pw + gap)));
       cols = Math.min(cols, Math.max(1, Number(this.cfg.posterMax) || 24));
       const blockW = cols * pw + (cols - 1) * gap;
-      const offX = Math.max(0, (W - blockW) / 2);   // center the row
-      return { cols, rows: 1, pw, ph, gap, W, H, offX, offY: 0, count: cols };
+      const offX = Math.max(0, (W - blockW) / 2);   // center the row across the widget
+      const offY = vPad;
+      return { cols, rows: 1, pw, ph, gap, W, H, offX, offY, count: cols };
     }
 
     _posterPos(layout, idx) {

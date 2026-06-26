@@ -154,10 +154,11 @@
     peanut: (h, s) => new PeanutWidget(h, withPoll(s, 'peanut', { baseUrl: s.peanutUrl, username: s.peanutUsername, password: s.peanutPassword })),
     umami: (h, s) => new UmamiWidget(h, withPoll(s, 'umami', { baseUrl: s.umamiUrl, apiKey: s.umamiApiKey, username: s.umamiUsername, password: s.umamiPassword, websiteId: s.umamiWebsiteId, timeFrame: s.umamiTimeframe })),
     speedtest: (h, s) => new SpeedtestWidget(h, withPoll(s, 'speedtest', { baseUrl: s.speedtestUrl, token: s.speedtestToken })),
+    'speedtest-history': (h, s, opts) => new SpeedtestHistoryWidget(h, withPoll(s, 'speedtest', Object.assign({ baseUrl: s.speedtestUrl, token: s.speedtestToken, count: N(s.speedtestHistoryCount, 30) }, carouselOpts(opts)))),
     ntfy: (h, s) => new NtfyWidget(h, withPoll(s, 'ntfy', { baseUrl: s.ntfyUrl, topic: s.ntfyTopic, token: s.ntfyToken, limit: N(s.ntfyLimit, 10) })),
     audiobookshelf: (h, s) => new AudiobookshelfWidget(h, withPoll(s, 'audiobookshelf', { baseUrl: s.audiobookshelfUrl, apiKey: s.audiobookshelfToken })),
     navidrome: (h, s) => new NavidromeWidget(h, withPoll(s, 'navidrome', { baseUrl: s.navidromeUrl, username: s.navidromeUsername, password: s.navidromePassword })),
-    prowlarr: (h, s) => new ProwlarrWidget(h, withPoll(s, 'prowlarr', { baseUrl: s.prowlarrUrl, apiKey: s.prowlarrApiKey })),
+    prowlarr: (h, s, opts) => new ProwlarrWidget(h, withPoll(s, 'prowlarr', Object.assign({ baseUrl: s.prowlarrUrl, apiKey: s.prowlarrApiKey }, carouselOpts(opts)))),
     tracearr: (h, s) => new TracearrWidget(h, withPoll(s, 'tracearr', { baseUrl: s.tracearrUrl, apiKey: s.tracearrApiKey })),
     proxmox: (h, s) => new ProxmoxWidget(h, withPoll(s, 'proxmox', { baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey })),
     'proxmox-health': (h, s) => new ProxmoxHealthWidget(h, withPoll(s, 'proxmox', { baseUrl: s.proxmoxUrl, username: s.proxmoxUsername, realm: s.proxmoxRealm, tokenId: s.proxmoxTokenId, apiKey: s.proxmoxApiKey })),
@@ -190,7 +191,59 @@
       onHoursChange: opts && opts.onHoursChange, onDaysChange: opts && opts.onDaysChange, onSpeedChange: opts && opts.onSpeedChange,
       onScrollChange: opts && opts.onScrollChange,
     })),
+
+    // ── Quick View (compact at-a-glance metric cards) ───────────────────────────
+    // One generic QuickViewWidget driven by a spec key. Per-placement options
+    // (clickable / showFrame / showBackground / statusMonitor / endpointId) come
+    // from the Configure panel; `build(s)` maps the resolved endpoint's settings to
+    // the widget config; `url` is the address opened when the card is clicked.
+    'qv-sabnzbd': (h, s, opts) => quickView(h, s, opts, 'sabnzbd', (x) => ({ baseUrl: x.sabnzbdUrl, apiKey: x.sabnzbdApiKey, url: x.sabnzbdUrl })),
+    'qv-sonarr': (h, s, opts) => quickView(h, s, opts, 'sonarr', (x) => ({ baseUrl: x.sonarrUrl, apiKey: x.sonarrApiKey, url: x.sonarrUrl })),
+    'qv-radarr': (h, s, opts) => quickView(h, s, opts, 'radarr', (x) => ({ baseUrl: x.radarrUrl, apiKey: x.radarrApiKey, url: x.radarrUrl })),
+    'qv-seerr': (h, s, opts) => quickView(h, s, opts, 'seerr', (x) => ({ baseUrl: x.seerrUrl, apiKey: x.seerrApiKey, url: x.seerrUrl })),
+    'qv-tautulli': (h, s, opts) => quickView(h, s, opts, 'tautulli', (x) => ({ baseUrl: x.tautulliUrl, apiKey: x.tautulliApiKey, url: x.tautulliUrl })),
+    'qv-plex': (h, s, opts) => quickView(h, s, opts, 'plex', (x) => ({ baseUrl: x.plexUrl, token: x.plexToken, url: x.plexUrl })),
+    'qv-qbittorrent': (h, s, opts) => quickView(h, s, opts, 'qbittorrent', (x) => ({ baseUrl: x.qbittorrentUrl, username: x.qbittorrentUsername, password: x.qbittorrentPassword, url: x.qbittorrentUrl })),
+    'qv-transmission': (h, s, opts) => quickView(h, s, opts, 'transmission', (x) => ({ baseUrl: x.transmissionUrl, username: x.transmissionUsername, password: x.transmissionPassword, url: x.transmissionUrl })),
+    'qv-uptimekuma': (h, s, opts) => quickView(h, s, opts, 'uptimekuma', (x) => ({ baseUrl: x.uptimeKumaUrl, slug: x.uptimeKumaSlug || 'default', url: x.uptimeKumaUrl })),
+    'qv-portainer': (h, s, opts) => quickView(h, s, opts, 'portainer', (x) => ({ baseUrl: x.portainerUrl, apiKey: x.portainerApiKey, url: x.portainerUrl })),
+    'qv-prowlarr': (h, s, opts) => quickView(h, s, opts, 'prowlarr', (x) => ({ baseUrl: x.prowlarrUrl, apiKey: x.prowlarrApiKey, url: x.prowlarrUrl })),
+    'qv-n8n': (h, s, opts) => quickView(h, s, opts, 'n8n', (x) => ({ baseUrl: x.n8nUrl, apiKey: x.n8nApiKey, url: x.n8nUrl })),
+    'qv-speedtest': (h, s, opts) => quickView(h, s, opts, 'speedtest', (x) => ({ baseUrl: x.speedtestUrl, token: x.speedtestToken, url: x.speedtestUrl })),
   };
+
+  // Build a Quick View widget. `key` is the spec id (== base integration), used
+  // for spec lookup, the per-integration poll override, AND multi-endpoint
+  // resolution. `build(resolvedSettings)` returns the connection config.
+  function quickView(h, s, opts, key, build) {
+    opts = opts || {};
+    let x = s || {};
+    // Resolve the selected endpoint of the underlying integration (each placement
+    // can target a different endpoint, stored as opts.endpointId).
+    if (global.Endpoints && Endpoints.isMulti(key)) {
+      const resolved = Endpoints.resolve(x, key, opts.endpointId);
+      if (resolved === null) {
+        // A specific endpoint that no longer exists → show the "removed" notice.
+        // Otherwise (no endpoints/legacy flat settings) fall back to flat settings.
+        if (opts.endpointId) {
+          renderConfigRemoved(h, opts.removedLabel);
+          return { removed: true, start() {}, stop() {}, destroy() { if (h) h.innerHTML = ''; } };
+        }
+      } else {
+        x = resolved;
+      }
+    }
+    const cfg = Object.assign({
+      key,
+      clickable: (opts.clickable != null) ? opts.clickable : true,
+      showFrame: (opts.showFrame != null) ? opts.showFrame : true,
+      showBackground: (opts.showBackground != null) ? opts.showBackground : true,
+      statusMonitor: !!opts.statusMonitor,
+      onConfigChange: opts.onConfigChange,
+      pollMs: 15000,
+    }, (typeof build === 'function' ? build(x) : build) || {});
+    return new QuickViewWidget(h, withPoll(x, key, cfg));
+  }
 
   // Widget id → base integration id (for multi-endpoint resolution). Variant
   // widgets (tautulli-list, weather-current, …) resolve to their parent service.
@@ -205,6 +258,12 @@
     'proxmox-guests': 'proxmox',
     'proxmox-overview': 'proxmox',
     'proxmox-backups': 'proxmox',
+    'speedtest-history': 'speedtest',
+    // Quick View widgets all group under a single "Quick View" service.
+    'qv-sabnzbd': 'quickview', 'qv-sonarr': 'quickview', 'qv-radarr': 'quickview',
+    'qv-seerr': 'quickview', 'qv-tautulli': 'quickview', 'qv-qbittorrent': 'quickview',
+    'qv-transmission': 'quickview', 'qv-uptimekuma': 'quickview', 'qv-portainer': 'quickview',
+    'qv-prowlarr': 'quickview', 'qv-n8n': 'quickview', 'qv-plex': 'quickview', 'qv-speedtest': 'quickview',
   };
   function baseIntOf(intId) { return WIDGET_BASE_INT[intId] || intId; }
   global.dashboardWidgetBaseInt = baseIntOf;

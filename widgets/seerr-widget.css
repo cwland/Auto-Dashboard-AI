@@ -100,7 +100,7 @@
 }
 .seerr-widget .seerr-row {
   display: grid;
-  grid-template-columns: 38px 1fr auto;
+  grid-template-columns: 38px 1fr 120px;   /* fixed requester column so avatars/names line up row-to-row */
   align-items: start;           /* top-align so titles line up row-to-row */
   gap: 12px;
   padding: 9px 12px;

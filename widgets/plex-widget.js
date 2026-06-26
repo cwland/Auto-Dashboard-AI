@@ -104,6 +104,35 @@
       return this.mapSessions(this.parseSessionsFromXml(text));
     },
 
+    // Aggregate "now playing" stats for the Quick View (mirrors Tautulli):
+    // stream count, transcode count, direct-play count, and total bandwidth (kbps).
+    parseActivityFromXml(xmlString) {
+      const empty = { streams: 0, transcodes: 0, directPlay: 0, bandwidth: 0 };
+      if (typeof DOMParser === 'undefined') return empty;
+      const doc = new DOMParser().parseFromString(xmlString, 'application/xml');
+      if (doc.querySelector('parsererror')) throw new Error('Invalid XML from Plex');
+      const els = Array.from(doc.querySelectorAll('MediaContainer > Video, MediaContainer > Track, MediaContainer > Photo'));
+      let transcodes = 0, bandwidth = 0;
+      for (const el of els) {
+        const ts = el.querySelector('TranscodeSession');
+        if (ts) {
+          const vd = (ts.getAttribute('videoDecision') || '').toLowerCase();
+          const ad = (ts.getAttribute('audioDecision') || '').toLowerCase();
+          if (vd === 'transcode' || ad === 'transcode') transcodes++;
+        }
+        const sess = el.querySelector('Session');
+        if (sess) bandwidth += Number(sess.getAttribute('bandwidth')) || 0;
+      }
+      const streams = els.length;
+      return { streams, transcodes, directPlay: Math.max(0, streams - transcodes), bandwidth };
+    },
+    async getActivity(base, token, signal) {
+      const res = await fetch(this.sessionsUrl(base, token), { cache: 'no-store', signal });
+      if (res.status === 401) throw new Error('invalid token');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return this.parseActivityFromXml(await res.text());
+    },
+
     async testConnection(base, token, signal) {
       const url = `${this.normalizeBase(base)}/identity?X-Plex-Token=${encodeURIComponent(token || '')}`;
       const res = await fetch(url, { cache: 'no-store', headers: { Accept: 'application/json' }, signal });

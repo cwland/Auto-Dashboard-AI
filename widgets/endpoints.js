@@ -46,6 +46,7 @@
     peanut: { fields: ['peanutUrl', 'peanutUsername', 'peanutPassword'], primary: 'peanutUrl', secrets: ['peanutPassword'], enabledKey: 'peanutEnabled', validatedKey: 'peanutValidated' },
     umami: { fields: ['umamiUrl', 'umamiApiKey', 'umamiUsername', 'umamiPassword', 'umamiWebsiteId', 'umamiTimeframe'], primary: 'umamiUrl', secrets: ['umamiApiKey', 'umamiPassword'], enabledKey: 'umamiEnabled', validatedKey: 'umamiValidated' },
     speedtest: { fields: ['speedtestUrl', 'speedtestToken'], primary: 'speedtestUrl', secrets: ['speedtestToken'], enabledKey: 'speedtestEnabled', validatedKey: 'speedtestValidated' },
+    n8n: { fields: ['n8nUrl', 'n8nApiKey'], primary: 'n8nUrl', secrets: ['n8nApiKey'], enabledKey: 'n8nEnabled', validatedKey: 'n8nValidated' },
     ntfy: { fields: ['ntfyUrl', 'ntfyTopic', 'ntfyToken', 'ntfyLimit'], primary: 'ntfyUrl', secrets: ['ntfyToken'], enabledKey: 'ntfyEnabled', validatedKey: 'ntfyValidated' },
     audiobookshelf: { fields: ['audiobookshelfUrl', 'audiobookshelfToken'], primary: 'audiobookshelfUrl', secrets: ['audiobookshelfToken'], enabledKey: 'audiobookshelfEnabled', validatedKey: 'audiobookshelfValidated' },
     navidrome: { fields: ['navidromeUrl', 'navidromeUsername', 'navidromePassword'], primary: 'navidromeUrl', secrets: ['navidromePassword'], enabledKey: 'navidromeEnabled', validatedKey: 'navidromeValidated' },

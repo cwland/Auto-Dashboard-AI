@@ -21,3 +21,47 @@
 .speedtest-widget .st-up .st-icon, .speedtest-widget .st-up .st-val { color: var(--st-up); }
 .speedtest-widget .st-ping .st-icon, .speedtest-widget .st-ping .st-val { color: var(--st-ping); }
 .speedtest-widget .st-empty { padding: 22px; text-align: center; font-size: 13px; color: var(--text-muted); background: var(--bg-secondary); border: 1px dashed var(--border); border-radius: var(--radius, 10px); }
+
+/* ── History (list) ──────────────────────────────────────────────────────────
+   Mirrors the app's other list widgets: a header with the shared ListCarousel
+   controls (.lc-tools) and a scrollable viewport/track of rows. */
+.speedtest-history-widget {
+  --st-down: #22c55e; --st-up: #4c8bf5; --st-ping: #f59e0b;
+  display: flex; flex-direction: column; gap: 10px; width: 100%; min-height: 0;
+  font-family: var(--font, system-ui, sans-serif); color: var(--text-primary);
+}
+.speedtest-history-widget .sth-header { display: flex; align-items: center; gap: 10px; }
+.speedtest-history-widget .sth-header .wg-icon { width: 18px; height: 18px; flex: 0 0 auto; }
+.speedtest-history-widget .sth-title { font-size: 13px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--text-muted); }
+.speedtest-history-widget .sth-summary { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-right: auto; }
+.speedtest-history-widget .sth-error { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--danger-light, rgba(239,68,68,0.12)); color: var(--danger, #ef4444); border: 1px solid rgba(239,68,68,0.25); }
+
+.speedtest-history-widget .sth-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.speedtest-history-widget .sth-empty { color: var(--text-muted); font-size: 13px; font-weight: 600; text-align: center; padding: 22px 4px; }
+.speedtest-history-widget .sth-viewport { overflow: hidden; }
+.speedtest-history-widget .sth-track { display: flex; flex-direction: column; will-change: transform; }
+
+.speedtest-history-widget .sth-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 4px; border-bottom: 1px solid var(--border);
+}
+.speedtest-history-widget .sth-row:last-child { border-bottom: none; }
+
+.speedtest-history-widget .sth-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+.speedtest-history-widget .sth-dot.sth-ok { background: var(--success, #22c55e); }
+.speedtest-history-widget .sth-dot.sth-fail { background: var(--danger, #ef4444); }
+
+.speedtest-history-widget .sth-when { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.speedtest-history-widget .sth-ago { font-size: 12.5px; font-weight: 700; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.speedtest-history-widget .sth-date { font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.speedtest-history-widget .sth-metric { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; display: inline-flex; align-items: baseline; gap: 3px; min-width: 74px; justify-content: flex-end; }
+.speedtest-history-widget .sth-arrow { font-size: 11px; font-weight: 800; }
+.speedtest-history-widget .sth-down { color: var(--st-down); }
+.speedtest-history-widget .sth-up { color: var(--st-up); }
+.speedtest-history-widget .sth-ping { color: var(--st-ping); min-width: 58px; }
+
+@media (max-width: 360px) {
+  .speedtest-history-widget .sth-date { display: none; }
+  .speedtest-history-widget .sth-metric { min-width: 60px; }
+}

@@ -1991,11 +1991,31 @@ WIDGET_CATALOG.push(
   { wid: 'proxmox-storage', intId: 'proxmox-storage', name: 'Proxmox Storage', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
   { wid: 'proxmox-guests', intId: 'proxmox-guests', name: 'Proxmox VMs & LXCs', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
   { wid: 'proxmox-overview', intId: 'proxmox-overview', name: 'Proxmox Overview', icon: 'proxmox.svg', enabledKey: 'proxmoxEnabled' },
+  { wid: 'speedtest-history', intId: 'speedtest-history', name: 'Speedtest History', icon: 'speedtest-tracker.png', enabledKey: 'speedtestEnabled' },
+);
+
+// Quick View widgets — compact at-a-glance metric cards. They all group under a
+// single "Quick View" service header (see SERVICE_META) which is forced to the
+// top of the picker. Each reuses its integration's existing enabledKey.
+WIDGET_CATALOG.push(
+  { wid: 'qv-sabnzbd', intId: 'qv-sabnzbd', name: 'SABnzbd', icon: 'sabnzbd.svg', enabledKey: 'sabnzbdEnabled', quickView: true },
+  { wid: 'qv-sonarr', intId: 'qv-sonarr', name: 'Sonarr', icon: 'sonarr.svg', enabledKey: 'sonarrEnabled', quickView: true },
+  { wid: 'qv-radarr', intId: 'qv-radarr', name: 'Radarr', icon: 'radarr.svg', enabledKey: 'radarrEnabled', quickView: true },
+  { wid: 'qv-seerr', intId: 'qv-seerr', name: 'Seerr', icon: 'seerr.svg', enabledKey: 'seerrEnabled', quickView: true },
+  { wid: 'qv-tautulli', intId: 'qv-tautulli', name: 'Tautulli', icon: 'tautulli.svg', enabledKey: 'tautulliEnabled', quickView: true },
+  { wid: 'qv-plex', intId: 'qv-plex', name: 'Plex', icon: 'plex.svg', enabledKey: 'plexEnabled', quickView: true },
+  { wid: 'qv-qbittorrent', intId: 'qv-qbittorrent', name: 'qBittorrent', icon: 'qbittorrent.svg', enabledKey: 'qbittorrentEnabled', quickView: true },
+  { wid: 'qv-transmission', intId: 'qv-transmission', name: 'Transmission', icon: 'transmission.svg', enabledKey: 'transmissionEnabled', quickView: true },
+  { wid: 'qv-uptimekuma', intId: 'qv-uptimekuma', name: 'Uptime Kuma', icon: 'uptime-kuma.svg', enabledKey: 'uptimeKumaEnabled', quickView: true },
+  { wid: 'qv-portainer', intId: 'qv-portainer', name: 'Portainer', icon: 'portainer.svg', enabledKey: 'portainerEnabled', quickView: true },
+  { wid: 'qv-prowlarr', intId: 'qv-prowlarr', name: 'Prowlarr', icon: 'prowlarr.svg', enabledKey: 'prowlarrEnabled', quickView: true },
+  { wid: 'qv-n8n', intId: 'qv-n8n', name: 'n8n', icon: 'n8n.svg', enabledKey: 'n8nEnabled', quickView: true },
+  { wid: 'qv-speedtest', intId: 'qv-speedtest', name: 'Speedtest Tracker', icon: 'speedtest-tracker.png', enabledKey: 'speedtestEnabled', quickView: true },
 );
 
 // Carousel "list" widgets: when first added to a board they default to a compact
 // 5-row window with auto-scroll on, instead of expanding to show every row.
-const LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups']);
+const LIST_DEFAULT_5 = new Set(['stocks', 'countdown-list', 'tautulli-list', 'tautulli-recent', 'tautulli-watch', 'proxmox-logs', 'proxmox-backups', 'speedtest-history', 'prowlarr']);
 
 function widgetDef(wid) { return WIDGET_CATALOG.find((w) => w.wid === wid); }
 function widgetEnabled(wid) { const w = widgetDef(wid); return !!(w && settings[w.enabledKey] === true); }
@@ -2023,6 +2043,7 @@ function updateWidgetAddState() {
 const SERVICE_META = {
   weather:  { name: 'Weather',  emoji: '🌤️' },
   tautulli: { name: 'Tautulli', icon: 'tautulli.svg' },
+  quickview: { name: 'Quick View', emoji: '⚡' },
 };
 function widgetServiceKey(w) { return (w.enabledKey || '').replace(/Enabled$/, ''); }
 function serviceMetaFor(key, widgets) {
@@ -2074,7 +2095,7 @@ function renderWidgetModalBody() {
     body.innerHTML = sample
       ? '<div class="widget-empty">No sample widgets are available.</div>'
       : '<div class="widget-empty">No widgets are enabled yet.<br>Enable them in ' +
-        '<a href="../config/config.html?tab=integrations">Setup → Widget Library</a>, then come back, ' +
+        '<a href="../config/config.html?tab=integrations">Setup → Integration Library</a>, then come back, ' +
         'or use the <b>Sample</b> tab to preview widgets with demo data.</div>';
     updateWidgetAddState();
     return;
@@ -2112,8 +2133,15 @@ function renderWidgetModalBody() {
   wrap.className = 'widget-groups';
   Array.from(groups.entries())
     .map(([key, widgets]) => [key, widgets, serviceMetaFor(key, widgets)])
-    .sort((a, b) => a[2].name.localeCompare(b[2].name))
+    .sort((a, b) => {
+      // Quick View widgets always sort to the very top of the list.
+      if (a[0] === 'quickview') return b[0] === 'quickview' ? 0 : -1;
+      if (b[0] === 'quickview') return 1;
+      return a[2].name.localeCompare(b[2].name);
+    })
     .forEach(([key, widgets, meta]) => {
+      // Quick View widgets are listed alphabetically within their group.
+      if (key === 'quickview') widgets = widgets.slice().sort((a, b) => (a.name || '').localeCompare(b.name || ''));
       const group = document.createElement('div');
       group.className = 'widget-group' + (sample ? ' is-sample' : '');
 
@@ -2794,15 +2822,104 @@ function applyCarouselOpts(wdef, opts) {
 // Move a widget's config controls into a floating pill that straddles the top
 // border (edit mode), matching the section S/M/L selector. Sample widgets are
 // static, so they get no bubble (and their in-widget tools are hidden via CSS).
+// ─── Custom widget display name ──────────────────────────────────────────────
+// Every widget can carry a per-placement custom title (wdef.config.customName)
+// that overrides the header title shown by the widget. We don't touch each
+// widget class — instead we locate its header title element generically and
+// swap the text, capturing the default once so clearing the name reverts to it.
+
+// The header title is the first element whose class token ends in "-title"
+// (excluding row/sub/card/foot titles that live inside the widget body).
+function findWidgetTitleEl(root) {
+  if (!root || !root.querySelectorAll) return null;
+  const cands = root.querySelectorAll('[class*="title"]');
+  for (const el of cands) {
+    const cls = el.getAttribute && el.getAttribute('class') || '';
+    if (cls.split(/\s+/).some((t) => /-title$/.test(t) && !/(row|sub|card|foot)/.test(t))) return el;
+  }
+  return null;
+}
+function widgetDefaultTitle(sec) {
+  const el = findWidgetTitleEl(sec);
+  if (!el) return '';
+  return (el.dataset && el.dataset.wgDefaultTitle != null) ? el.dataset.wgDefaultTitle : (el.textContent || '');
+}
+// Reconcile the header title with the custom name. Some widgets render their
+// title ASYNCHRONOUSLY (e.g. Tautulli's starts empty and is filled after the
+// first fetch), so this also runs from a MutationObserver: whenever the widget
+// (re)writes its title, we remember that as the default and re-apply the custom
+// name. No custom name → just track whatever the widget shows as the default.
+function reconcileWidgetTitle(sec, wdef) {
+  const el = findWidgetTitleEl(sec);
+  if (!el) return;
+  const custom = (wdef && wdef.config && typeof wdef.config.customName === 'string') ? wdef.config.customName.trim() : '';
+  if (!custom) {
+    if (el.dataset.wgDefaultTitle !== el.textContent) el.dataset.wgDefaultTitle = el.textContent;
+    return;
+  }
+  if (el.textContent !== custom) {
+    if (el.textContent) el.dataset.wgDefaultTitle = el.textContent;   // remember the widget's title
+    el.textContent = custom;
+  }
+}
+// Apply the custom name now, and keep it applied as the widget re-renders.
+function bindWidgetName(sec, wdef) {
+  const el = findWidgetTitleEl(sec);
+  if (!el) return;
+  reconcileWidgetTitle(sec, wdef);
+  if (sec._wgTitleObs) { try { sec._wgTitleObs.disconnect(); } catch (_) {} }
+  if (typeof MutationObserver !== 'undefined') {
+    sec._wgTitleObs = new MutationObserver(() => reconcileWidgetTitle(sec, wdef));
+    sec._wgTitleObs.observe(el, { childList: true, characterData: true, subtree: true });
+  }
+}
+// A "Widget name" text field for the Configure panel (top of every widget).
+function buildWidgetNameControl(sec, wdef) {
+  const row = document.createElement('div');
+  row.className = 'wg-name-tool';
+  row.innerHTML =
+    '<label class="wg-name-label">Widget name</label>' +
+    '<input type="text" class="wg-name-input" maxlength="60" spellcheck="false" />' +
+    '<span class="wg-name-hint">Leave blank to use the default name.</span>';
+  const input = row.querySelector('input');
+  const def0 = widgetDefaultTitle(sec) || (wdef && wdef.name) || 'Widget';
+  input.value = (wdef && wdef.config && wdef.config.customName) || def0;
+  input.placeholder = def0;
+  input.addEventListener('pointerdown', (e) => e.stopPropagation());
+  input.addEventListener('input', () => {
+    const def = widgetDefaultTitle(sec) || (wdef && wdef.name) || 'Widget';   // re-read (widget may have rendered)
+    const v = input.value.trim();
+    wdef.config = wdef.config || {};
+    if (v && v !== def) {
+      wdef.config.customName = v;
+    } else {
+      delete wdef.config.customName;
+      const el = findWidgetTitleEl(sec);   // restore the default immediately
+      if (el && el.dataset.wgDefaultTitle != null) el.textContent = el.dataset.wgDefaultTitle;
+    }
+    chromeSet({ dashboards: state.dashboards });
+    reconcileWidgetTitle(sec, wdef);
+  });
+  row._refreshName = () => {   // called when the Configure panel opens
+    const def = widgetDefaultTitle(sec) || (wdef && wdef.name) || 'Widget';
+    input.placeholder = def;
+    if (!(wdef.config && wdef.config.customName)) input.value = def;
+  };
+  return row;
+}
+
 function attachWidgetToolsBubble(content, sec, wdef) {
   if (!content || !sec || (wdef && wdef.sample)) return;
   // Collect the widget's live, already-wired control bars and stash them in a
   // hidden store. A single "Configure" button (straddling the top border, edit
-  // mode only) moves them into a draggable config window on demand.
-  const tools = [...sec.querySelectorAll('.lc-tools, .pc-tools, .ww-tools, .cd-tools, .tw-tools, .hdr-tools')].filter((t) => t.children.length);
-  if (!tools.length) return;
+  // mode only) moves them into a draggable config window on demand. EVERY widget
+  // also gets a "Widget name" field at the top — so even widgets with no other
+  // controls are configurable.
+  const tools = [...sec.querySelectorAll('.lc-tools, .pc-tools, .ww-tools, .cd-tools, .tw-tools, .hdr-tools, .qv-tools')].filter((t) => t.children.length);
   const store = document.createElement('div');
   store.className = 'widget-config-store';
+  const nameRow = buildWidgetNameControl(sec, wdef);
+  store.appendChild(nameRow);
   tools.forEach((t) => store.appendChild(t));
   content.appendChild(store);
 
@@ -2816,7 +2933,11 @@ function attachWidgetToolsBubble(content, sec, wdef) {
   btn.title = 'Configure this widget';
   const titleText = (wdef && wdef.name) || 'Widget';
   btn.addEventListener('pointerdown', (e) => e.stopPropagation());
-  btn.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); openWidgetConfig(content, store, titleText, btn); });
+  btn.addEventListener('click', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    if (nameRow._refreshName) nameRow._refreshName();   // sync the field with the widget's now-rendered default
+    openWidgetConfig(content, store, titleText, btn);
+  });
   content.appendChild(btn);
 }
 
@@ -3056,7 +3177,7 @@ function buildWidgetSection(wdef) {
     bodyEl.innerHTML =
       '<div class="widget-disabled"><div style="font-size:24px;">⚠️</div>' +
       '<div style="font-weight:600;color:var(--text-secondary);">Service disabled</div>' +
-      '<div>Enable it in <a href="../config/config.html?tab=integrations">Setup → Widget Library</a></div></div>';
+      '<div>Enable it in <a href="../config/config.html?tab=integrations">Setup → Integration Library</a></div></div>';
   } else {
     // Try to mount the real, live widget; fall back to a placeholder if there's
     // no live mount for this integration yet.
@@ -3103,7 +3224,7 @@ function buildWidgetSection(wdef) {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });
         };
-      } else if (wdef.intId === 'stocks' || wdef.intId === 'countdown-list' || wdef.intId === 'tautulli-list' || wdef.intId === 'tautulli-recent' || wdef.intId === 'tautulli-watch') {
+      } else if (wdef.intId === 'stocks' || wdef.intId === 'countdown-list' || wdef.intId === 'tautulli-list' || wdef.intId === 'tautulli-recent' || wdef.intId === 'tautulli-watch' || wdef.intId === 'speedtest-history' || wdef.intId === 'prowlarr') {
         applyCarouselOpts(wdef, opts);
         // Per-widget display-unit visibility (Countdown List).
         if (wdef.config && wdef.config.units) opts.units = wdef.config.units;
@@ -3136,6 +3257,19 @@ function buildWidgetSection(wdef) {
           wdef.config = Object.assign({}, wdef.config, patch);
           chromeSet({ dashboards: state.dashboards });
         };
+      } else if (wdef.intId && wdef.intId.indexOf('qv-') === 0) {
+        // Quick View: per-placement toggles (Clickable / Show inner frame / Show
+        // background / Status monitoring), persisted on the widget entry. The
+        // QuickViewWidget's own Configure controls write back via onConfigChange.
+        const c = wdef.config || {};
+        if (c.clickable != null) opts.clickable = c.clickable;
+        if (c.showFrame != null) opts.showFrame = c.showFrame;
+        if (c.showBackground != null) opts.showBackground = c.showBackground;
+        if (c.statusMonitor != null) opts.statusMonitor = c.statusMonitor;
+        opts.onConfigChange = (patch) => {
+          wdef.config = Object.assign({}, wdef.config, patch);
+          chromeSet({ dashboards: state.dashboards });
+        };
       }
       if (wdef.endpointId) {
         opts.endpointId = wdef.endpointId;
@@ -3159,6 +3293,7 @@ function buildWidgetSection(wdef) {
     }
   }
   sec.appendChild(bodyEl);
+  bindWidgetName(sec, wdef);   // apply the custom display name (and keep it applied)
   return sec;
 }
 

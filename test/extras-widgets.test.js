@@ -61,9 +61,25 @@ eq(lt.ping, 12.4, 'ping rounded to 1 decimal');
 eq(lt.healthy, true, 'healthy flag');
 ok(lt.createdAt instanceof Date && !isNaN(lt.createdAt), 'created_at parsed to Date');
 eq(SpeedtestApi.mapLatest(null), null, 'null result → null');
-const stats = SpeedtestApi.mapStats({ ping: { avg: 13.81 }, download: { avg: 910.25 }, upload: { avg: 115.6 }, total_results: 412 });
-eq(stats.download.avg, 910.3, 'stats download avg rounded');
+// /api/v1/stats reports averages in BYTES/sec (`avg`) with bits/sec in `avg_bits`,
+// NOT Mbps — both must convert to Mbps to match the latest-result tiles.
+const stats = SpeedtestApi.mapStats({ ping: { avg: 13.81 }, download: { avg: 113775000, avg_bits: 910200000 }, upload: { avg: 14450000, avg_bits: 115600000 }, total_results: 412 });
+eq(stats.download.avg, 910.2, 'stats download avg_bits → Mbps');
+eq(stats.upload.avg, 115.6, 'stats upload avg_bits → Mbps');
+eq(stats.ping.avg, 13.8, 'stats ping avg stays in ms (rounded)');
+// When avg_bits is absent, `avg` (bytes/sec) is converted via ×8 → Mbps.
+const statsBytesOnly = SpeedtestApi.mapStats({ ping: { avg: 13.81 }, download: { avg: 113775000 }, upload: { avg: 14450000 }, total_results: 1 });
+eq(statsBytesOnly.download.avg, 910.2, 'stats download avg (bytes/sec) ×8 → Mbps');
+eq(statsBytesOnly.upload.avg, 115.6, 'stats upload avg (bytes/sec) ×8 → Mbps');
 eq(stats.total, 412, 'total results');
+// created_at is UTC with NO timezone marker → must be parsed as UTC, not local,
+// otherwise users behind UTC see every result shifted into the future ("just now").
+const utcMidnight = Date.UTC(2026, 5, 24, 0, 0, 0); // 2026-06-24T00:00:00Z
+eq(SpeedtestApi.parseDate('2026-06-24 00:00:00').getTime(), utcMidnight, 'space/no-tz string parsed as UTC');
+eq(SpeedtestApi.parseDate('2026-06-24T00:00:00Z').getTime(), utcMidnight, 'ISO+Z left as UTC');
+eq(SpeedtestApi.parseDate('2026-06-24T02:00:00+02:00').getTime(), utcMidnight, '+02:00 offset honored');
+eq(SpeedtestApi.parseDate(null), null, 'null timestamp → null');
+eq(SpeedtestApi.mapLatest({ id: 9, ping: 5, download_bits: 1e9, upload_bits: 1e8, healthy: true, created_at: '2026-06-24 00:00:00' }).createdAt.getTime(), utcMidnight, 'mapLatest createdAt parsed as UTC');
 
 // ── ntfy ──────────────────────────────────────────────────────────────────────
 console.log('NtfyApi — newline-JSON parsing:');

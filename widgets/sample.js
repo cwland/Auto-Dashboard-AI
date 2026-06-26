@@ -144,9 +144,24 @@ const SAMPLES = {
   speedtest(h) {
     const data = {
       latest: SpeedtestApi.mapLatest({ id: 1, ping: 12.4, download_bits: 942000000, upload_bits: 118000000, healthy: true, created_at: new Date(Date.now() - 1800000).toISOString() }),
-      stats: SpeedtestApi.mapStats({ ping: { avg: 13.8, min: 9, max: 40 }, download: { avg: 910.2 }, upload: { avg: 115.6 }, total_results: 412 }),
+      // Speedtest Tracker reports stats averages in bytes/sec (`avg`) with bits/sec
+      // in `avg_bits`. These resolve to ~910 Mbps down / ~115 Mbps up.
+      stats: SpeedtestApi.mapStats({ ping: { avg: 13.8, min: 9, max: 40 }, download: { avg: 113775000, avg_bits: 910200000, min: 0, max: 0 }, upload: { avg: 14450000, avg_bits: 115600000, min: 0, max: 0 }, total_results: 412 }),
     };
     new SpeedtestWidget(tile('Speedtest Tracker'), { dataProvider: () => Promise.resolve(data) }).start();
+    // History (list) — mirrors the app's other list widgets.
+    if (typeof SpeedtestHistoryWidget !== 'undefined') {
+      const seed = [
+        [940, 118, 12.4, true], [905, 112, 13.1, true], [921, 119, 11.8, true],
+        [880, 104, 14.6, true], [610, 96, 22.3, false], [933, 121, 12.0, true],
+        [912, 115, 13.4, true], [898, 109, 15.2, true],
+      ];
+      const hist = seed.map(([dM, uM, ping, healthy], i) => SpeedtestApi.mapLatest({
+        id: i + 1, ping, download_bits: dM * 1e6, upload_bits: uM * 1e6, healthy,
+        created_at: new Date(Date.now() - i * 3600000).toISOString(),
+      }));
+      new SpeedtestHistoryWidget(tile('Speedtest — History'), { dataProvider: () => Promise.resolve(hist), carousel: false, visibleCount: 5 }).start();
+    }
   },
   opnsense(h) {
     const data = {
@@ -300,7 +315,7 @@ const SAMPLES = {
   },
   prowlarr(h) {
     const indexers = [{ id: 1, name: '1337x', indexerUrls: ['https://1337x.to'], enable: true }, { id: 2, name: 'Nyaa', indexerUrls: ['https://nyaa.si'], enable: true }, { id: 3, name: 'RARBG (dead)', indexerUrls: ['https://rarbg.to'], enable: true }, { id: 4, name: 'Old Tracker', indexerUrls: ['https://example.org'], enable: false }];
-    new ProwlarrWidget(tile('Prowlarr'), { dataProvider: () => Promise.resolve(ProwlarrApi.buildIndexers(indexers, [{ indexerId: 3 }])) }).start();
+    new ProwlarrWidget(tile('Prowlarr'), { carousel: false, dataProvider: () => Promise.resolve(ProwlarrApi.buildIndexers(indexers, [{ indexerId: 3 }])) }).start();
   },
   tracearr(h) {
     const stats = { activeStreams: 3, totalUsers: 14, totalSessions: 5210, recentViolations: 2, timestamp: '' };
@@ -510,6 +525,77 @@ SAMPLES['tautulli-top'] = function () {
   };
   new TautulliTopUsersWidget(tile('Tautulli — Top Users & Platforms'), { dataProvider: () => Promise.resolve(data) }).start();
 };
+
+// ── Quick View cards ──────────────────────────────────────────────────────
+// Prepend a compact Quick View card to each integration's sample modal so the
+// new widget category is previewable from Setup → Widget Library. Same mock
+// metrics as widgets/sample-mounts.js. Rendered FIRST (top) for each service.
+const QV_SAMPLE = {
+  sabnzbd: [
+    { label: 'Rate', value: '0 B/s' }, { label: 'Queue', value: '0' },
+    { label: 'Time Left', value: '0:00:00' }, { label: 'Status', value: 'Idle' },
+  ],
+  sonarr: [
+    { label: 'Wanted', value: '301', tone: 'warn' }, { label: 'Queued', value: '1', tone: 'accent' },
+    { label: 'Series', value: '395' }, { label: 'Monitored', value: '372' },
+  ],
+  radarr: [
+    { label: 'Wanted', value: '26', tone: 'warn' }, { label: 'Missing', value: '58', tone: 'bad' },
+    { label: 'Queued', value: '1', tone: 'accent' }, { label: 'Movies', value: '4,032' },
+  ],
+  seerr: [
+    { label: 'Pending', value: '0' }, { label: 'Approved', value: '171', tone: 'good' },
+    { label: 'Completed', value: '72' }, { label: 'Total', value: '243' },
+  ],
+  tautulli: [
+    { label: 'Streams', value: '2', tone: 'accent' }, { label: 'Transcodes', value: '0' },
+    { label: 'Direct Play', value: '2', tone: 'good' }, { label: 'Bandwidth', value: '10.0 Mbps' },
+  ],
+  plex: [
+    { label: 'Streams', value: '3', tone: 'accent' }, { label: 'Transcodes', value: '1', tone: 'warn' },
+    { label: 'Direct Play', value: '2', tone: 'good' }, { label: 'Bandwidth', value: '24.5 Mbps' },
+  ],
+  qbittorrent: [
+    { label: 'Download', value: '1.2 MB/s', tone: 'accent' }, { label: 'Upload', value: '256 KB/s', tone: 'good' },
+    { label: 'Active', value: '3', tone: 'accent' }, { label: 'Seeding', value: '18' }, { label: 'Total', value: '42' },
+  ],
+  transmission: [
+    { label: 'Download', value: '0 B/s' }, { label: 'Upload', value: '64 KB/s', tone: 'good' },
+    { label: 'Active', value: '0' }, { label: 'Seeding', value: '9' }, { label: 'Total', value: '21' },
+  ],
+  uptimekuma: [
+    { label: 'Up', value: '23', tone: 'good' }, { label: 'Down', value: '1', tone: 'bad' },
+    { label: 'Paused', value: '2', tone: 'warn' }, { label: 'Uptime', value: '99.6%', tone: 'good' },
+  ],
+  portainer: [
+    { label: 'Running', value: '31', tone: 'good' }, { label: 'Stopped', value: '4', tone: 'bad' },
+    { label: 'Total', value: '35' }, { label: 'Endpoints', value: '2' },
+  ],
+  prowlarr: [
+    { label: 'Providers', value: '14' }, { label: 'Online', value: '12', tone: 'good' },
+    { label: 'Offline', value: '1', tone: 'bad' }, { label: 'Disabled', value: '1', tone: 'warn' },
+  ],
+  n8n: [
+    { label: 'Running', value: '2', tone: 'accent' }, { label: 'Failed today', value: '1', tone: 'bad' },
+    { label: 'Success today', value: '37', tone: 'good' },
+  ],
+  speedtest: [
+    { label: 'Download', value: '942 Mbps', tone: 'accent' }, { label: 'Upload', value: '118 Mbps', tone: 'good' },
+    { label: 'Ping', value: '12 ms' }, { label: 'Last Test', value: '30m ago' },
+  ],
+};
+Object.keys(QV_SAMPLE).forEach((key) => {
+  const orig = SAMPLES[key];
+  SAMPLES[key] = function () {
+    if (typeof QuickViewWidget !== 'undefined') {
+      new QuickViewWidget(tile('Quick View'), {
+        key, clickable: false,
+        dataProvider: () => Promise.resolve(QV_SAMPLE[key]),
+      }).start();
+    }
+    if (typeof orig === 'function') orig();
+  };
+});
 
 // ── Boot ────────────────────────────────────────────────────────────────
 const id = new URLSearchParams(location.search).get('w');
